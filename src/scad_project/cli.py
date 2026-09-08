@@ -5,8 +5,9 @@ import sys
 
 from .build import build_project, check_libraries
 from .config import ConfigError, load_context, validate_config
-from .design import lint_design, render_design
+from .design import build_design, lint_design
 from .docs import lint_docs
+from .publish import publish_build
 from .externals import (
     check_externals,
     deinit_externals,
@@ -76,16 +77,14 @@ def main() -> None:
                 raise RuntimeError("\n".join(errors))
             print("OpenSCAD docs: OK")
         elif args.command == "design-lint":
-            renders, errors, stale = lint_design(ctx)
+            renders, errors = lint_design(ctx)
             if errors:
                 raise RuntimeError("\n".join(errors))
             print(f"design renders declared: {len(renders)}")
-            for path in stale:
-                print(f"WARNING: stale design image: {path.relative_to(ctx.root)}")
             print("design documentation: OK")
-        elif args.command == "design-render":
-            render_design(ctx)
-            print("design renders: OK")
+        elif args.command in {"design-build", "design-render"}:
+            build_design(ctx)
+            print("design build: OK")
         elif args.command == "build":
             errors = validate_externals_config(ctx) + check_externals(ctx)
             if errors:
@@ -98,14 +97,14 @@ def main() -> None:
                 + check_externals(ctx)
                 + lint_docs(ctx)
             )
-            _, design_errors, stale = lint_design(ctx)
+            _, design_errors = lint_design(ctx)
             errors += design_errors
             if errors:
                 raise RuntimeError("\n".join(errors))
-            for path in stale:
-                print(f"WARNING: stale design image: {path.relative_to(ctx.root)}")
             build_project(ctx)
             print("verify: OK")
+        elif args.command == "publish-build":
+            publish_build(ctx)
 
     except (ConfigError, RuntimeError) as exc:
         print(f"ERROR: {exc}", file=sys.stderr)

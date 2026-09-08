@@ -32,7 +32,7 @@ scad-project externals-sync
 scad-project externals-deinit
 scad-project docs-lint
 scad-project design-lint
-scad-project design-render
+scad-project design-build
 scad-project build
 scad-project verify
 ```
@@ -303,4 +303,118 @@ available. `scad-project` can later lint that these declarations agree.
 
 A bootstrap must never require Python merely to obtain the project's pinned
 tooling and CAD-library submodules.
+
+
+## OpenSCAD warning validation
+
+OpenSCAD can return exit code `0` while still reporting warnings that indicate
+invalid or skipped geometry. `scad-project` therefore inspects OpenSCAD output
+after successful commands.
+
+The following warning classes are treated as errors:
+
+```text
+Ignoring unknown variable
+undefined operation
+Unable to convert ... parameter
+warnings involving undef/undefined values
+```
+
+Known presentation-only warnings are allowed, including:
+
+```text
+Viewall and autocenter disabled in favor of $vp*
+```
+
+This prevents `design-render` or `build` from reporting success merely because
+OpenSCAD returned a zero exit code while geometry was actually incomplete.
+
+
+## Materialized design build
+
+`design.md` is source documentation and remains on the normal code branch.
+Generated images do not live beside it.
+
+Run:
+
+```text
+scad-project design-build
+```
+
+The tool discovers design documents from both the project and configured
+externals, renders their declared views, and creates a complete generated tree:
+
+```text
+bld/design/
+├── README.md
+├── project/
+│   └── .../design/
+│       ├── design.md
+│       └── img/
+└── ext/
+    └── <external-name>/
+        └── .../design/
+            ├── design.md
+            └── img/
+```
+
+The generated `design.md` files are materialized copies. A source declaration
+such as:
+
+```markdown
+<!-- scad-design
+type: source-view
+module: tube_design
+view: bore
+image: 02-bore.png
+alt: Tube bore
+-->
+```
+
+becomes:
+
+```markdown
+![Tube bore](img/02-bore.png)
+```
+
+in the build tree.
+
+The source Markdown and external checkouts are never modified.
+
+The complete design tree is staged first and only replaces `bld/design` after a
+successful build, so a failed render does not destroy the previous local build.
+
+### External design documentation
+
+Configured externals are intentionally included. This means a consumer project
+can build and browse the design documentation of a library dependency without
+that library committing generated PNG files to its source branch.
+
+The same library can generate the same documentation in its own repository.
+
+## Generated build branch
+
+Generated content belongs off the source branch.
+
+`project.yml` may define:
+
+```yaml
+publication:
+  build_branch: build
+```
+
+CI can then run:
+
+```text
+scad-project publish-build
+```
+
+which force-replaces a mutable orphan `build` branch with the current contents
+of `bld/`.
+
+The source branch therefore contains only source/configuration, while the build
+branch contains materialized documentation, renders and exports.
+
+`publish-build` is intended for authenticated CI. Pull requests should build
+and upload artifacts but not publish the branch.
 

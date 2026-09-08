@@ -225,3 +225,50 @@ the Python bootstrap dependency.
 
 After bootstrap, normal project operations may use the local Python tool.
 
+
+## OpenSCAD warning policy
+
+Do not treat OpenSCAD exit code 0 as sufficient proof of a valid render/build.
+
+`run_checked()` captures combined stdout/stderr and rejects warning classes that
+usually indicate broken geometry, including unknown variables, undefined
+operations and invalid translate/rotate/etc parameter conversion.
+
+The viewport message caused by explicit `$vpr/$vpt/$vpd` is benign and allowed.
+
+When adding new warning handling, prefer a small explicit allow/fatal policy
+over treating every OpenSCAD WARNING as fatal.
+
+
+## Materialized design architecture
+
+`design.md` is source. Generated documentation is build output.
+
+Never write design PNGs back into:
+- project `dsg/...`;
+- an external library checkout.
+
+`design-build` discovers project and external `design/design.md` documents,
+renders all declarations, materializes image references, and writes only under:
+
+```text
+bld/design/project/...
+bld/design/ext/<external-name>/...
+```
+
+A top-level `bld/design/README.md` indexes both scopes.
+
+Build the complete design tree in staging first, then atomically replace the
+local `bld/design` directory after success.
+
+The mutable generated branch defaults to:
+
+```text
+build
+```
+
+`publish-build` publishes only contents of `bld/` as an orphan snapshot and
+must not publish on PRs.
+
+Keep source branches free of generated PNG/STL/materialized Markdown.
+
