@@ -54,9 +54,19 @@ def validate_config(context: ProjectContext) -> list[str]:
     if not isinstance(c.get("paths"), dict):
         errors.append("Missing mapping: paths")
     else:
-        for key in ("design_root", "build_root"):
-            if not c["paths"].get(key):
-                errors.append(f"Missing value: paths.{key}")
+        paths = c["paths"]
+        if not paths.get("build_root"):
+            errors.append("Missing value: paths.build_root")
+
+        design_root = paths.get("design_root")
+        design_roots = paths.get("design_roots")
+        if not design_root and not design_roots:
+            errors.append("Missing value: paths.design_root or paths.design_roots")
+        if design_roots is not None:
+            if not isinstance(design_roots, list) or not design_roots:
+                errors.append("paths.design_roots must be a non-empty list")
+            elif not all(isinstance(item, str) and item.strip() for item in design_roots):
+                errors.append("paths.design_roots must contain path strings")
 
     externals = c.get("externals")
     if externals is None:

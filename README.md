@@ -1,6 +1,6 @@
 # tool.scad-project
 
-Reusable workflow tooling for configuration-driven OpenSCAD projects.
+Reusable workflow tooling for configuration-driven SCAD projects using OpenSCAD and PythonSCAD.
 
 Repository role:
 
@@ -46,7 +46,7 @@ project:
   name: example.scad-project
 
 paths:
-  design_root: dsg/openscad
+  design_root: dsg
   build_root: bld
 
 openscad:
@@ -122,6 +122,73 @@ geometry.
 
 Presentation metadata such as `vpr`, `vpt`, `vpd` and `size` can live in the
 render declaration.
+
+
+## Design render engines
+
+`design-build` supports two render engines:
+
+```text
+openscad
+pythonscad
+```
+
+The engine can be explicit:
+
+```markdown
+<!-- scad-render-defaults
+engine: pythonscad
+source: render.py
+-->
+```
+
+or inferred from the source entrypoint:
+
+```text
+.scad -> openscad
+.py   -> pythonscad
+```
+
+An explicit `engine` always takes precedence over suffix inference. Source file
+type and render engine are deliberately separate concepts; this leaves room for
+PythonSCAD entrypoints that consume `.scad` libraries through `osuse()` or
+`osinclude()`.
+
+OpenSCAD source views use:
+
+```text
+source + module + view
+```
+
+PythonSCAD source views use:
+
+```text
+source + view
+```
+
+For PythonSCAD the tool invokes the entrypoint with:
+
+```text
+-D design_view="<view>"
+```
+
+so render scripts can read:
+
+```python
+design_view = globals().get("design_view", "final")
+```
+
+PythonSCAD project defaults may be configured separately:
+
+```yaml
+pythonscad:
+  common_flags:
+    - --trust-python
+  render_flags:
+    - --render
+```
+
+Inline Markdown geometry remains OpenSCAD-only for now.
 
 ## Source documentation
 

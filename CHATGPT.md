@@ -296,3 +296,36 @@ replace `bld/design` only after success.
 
 Use user-facing wording such as "generated design documentation" and keep terminology simple.
 
+
+## Multi-engine design rendering
+
+`tool.scad-project` owns render dispatch for generated design documentation.
+
+Supported engines:
+- `openscad`
+- `pythonscad`
+
+Selection precedence:
+1. per-render `engine`
+2. `scad-render-defaults.engine`
+3. source suffix inference (`.scad` -> OpenSCAD, `.py` -> PythonSCAD)
+4. error if ambiguous
+
+Do not equate source format with runtime architecture. PythonSCAD may consume
+OpenSCAD libraries, so an explicit engine must always override suffix inference.
+
+OpenSCAD source-view contract:
+- source
+- module
+- view
+
+PythonSCAD source-view contract:
+- source/entrypoint
+- view injected as `-D design_view=<value>`
+
+Run PythonSCAD renders from the entrypoint directory so sibling Python imports
+work naturally.
+
+Inline render snippets are OpenSCAD-only until an explicit Python inline format
+is designed.
+

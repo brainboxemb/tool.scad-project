@@ -1,13 +1,18 @@
-"""Generate design documentation from Markdown render declarations.
+"""Generate design documentation using OpenSCAD or PythonSCAD render backends.
 
-Source ``design.md`` files remain authoritative and are never modified. This
-module discovers project and external design documents, renders declared
-OpenSCAD views, and writes a complete generated documentation tree below
-``bld/design``.
+Source ``design.md`` files remain authoritative and are never modified.
+``scad-render-defaults`` and ``scad-render`` describe render intent; the render
+engine is selected explicitly when needed or inferred from the source suffix.
 
-Canonical Markdown tags are ``scad-render-defaults`` and ``scad-render``.
-Legacy ``scad-design`` render tags remain supported while existing libraries
-are migrated.
+Supported engines:
+- ``openscad``
+- ``pythonscad``
+
+Inference:
+- ``.scad`` -> OpenSCAD
+- ``.py``   -> PythonSCAD
+
+An explicit ``engine`` always wins over suffix inference.
 """
 
 from __future__ import annotations
@@ -26,8 +31,6 @@ from .externals import configured_externals
 from .process import run_checked
 
 
-# Render metadata stays inside Markdown comments so source documentation remains
-# readable in GitHub even before generated images have been built.
 RENDER_BLOCK_RE = re.compile(
     r"<!--\s*(?P<tag>scad-render|scad-design)\s*\n(?P<body>.*?)\n\s*-->",
     re.DOTALL,
@@ -46,7 +49,7 @@ IMAGE_LINK_RE = re.compile(r"!\[[^\]]*\]\((?P<target>img/[^)]+)\)")
 
 @dataclass(frozen=True)
 class DesignDocument:
-    """One source design document and its generated destination namespace."""
+    """One design source and its generated destination namespace."""
 
     source_file: Path
     scope: str
@@ -56,11 +59,12 @@ class DesignDocument:
 
 @dataclass(frozen=True)
 class DesignRender:
-    """One normalized render declaration after document defaults are applied."""
+    """One normalized render declaration."""
 
     document: DesignDocument
     block_start: int
     block_end: int
+    engine: str
     kind: str
     image: str
     alt: str
@@ -74,36 +78,57 @@ class DesignRender:
     size: list[int] | None
 
 
-def discover_design_documents(context: ProjectContext) -> list[DesignDocument]:
-    """Return project and configured-external ``design/design.md`` sources.
+def _project_design_roots(context: ProjectContext) -> list[Path]:
+    """Return configured project design roots with backward compatibility."""
 
-    Project discovery skips ``dsg/openscad/ext`` because configured externals
-    are discovered separately. Keeping that distinction lets the generated tree
-    preserve a stable ``ext/<external-name>/...`` namespace.
+    paths = context.config["paths"]
+    configured = paths.get("design_roots")
+    if configured:
+        return [context.path(item) for item in configured]
+    return [context.path(paths["design_root"])]
+
+
+def _inside(path: Path, parent: Path) -> bool:
+    """Return whether path is located below parent."""
+
+    try:
+        path.resolve().relative_to(parent.resolve())
+        return True
+    except ValueError:
+        return False
+
+
+def discover_design_documents(context: ProjectContext) -> list[DesignDocument]:
+    """Discover project and external ``design/design.md`` files.
+
+    Configured external checkouts are excluded from project discovery and are
+    added separately so generated paths retain the external repository name.
     """
 
     documents: list[DesignDocument] = []
-    design_root = context.path(context.config["paths"]["design_root"])
+    project_roots = _project_design_roots(context)
+    external_roots = [
+        external.root(context).resolve()
+        for external in configured_externals(context)
+    ]
 
-    if design_root.exists():
-        ext_root = (design_root / "ext").resolve()
+    for design_root in project_roots:
+        if not design_root.exists():
+            continue
+
         for path in sorted(design_root.rglob("design/design.md")):
-            try:
-                path.resolve().relative_to(ext_root)
+            resolved = path.resolve()
+            if any(_inside(resolved, external_root) for external_root in external_roots):
                 continue
-            except ValueError:
-                pass
 
             documents.append(
                 DesignDocument(
-                    source_file=path.resolve(),
+                    source_file=resolved,
                     scope="project",
-                    relative_path=path.resolve().relative_to(design_root.resolve()),
+                    relative_path=resolved.relative_to(design_root.resolve()),
                 )
             )
 
-    # External repositories are read-only inputs. Generated docs and images
-    # always go to bld/design; dependency working trees are never modified.
     for external in configured_externals(context):
         root = external.root(context)
         if not root.exists():
@@ -122,37 +147,30 @@ def discover_design_documents(context: ProjectContext) -> list[DesignDocument]:
     return documents
 
 
-def _infer_source(design_file: Path) -> Path | None:
-    """Infer the component SCAD source when exactly one candidate exists."""
-
-    candidates = sorted(design_file.parent.parent.glob("*.scad"))
-    return candidates[0].resolve() if len(candidates) == 1 else None
-
-
 def _load_yaml_mapping(body: str, prefix: str) -> tuple[dict[str, Any] | None, str | None]:
-    """Read one YAML comment body and require a mapping."""
+    """Parse a YAML metadata block and require a mapping."""
 
     try:
         data = yaml.safe_load(body) or {}
     except yaml.YAMLError as exc:
         return None, f"{prefix}: invalid YAML: {exc}"
-
     if not isinstance(data, dict):
         return None, f"{prefix}: declaration must be a YAML mapping"
     return data, None
 
 
 def _document_defaults(text: str, path: Path) -> tuple[dict[str, Any], list[str]]:
-    """Return the single optional render-defaults block from a document."""
+    """Return the optional document-level render defaults."""
 
     matches = list(DEFAULTS_BLOCK_RE.finditer(text))
     if len(matches) > 1:
         return {}, [f"{path}: only one scad-render-defaults block is allowed"]
     if not matches:
         return {}, []
-
-    match = matches[0]
-    data, error = _load_yaml_mapping(match.group("body"), f"{path}: render defaults")
+    data, error = _load_yaml_mapping(
+        matches[0].group("body"),
+        f"{path}: render defaults",
+    )
     return (data or {}), ([error] if error else [])
 
 
@@ -163,8 +181,6 @@ def _number_list(
     field: str,
     error_prefix: str,
 ) -> tuple[list[float] | None, str | None]:
-    """Validate a numeric YAML list used by viewport metadata."""
-
     if value is None:
         return None, None
     if not isinstance(value, list) or len(value) != length or not all(
@@ -174,13 +190,7 @@ def _number_list(
     return [float(item) for item in value], None
 
 
-def _image_size(
-    value: Any,
-    *,
-    error_prefix: str,
-) -> tuple[list[int] | None, str | None]:
-    """Validate optional ``size: [width, height]`` render metadata."""
-
+def _image_size(value: Any, *, error_prefix: str) -> tuple[list[int] | None, str | None]:
     if value is None:
         return None, None
     if (
@@ -193,24 +203,59 @@ def _image_size(
 
 
 def _slug(value: Any, fallback: str) -> str:
-    """Create a stable, filename-safe suffix for automatic render names."""
-
     text = str(value).strip().lower() if value is not None else fallback
     text = re.sub(r"[^a-z0-9]+", "-", text).strip("-")
     return text or fallback
 
 
-def parse_design_document(document: DesignDocument) -> tuple[list[DesignRender], list[str]]:
-    """Parse render declarations and apply document-level defaults.
+def _infer_engine(source: Path | None) -> str | None:
+    """Infer a render engine from an entrypoint suffix."""
 
-    Precedence is:
+    if source is None:
+        return None
+    suffix = source.suffix.lower()
+    if suffix == ".scad":
+        return "openscad"
+    if suffix == ".py":
+        return "pythonscad"
+    return None
 
-    ``project.yml defaults -> scad-render-defaults -> scad-render``
 
-    The project-level image-size default is applied later during rendering.
-    Metadata in ``scad-render`` therefore only needs to contain values that
-    differ for that individual design step.
+def _resolve_source(
+    design_file: Path,
+    source_value: Any,
+    explicit_engine: str | None,
+) -> Path | None:
+    """Resolve an explicit or inferable render entrypoint.
+
+    If source is omitted, a single sibling source matching the explicit engine
+    is preferred. Without an explicit engine, inference is allowed only when
+    exactly one ``.scad`` or ``.py`` candidate exists.
     """
+
+    component_dir = design_file.parent.parent
+
+    if source_value:
+        return (component_dir / str(source_value)).resolve()
+
+    suffixes: tuple[str, ...]
+    if explicit_engine == "openscad":
+        suffixes = (".scad",)
+    elif explicit_engine == "pythonscad":
+        suffixes = (".py",)
+    else:
+        suffixes = (".scad", ".py")
+
+    candidates = sorted(
+        path.resolve()
+        for path in component_dir.iterdir()
+        if path.is_file() and path.suffix.lower() in suffixes
+    )
+    return candidates[0] if len(candidates) == 1 else None
+
+
+def parse_design_document(document: DesignDocument) -> tuple[list[DesignRender], list[str]]:
+    """Parse and normalize render metadata for one design document."""
 
     path = document.source_file
     text = path.read_text(encoding="utf-8")
@@ -226,8 +271,6 @@ def parse_design_document(document: DesignDocument) -> tuple[list[DesignRender],
             continue
         assert local is not None
 
-        # Per-render values override the defaults block. Source-view is the
-        # normal case, so authors do not need to repeat the type on every step.
         data = {**defaults, **local}
         kind = data.get("type", "source-view")
         view = data.get("view")
@@ -235,6 +278,61 @@ def parse_design_document(document: DesignDocument) -> tuple[list[DesignRender],
         if kind not in {"source-view", "inline"}:
             errors.append(f"{prefix}: unknown type {kind!r}")
             continue
+
+        explicit_engine = data.get("engine")
+        if explicit_engine is not None:
+            if explicit_engine not in {"openscad", "pythonscad"}:
+                errors.append(
+                    f"{prefix}: engine must be 'openscad' or 'pythonscad'"
+                )
+                continue
+
+        source = None
+        inline_code = None
+
+        if kind == "source-view":
+            source = _resolve_source(path, data.get("source"), explicit_engine)
+            if source is None or not source.is_file():
+                errors.append(
+                    f"{prefix}: source could not be resolved; specify source "
+                    "when multiple candidate entrypoints exist"
+                )
+                continue
+        else:
+            # Inline rendering currently means inline OpenSCAD. A PythonSCAD
+            # inline format can be added later without changing source-view API.
+            if explicit_engine == "pythonscad":
+                errors.append(
+                    f"{prefix}: inline PythonSCAD renders are not supported; "
+                    "use a .py source entrypoint"
+                )
+                continue
+            fence = FENCE_RE.match(text[match.end():])
+            if not fence:
+                errors.append(
+                    f"{prefix}: inline render must be immediately followed by "
+                    "an openscad fenced block"
+                )
+                continue
+            inline_code = fence.group("code")
+
+        engine = explicit_engine or _infer_engine(source)
+        if engine is None:
+            engine = "openscad" if kind == "inline" else None
+        if engine not in {"openscad", "pythonscad"}:
+            errors.append(
+                f"{prefix}: render engine is ambiguous; set engine explicitly"
+            )
+            continue
+
+        module = data.get("module")
+        if engine == "openscad" and kind == "source-view":
+            if not isinstance(module, str) or not module.strip():
+                errors.append(
+                    f"{prefix}: OpenSCAD source-view requires module "
+                    "(usually set it in scad-render-defaults)"
+                )
+                continue
 
         image = data.get("image")
         if image is None:
@@ -278,8 +376,6 @@ def parse_design_document(document: DesignDocument) -> tuple[list[DesignRender],
             continue
         vpd = float(vpd_value) if vpd_value is not None else None
 
-        # vpr by itself means "orient and auto-fit". Once vpt/vpd is supplied,
-        # all exact-camera fields must be present to avoid ambiguous framing.
         if (vpt is not None or vpd is not None) and not (
             vpr is not None and vpt is not None and vpd is not None
         ):
@@ -289,51 +385,17 @@ def parse_design_document(document: DesignDocument) -> tuple[list[DesignRender],
             )
             continue
 
-        source = None
-        module = None
-        inline_code = None
-
-        if kind == "source-view":
-            module = data.get("module")
-            if not isinstance(module, str) or not module.strip():
-                errors.append(
-                    f"{prefix}: source-view requires module "
-                    "(usually set it once in scad-render-defaults)"
-                )
-                continue
-
-            source_value = data.get("source")
-            if source_value:
-                source = (path.parent.parent / str(source_value)).resolve()
-            else:
-                source = _infer_source(path)
-
-            if source is None or not source.is_file():
-                errors.append(
-                    f"{prefix}: source could not be resolved; specify source "
-                    "when multiple .scad files exist"
-                )
-                continue
-        else:
-            fence = FENCE_RE.match(text[match.end():])
-            if not fence:
-                errors.append(
-                    f"{prefix}: inline render must be immediately followed by "
-                    "an openscad fenced block"
-                )
-                continue
-            inline_code = fence.group("code")
-
         renders.append(
             DesignRender(
                 document=document,
                 block_start=match.start(),
                 block_end=match.end(),
+                engine=engine,
                 kind=kind,
                 image=image,
                 alt=alt,
                 source=source,
-                module=module,
+                module=module if isinstance(module, str) else None,
                 view=view,
                 inline_code=inline_code,
                 vpr=vpr,
@@ -347,8 +409,6 @@ def parse_design_document(document: DesignDocument) -> tuple[list[DesignRender],
 
 
 def lint_design(context: ProjectContext) -> tuple[list[DesignRender], list[str]]:
-    """Lint all project and external design-render declarations."""
-
     all_renders: list[DesignRender] = []
     errors: list[str] = []
     for document in discover_design_documents(context):
@@ -359,7 +419,7 @@ def lint_design(context: ProjectContext) -> tuple[list[DesignRender], list[str]]
 
 
 def _lit(value: Any) -> str:
-    """Serialize the small subset of values used in generated SCAD calls."""
+    """Serialize values for OpenSCAD/PythonSCAD ``-D`` expressions."""
 
     if isinstance(value, str):
         return '"' + value.replace("\\", "\\\\").replace('"', '\\"') + '"'
@@ -374,15 +434,12 @@ def _lit(value: Any) -> str:
     return str(value)
 
 
-def _entrypoint(render: DesignRender) -> str:
-    """Create the temporary SCAD entrypoint for one design render."""
+def _openscad_entrypoint(render: DesignRender) -> str:
+    """Create one temporary OpenSCAD entrypoint."""
 
     lines: list[str] = []
     if render.kind == "source-view":
         assert render.source is not None
-        # Absolute source paths make the temporary entrypoint independent of
-        # the staging directory. Includes inside that source remain relative to
-        # the source file as OpenSCAD normally expects.
         lines.append(f"use <{render.source.as_posix()}>")
 
     lines.append("$fn = 120;")
@@ -400,15 +457,12 @@ def _entrypoint(render: DesignRender) -> str:
 
 
 def _camera_args(render: DesignRender) -> list[str]:
-    """Return OpenSCAD camera flags while preserving useful auto-fit behavior."""
+    """Return camera flags shared by the OpenSCAD-compatible CLIs."""
 
     if render.vpr is None:
         return ["--autocenter", "--viewall"]
 
     if render.vpt is None and render.vpd is None:
-        # OpenSCAD's CLI camera form needs target and distance values too.
-        # A zero distance combined with --viewall means vpr acts only as the
-        # requested orientation and OpenSCAD determines a suitable framing.
         camera = [0.0, 0.0, 0.0, *render.vpr, 0.0]
         return [
             "--camera=" + ",".join(str(v) for v in camera),
@@ -421,26 +475,78 @@ def _camera_args(render: DesignRender) -> list[str]:
     return ["--camera=" + ",".join(str(v) for v in camera)]
 
 
-def _generated_document_path(
-    context: ProjectContext,
-    document: DesignDocument,
-) -> Path:
-    """Map one source document to its stable path below ``bld/design``."""
+def _engine_config(context: ProjectContext, engine: str) -> dict[str, Any]:
+    """Return per-engine project configuration with safe defaults."""
 
-    root = context.path(context.config["paths"]["build_root"]) / "design"
-    if document.scope == "project":
-        return root / "project" / document.relative_path
-    assert document.external_name
-    return root / "ext" / document.external_name / document.relative_path
+    cfg = context.config.get(engine, {}) or {}
+    if engine == "openscad":
+        return {
+            "common_flags": [str(v) for v in cfg.get("common_flags", [])],
+            "render_flags": [str(v) for v in cfg.get("render_flags", ["--render"])],
+        }
+
+    return {
+        "common_flags": [
+            str(v) for v in cfg.get("common_flags", ["--trust-python"])
+        ],
+        "render_flags": [str(v) for v in cfg.get("render_flags", ["--render"])],
+    }
+
+
+def _render_args(
+    context: ProjectContext,
+    render: DesignRender,
+    entry: Path | None,
+    output: Path,
+    size: list[int],
+) -> list[str]:
+    """Build the command line for one render backend."""
+
+    cfg = _engine_config(context, render.engine)
+    shared = [
+        *cfg["common_flags"],
+        *cfg["render_flags"],
+        *_camera_args(render),
+        f"--imgsize={int(size[0])},{int(size[1])}",
+    ]
+
+    if render.engine == "openscad":
+        assert entry is not None
+        return [
+            "xvfb-run",
+            "-a",
+            "openscad",
+            *shared,
+            "-o",
+            str(output),
+            str(entry),
+        ]
+
+    assert render.source is not None
+    args = [
+        "xvfb-run",
+        "-a",
+        "pythonscad",
+        *shared,
+        "--trust-python",
+    ]
+
+    # Avoid duplicating --trust-python when it is already configured.
+    deduped: list[str] = []
+    for value in args:
+        if value == "--trust-python" and value in deduped:
+            continue
+        deduped.append(value)
+
+    if render.view is not None:
+        deduped += ["-D", f"design_view={_lit(render.view)}"]
+
+    deduped += ["-o", str(output), str(render.source)]
+    return deduped
 
 
 def _copy_source_assets(document: DesignDocument, out_doc: Path) -> None:
-    """Copy static design assets before generated renders are written.
-
-    This keeps generated documentation compatible with libraries that still
-    reference checked-in images. Generated render declarations remain
-    authoritative and overwrite files with the same names.
-    """
+    """Copy static sibling assets used by legacy design documentation."""
 
     source_dir = document.source_file.parent
     target_dir = out_doc.parent
@@ -455,12 +561,9 @@ def _copy_source_assets(document: DesignDocument, out_doc: Path) -> None:
 
 
 def _generate_markdown(source_text: str, renders: list[DesignRender]) -> str:
-    """Create the generated Markdown copy with real image references."""
+    """Generate reader-facing Markdown with ordinary image links."""
 
     replacements: list[tuple[int, int, str]] = []
-
-    # Render-default blocks are authoring metadata and should not appear in the
-    # generated documentation shown to readers.
     for match in DEFAULTS_BLOCK_RE.finditer(source_text):
         replacements.append((match.start(), match.end(), ""))
 
@@ -473,7 +576,6 @@ def _generate_markdown(source_text: str, renders: list[DesignRender]) -> str:
             )
         )
 
-    # Work backwards so source offsets remain valid while replacing text.
     result = source_text
     for start, end, replacement in sorted(replacements, reverse=True):
         result = result[:start] + replacement + result[end:]
@@ -481,8 +583,6 @@ def _generate_markdown(source_text: str, renders: list[DesignRender]) -> str:
 
 
 def _missing_local_images(markdown: str, document_path: Path) -> list[Path]:
-    """Return missing local ``img/...`` links from generated Markdown."""
-
     missing: list[Path] = []
     for match in IMAGE_LINK_RE.finditer(markdown):
         target = (document_path.parent / match.group("target")).resolve()
@@ -492,7 +592,7 @@ def _missing_local_images(markdown: str, document_path: Path) -> list[Path]:
 
 
 def build_design(context: ProjectContext) -> None:
-    """Generate the complete browsable design-documentation tree."""
+    """Generate project and external design documentation."""
 
     renders, errors = lint_design(context)
     if errors:
@@ -505,23 +605,16 @@ def build_design(context: ProjectContext) -> None:
     for render in renders:
         by_document.setdefault(render.document.source_file, []).append(render)
 
-    openscad = context.config.get("openscad", {}) or {}
-    common_flags = [str(v) for v in openscad.get("common_flags", [])]
-    render_flags = [str(v) for v in openscad.get("render_flags", ["--render"])]
-
-    # Design docs use a deliberately modest default image size. Normal project
-    # renders continue to use openscad.image_size.
-    default_size = openscad.get(
+    openscad_cfg = context.config.get("openscad", {}) or {}
+    default_size = openscad_cfg.get(
         "design_image_size",
-        openscad.get("image_size", [640, 480]),
+        openscad_cfg.get("image_size", [640, 480]),
     )
 
     build_root = context.path(context.config["paths"]["build_root"])
     generated_root = build_root / "design"
     warnings: list[str] = []
 
-    # Build the complete tree in a temporary staging directory first. A failed
-    # render therefore leaves the previous local bld/design untouched.
     with tempfile.TemporaryDirectory(prefix="scad-project-design-build-") as td:
         stage = Path(td) / "design"
         stage.mkdir(parents=True, exist_ok=True)
@@ -548,25 +641,28 @@ def build_design(context: ProjectContext) -> None:
 
             doc_renders = by_document.get(document.source_file, [])
             for render in doc_renders:
-                entry_counter += 1
-                entry = entry_root / f"render-{entry_counter:04d}.scad"
-                entry.write_text(_entrypoint(render), encoding="utf-8")
+                entry: Path | None = None
+                if render.engine == "openscad":
+                    entry_counter += 1
+                    entry = entry_root / f"render-{entry_counter:04d}.scad"
+                    entry.write_text(
+                        _openscad_entrypoint(render),
+                        encoding="utf-8",
+                    )
 
                 size = render.size or default_size
                 output = image_dir / render.image
-                args = [
-                    "xvfb-run",
-                    "-a",
-                    "openscad",
-                    *common_flags,
-                    *render_flags,
-                    *_camera_args(render),
-                    f"--imgsize={int(size[0])},{int(size[1])}",
-                    "-o",
-                    str(output),
-                    str(entry),
-                ]
-                run_checked(args, cwd=context.root)
+                args = _render_args(context, render, entry, output, size)
+
+                # Run from the Python source directory for PythonSCAD so local
+                # sibling imports behave exactly as they do in hand-written
+                # PythonSCAD render scripts.
+                cwd = (
+                    render.source.parent
+                    if render.engine == "pythonscad" and render.source is not None
+                    else context.root
+                )
+                run_checked(args, cwd=cwd)
 
                 if not output.is_file() or output.stat().st_size == 0:
                     raise RuntimeError(f"Missing or empty design render: {output}")
@@ -575,10 +671,6 @@ def build_design(context: ProjectContext) -> None:
             generated = _generate_markdown(source_text, doc_renders)
             out_doc.write_text(generated, encoding="utf-8")
 
-            # Legacy external docs can contain image links without render
-            # declarations. Copy assets when available and warn when a
-            # dependency itself contains a broken legacy link. Project-owned
-            # documentation stays strict and fails on missing local images.
             missing = _missing_local_images(generated, out_doc)
             if missing:
                 relative = ", ".join(
@@ -616,11 +708,7 @@ def build_design(context: ProjectContext) -> None:
         external_docs = [d for d in documents if d.scope == "external"]
         if external_docs:
             for document in external_docs:
-                link = (
-                    Path("ext")
-                    / document.external_name
-                    / document.relative_path
-                )
+                link = Path("ext") / document.external_name / document.relative_path
                 label = (
                     f"{document.external_name}: "
                     f"{document.relative_path.as_posix()}"
