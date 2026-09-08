@@ -32,7 +32,8 @@ def main() -> None:
         "config-lint", "externals-check", "externals-status",
         "externals-init", "externals-sync", "externals-deinit",
         "libraries-check", "docs-lint", "design-lint",
-        "design-render", "build", "verify",
+        "design-build", "design-render", "build", "verify",
+        "publish-build",
     ):
         sub.add_parser(name)
 
