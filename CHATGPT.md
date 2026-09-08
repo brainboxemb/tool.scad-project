@@ -379,3 +379,48 @@ Consumers should not hand-author different build-branch index text in their CI.
 `project-verify.yml` is optional and intended only for projects with genuine
 functional verification evidence. `verification.commands` remain project
 specific while orchestration/publication remains generic.
+
+
+## Versioned dependency policy (v0.4.2)
+
+`project.yml` is the dependency-policy source. Parent gitlinks are the resolved
+lock.
+
+Preferred tooling form:
+
+```yaml
+tooling:
+  tool_scad_project:
+    type: git-submodule
+    url: https://github.com/brainboxemb/tool.scad-project.git
+    path: tools/tool.scad-project
+    ref: v0.4.2
+```
+
+External libraries also carry their own `ref`.
+
+Supported values:
+- exact tag, e.g. `v0.7.2`;
+- `latest`, meaning highest stable semantic-version tag;
+- branch name, e.g. `main`.
+
+Do not interpret `latest` as the default branch.
+
+Command semantics:
+- `repo-sync`: restore committed gitlinks only; do not advance floating refs.
+- `repo-update`: intentionally resolve refs and advance gitlinks.
+- `repo-status`: report policy + locked/current commit.
+
+This distinction preserves reproducible clones while allowing a project to opt
+individual dependencies into `latest` or `main`.
+
+`repo-update` updates libraries before `tool.scad-project` itself and leaves all
+changes uncommitted. When tooling is updated, thin reusable workflow callers
+are rewritten to the resolved literal workflow ref.
+
+Canonical convenience wrappers:
+- `update-repo.ps1`
+- `update-repo.sh`
+
+Consumer repositories may copy these to their root.
+

@@ -21,6 +21,7 @@ def test_external_schema(tmp_path: Path):
                     "url": "https://github.com/brainboxemb/lib.scad.clamps.git",
                     "path": "dsg/openscad/ext/lib.scad.clamps",
                     "required_file": "openscad/tube-clamp/tube_clamp.scad",
+                    "ref": "latest",
                 }
             ],
         },

@@ -13,6 +13,12 @@ from .publish import publish_build, publish_verification
 from .index import write_build_index
 from .tooling import tooling_errors
 from .verification import run_functional_verification
+from .dependencies import (
+    dependency_status,
+    repo_sync,
+    repo_update,
+    validate_dependency_config,
+)
 from .externals import (
     check_externals,
     deinit_externals,
@@ -43,6 +49,7 @@ def main() -> None:
         "design-build", "design-render", "build", "verify",
         "functional-verify", "build-index", "tooling-check",
         "publish-build", "publish-verification",
+        "repo-sync", "repo-update", "repo-status",
     ):
         sub.add_parser(name)
 
@@ -86,6 +93,21 @@ def main() -> None:
         elif args.command == "externals-deinit":
             deinit_externals(ctx)
             print("externals deinitialized")
+        elif args.command == "repo-sync":
+            repo_sync(ctx)
+            print("repository dependencies: synchronized")
+        elif args.command == "repo-update":
+            repo_update(ctx)
+            print("repository dependencies: update complete")
+        elif args.command == "repo-status":
+            errors = validate_dependency_config(ctx)
+            if errors:
+                raise RuntimeError("\n".join(errors))
+            for row in dependency_status(ctx):
+                print(
+                    f"{row['role']}: {row['name']} "
+                    f"ref={row['ref']} commit={row['commit']} path={row['path']}"
+                )
         elif args.command == "docs-lint":
             errors = lint_docs(ctx)
             if errors:

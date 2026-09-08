@@ -525,6 +525,91 @@ Generation also copies static files that already live next to a source
 `scad-design` declarations. Missing legacy images in an external produce a
 warning; missing project-owned images fail the build.
 
+## Versioned repository dependencies
+
+`project.yml` is the policy source for both project tooling and reusable CAD
+libraries. The parent repository's Git submodule gitlinks remain the lock.
+
+Example:
+
+```yaml
+tooling:
+  tool_scad_project:
+    type: git-submodule
+    url: https://github.com/brainboxemb/tool.scad-project.git
+    path: tools/tool.scad-project
+    ref: v0.4.2
+
+externals:
+  - name: lib.scad.clamps
+    type: git-submodule
+    url: https://github.com/brainboxemb/lib.scad.clamps.git
+    path: dsg/openscad/ext/lib.scad.clamps
+    ref: latest
+    required_file: openscad/tube-clamp/tube_clamp.scad
+```
+
+`ref` is per dependency and supports:
+
+```text
+v0.4.2
+    exact tag
+
+latest
+    newest stable vX.Y.Z tag
+
+main
+develop
+feature-branch
+    current head of that remote branch
+```
+
+`latest` is deliberately not another spelling for `main`.
+
+The repository operations are:
+
+```text
+bootstrap
+    establish the submodule registrations/checkouts
+
+repo-sync
+    restore the exact commits already locked by the parent gitlinks
+
+repo-update
+    resolve each configured ref, update the submodule gitlinks and align
+    thin reusable-workflow callers
+
+repo-status
+    show configured refs and current commits
+```
+
+For convenience, consumer repositories can copy:
+
+```text
+update-repo.ps1
+update-repo.sh
+```
+
+Then a normal intentional dependency update is simply:
+
+```powershell
+.\update-repo.ps1
+```
+
+`repo-update` never commits. It leaves `project.yml`, workflow callers and
+changed gitlinks available for normal `git diff` / `git status` review.
+
+For tooling, workflow callers are derived from the resolved tooling ref:
+
+```text
+ref: v0.4.2  -> @v0.4.2
+ref: latest  -> @<resolved newest tag>
+ref: main    -> @main
+```
+
+This keeps dependency policy in `project.yml` while satisfying GitHub Actions'
+requirement that reusable workflow refs are literal in workflow YAML.
+
 ## Reusable GitHub workflows
 
 Consumer repositories should keep their GitHub Actions files thin and pin the
@@ -536,7 +621,7 @@ Build workflow:
 ```yaml
 jobs:
   build:
-    uses: brainboxemb/tool.scad-project/.github/workflows/project-build.yml@v0.4.1
+    uses: brainboxemb/tool.scad-project/.github/workflows/project-build.yml@v0.4.2
 ```
 
 Projects with separate functional verification can additionally use:
@@ -544,7 +629,7 @@ Projects with separate functional verification can additionally use:
 ```yaml
 jobs:
   verify:
-    uses: brainboxemb/tool.scad-project/.github/workflows/project-verify.yml@v0.4.1
+    uses: brainboxemb/tool.scad-project/.github/workflows/project-verify.yml@v0.4.2
     with:
       verification_path: vrf/out
 ```
@@ -569,7 +654,11 @@ A consumer declares the expected tool release in `project.yml`:
 
 ```yaml
 tooling:
-  tool_scad_project_version: v0.4.1
+  tool_scad_project:
+    type: git-submodule
+    url: https://github.com/brainboxemb/tool.scad-project.git
+    path: tools/tool.scad-project
+    ref: v0.4.2
 ```
 
 For a release-pinned consumer, these three references should represent the same
@@ -578,7 +667,7 @@ release:
 ```text
 project.yml tooling.tool_scad_project_version
 Git submodule tools/tool.scad-project
-reusable workflow @v0.4.1
+reusable workflow @v0.4.2
 ```
 
 `scad-project tooling-check` verifies the running CLI against `project.yml` and,

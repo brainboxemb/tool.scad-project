@@ -89,8 +89,19 @@ def validate_config(context: ProjectContext) -> list[str]:
     if tooling is not None:
         if not isinstance(tooling, dict):
             errors.append("tooling must be a mapping")
-        elif not tooling.get("tool_scad_project_version"):
-            errors.append("Missing value: tooling.tool_scad_project_version")
+        else:
+            modern = tooling.get("tool_scad_project")
+            legacy = tooling.get("tool_scad_project_version")
+            if modern is None and legacy is None:
+                errors.append(
+                    "tooling requires tool_scad_project or "
+                    "tool_scad_project_version"
+                )
+            elif modern is not None:
+                if not isinstance(modern, dict):
+                    errors.append("tooling.tool_scad_project must be a mapping")
+                elif not modern.get("ref"):
+                    errors.append("tooling.tool_scad_project.ref is required")
 
     verification = c.get("verification")
     if verification is not None:

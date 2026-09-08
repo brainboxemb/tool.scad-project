@@ -19,6 +19,7 @@ class External:
     url: str
     path: str
     required_file: str | None = None
+    ref: str | None = None
 
     def root(self, context: ProjectContext) -> Path:
         return context.path(self.path)
@@ -41,6 +42,7 @@ def configured_externals(context: ProjectContext) -> list[External]:
                 url=item.get("url", ""),
                 path=item["path"],
                 required_file=item.get("required_file"),
+                ref=item.get("ref"),
             )
         )
     return result
