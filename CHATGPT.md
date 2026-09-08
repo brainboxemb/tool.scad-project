@@ -240,39 +240,6 @@ When adding new warning handling, prefer a small explicit allow/fatal policy
 over treating every OpenSCAD WARNING as fatal.
 
 
-## Materialized design architecture
-
-`design.md` is source. Generated documentation is build output.
-
-Never write design PNGs back into:
-- project `dsg/...`;
-- an external library checkout.
-
-`design-build` discovers project and external `design/design.md` documents,
-renders all declarations, materializes image references, and writes only under:
-
-```text
-bld/design/project/...
-bld/design/ext/<external-name>/...
-```
-
-A top-level `bld/design/README.md` indexes both scopes.
-
-Build the complete design tree in staging first, then atomically replace the
-local `bld/design` directory after success.
-
-The mutable generated branch defaults to:
-
-```text
-build
-```
-
-`publish-build` publishes only contents of `bld/` as an orphan snapshot and
-must not publish on PRs.
-
-Keep source branches free of generated PNG/STL/materialized Markdown.
-
-
 
 ## Design image framing and legacy assets
 
@@ -281,6 +248,51 @@ A source-level `$vp*` disables OpenSCAD auto framing. Use CLI camera flags; `vpr
 alone means orientation plus `--autocenter --viewall`, while an exact camera
 requires `vpr`, `vpt` and `vpd` together.
 
-Materialization copies static sibling assets for backward compatibility.
+Generation copies static sibling assets for backward compatibility.
 Generated declaration images overwrite same-named copied assets. External legacy
 missing images warn; project-owned missing image links fail.
+
+## Generated design documentation architecture
+
+Source `design.md` files are authoritative. Never write generated design PNGs
+back into project source directories or external checkouts.
+
+Canonical authoring syntax:
+
+```markdown
+<!-- scad-render-defaults
+module: example_design
+vpr: [70, 0, 35]
+-->
+
+<!-- scad-render
+view: base
+-->
+```
+
+`scad-render` values override `scad-render-defaults`. Missing image names are
+generated as `NN-<view>.png` from declaration order. `scad-design` is only a
+temporary compatibility syntax for existing repositories.
+
+Project-level design image size belongs in:
+
+```yaml
+openscad:
+  design_image_size: [640, 480]
+```
+
+Normal build renders keep using `openscad.image_size`.
+
+`design-build` writes only below:
+
+```text
+bld/design/project/...
+bld/design/ext/<external-name>/...
+```
+
+The generated Markdown contains ordinary image references and omits authoring
+metadata blocks. Build the complete generated design tree in staging first and
+replace `bld/design` only after success.
+
+Use user-facing wording such as "generated design documentation" and keep terminology simple.
+

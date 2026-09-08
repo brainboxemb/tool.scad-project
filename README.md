@@ -330,10 +330,65 @@ This prevents `design-render` or `build` from reporting success merely because
 OpenSCAD returned a zero exit code while geometry was actually incomplete.
 
 
-## Materialized design build
+## Generated design documentation
 
-`design.md` is source documentation and remains on the normal code branch.
-Generated images do not live beside it.
+Source `design.md` files stay on the normal code branch. Generated images do
+not live beside them.
+
+Use one optional defaults block near the top of a design document:
+
+```markdown
+<!-- scad-render-defaults
+module: tube_design
+vpr: [70, 0, 35]
+-->
+```
+
+Normal design steps can then stay compact:
+
+```markdown
+<!-- scad-render
+view: outer
+-->
+
+<!-- scad-render
+view: bore
+-->
+
+<!-- scad-render
+view: final
+-->
+```
+
+Images are numbered automatically from their order in the file:
+
+```text
+01-outer.png
+02-bore.png
+03-final.png
+```
+
+`image:` remains available when a fixed custom filename is useful. Any value
+inside an individual `scad-render` overrides the document defaults.
+
+Image-size precedence is:
+
+```text
+scad-render size
+    ↓
+scad-render-defaults size
+    ↓
+project.yml openscad.design_image_size
+```
+
+The recommended project default is:
+
+```yaml
+openscad:
+  design_image_size: [640, 480]
+```
+
+Normal project renders can keep a larger `openscad.image_size`.
 
 Run:
 
@@ -341,8 +396,8 @@ Run:
 scad-project design-build
 ```
 
-The tool discovers design documents from both the project and configured
-externals, renders their declared views, and creates a complete generated tree:
+The tool discovers project and configured-external design documents, renders
+their declared views, and generates:
 
 ```text
 bld/design/
@@ -358,39 +413,12 @@ bld/design/
             └── img/
 ```
 
-The generated `design.md` files are materialized copies. A source declaration
-such as:
+The generated `design.md` replaces render declarations with ordinary Markdown
+image links. The source Markdown and external checkouts are never modified.
 
-```markdown
-<!-- scad-design
-type: source-view
-module: tube_design
-view: bore
-image: 02-bore.png
-alt: Tube bore
--->
-```
+`scad-design` remains accepted as a compatibility syntax while older libraries
+are migrated, but new documentation should use `scad-render`.
 
-becomes:
-
-```markdown
-![Tube bore](img/02-bore.png)
-```
-
-in the build tree.
-
-The source Markdown and external checkouts are never modified.
-
-The complete design tree is staged first and only replaces `bld/design` after a
-successful build, so a failed render does not destroy the previous local build.
-
-### External design documentation
-
-Configured externals are intentionally included. This means a consumer project
-can build and browse the design documentation of a library dependency without
-that library committing generated PNG files to its source branch.
-
-The same library can generate the same documentation in its own repository.
 
 ## Generated build branch
 
@@ -413,7 +441,7 @@ which force-replaces a mutable orphan `build` branch with the current contents
 of `bld/`.
 
 The source branch therefore contains only source/configuration, while the build
-branch contains materialized documentation, renders and exports.
+branch contains generated documentation, renders and exports.
 
 `publish-build` is intended for authenticated CI. Pull requests should build
 and upload artifacts but not publish the branch.
@@ -425,7 +453,7 @@ A declaration may use `size: [width, height]`. A declaration containing only
 `vpr` uses that orientation together with OpenSCAD auto-centering/view-all.
 Use `vpr`, `vpt` and `vpd` together only when an exact camera is required.
 
-Materialization also copies static files that already live next to a source
+Generation also copies static files that already live next to a source
 `design.md`. This keeps older external libraries readable while they migrate to
 `scad-design` declarations. Missing legacy images in an external produce a
 warning; missing project-owned images fail the build.

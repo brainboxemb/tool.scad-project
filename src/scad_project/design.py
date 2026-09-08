@@ -1,9 +1,13 @@
-"""Build materialized design documentation from Markdown render declarations.
+"""Generate design documentation from Markdown render declarations.
 
-Source ``design.md`` files remain authoritative and are never modified.  This
-module discovers design documents in the project and configured externals,
-renders declared OpenSCAD views, and creates a self-contained documentation
-copy below ``bld/design``.
+Source ``design.md`` files remain authoritative and are never modified. This
+module discovers project and external design documents, renders declared
+OpenSCAD views, and writes a complete generated documentation tree below
+``bld/design``.
+
+Canonical Markdown tags are ``scad-render-defaults`` and ``scad-render``.
+Legacy ``scad-design`` render tags remain supported while existing libraries
+are migrated.
 """
 
 from __future__ import annotations
@@ -22,10 +26,15 @@ from .externals import configured_externals
 from .process import run_checked
 
 
-# A design declaration is YAML embedded in a Markdown comment.  Keeping the
-# declaration in Markdown means the source document stays readable in Git.
-BLOCK_RE = re.compile(
-    r"<!--\s*scad-design\s*\n(?P<body>.*?)\n\s*-->",
+# Render metadata stays inside Markdown comments so source documentation remains
+# readable in GitHub even before generated images have been built.
+RENDER_BLOCK_RE = re.compile(
+    r"<!--\s*(?P<tag>scad-render|scad-design)\s*\n(?P<body>.*?)\n\s*-->",
+    re.DOTALL,
+)
+DEFAULTS_BLOCK_RE = re.compile(
+    r"<!--\s*(?P<tag>scad-render-defaults|scad-design-defaults)\s*\n"
+    r"(?P<body>.*?)\n\s*-->",
     re.DOTALL,
 )
 FENCE_RE = re.compile(
@@ -37,7 +46,7 @@ IMAGE_LINK_RE = re.compile(r"!\[[^\]]*\]\((?P<target>img/[^)]+)\)")
 
 @dataclass(frozen=True)
 class DesignDocument:
-    """One source design document and its destination namespace."""
+    """One source design document and its generated destination namespace."""
 
     source_file: Path
     scope: str
@@ -47,7 +56,7 @@ class DesignDocument:
 
 @dataclass(frozen=True)
 class DesignRender:
-    """Normalized render declaration parsed from a design document."""
+    """One normalized render declaration after document defaults are applied."""
 
     document: DesignDocument
     block_start: int
@@ -66,11 +75,11 @@ class DesignRender:
 
 
 def discover_design_documents(context: ProjectContext) -> list[DesignDocument]:
-    """Return project and external ``design/design.md`` sources.
+    """Return project and configured-external ``design/design.md`` sources.
 
-    The project search deliberately skips ``dsg/openscad/ext`` because those
-    files are discovered a second time through the configured external list.
-    That preserves the external name in the generated destination path.
+    Project discovery skips ``dsg/openscad/ext`` because configured externals
+    are discovered separately. Keeping that distinction lets the generated tree
+    preserve a stable ``ext/<external-name>/...`` namespace.
     """
 
     documents: list[DesignDocument] = []
@@ -78,7 +87,6 @@ def discover_design_documents(context: ProjectContext) -> list[DesignDocument]:
 
     if design_root.exists():
         ext_root = (design_root / "ext").resolve()
-
         for path in sorted(design_root.rglob("design/design.md")):
             try:
                 path.resolve().relative_to(ext_root)
@@ -94,8 +102,8 @@ def discover_design_documents(context: ProjectContext) -> list[DesignDocument]:
                 )
             )
 
-    # Externals are read-only inputs.  Materialization must never write into
-    # their checkout; all generated output is routed to bld/design/ext/....
+    # External repositories are read-only inputs. Generated docs and images
+    # always go to bld/design; dependency working trees are never modified.
     for external in configured_externals(context):
         root = external.root(context)
         if not root.exists():
@@ -115,13 +123,46 @@ def discover_design_documents(context: ProjectContext) -> list[DesignDocument]:
 
 
 def _infer_source(design_file: Path) -> Path | None:
-    """Infer the component SCAD file when exactly one candidate exists."""
+    """Infer the component SCAD source when exactly one candidate exists."""
 
     candidates = sorted(design_file.parent.parent.glob("*.scad"))
     return candidates[0].resolve() if len(candidates) == 1 else None
 
 
-def _number_list(value: Any, *, length: int, field: str, error_prefix: str) -> tuple[list[float] | None, str | None]:
+def _load_yaml_mapping(body: str, prefix: str) -> tuple[dict[str, Any] | None, str | None]:
+    """Read one YAML comment body and require a mapping."""
+
+    try:
+        data = yaml.safe_load(body) or {}
+    except yaml.YAMLError as exc:
+        return None, f"{prefix}: invalid YAML: {exc}"
+
+    if not isinstance(data, dict):
+        return None, f"{prefix}: declaration must be a YAML mapping"
+    return data, None
+
+
+def _document_defaults(text: str, path: Path) -> tuple[dict[str, Any], list[str]]:
+    """Return the single optional render-defaults block from a document."""
+
+    matches = list(DEFAULTS_BLOCK_RE.finditer(text))
+    if len(matches) > 1:
+        return {}, [f"{path}: only one scad-render-defaults block is allowed"]
+    if not matches:
+        return {}, []
+
+    match = matches[0]
+    data, error = _load_yaml_mapping(match.group("body"), f"{path}: render defaults")
+    return (data or {}), ([error] if error else [])
+
+
+def _number_list(
+    value: Any,
+    *,
+    length: int,
+    field: str,
+    error_prefix: str,
+) -> tuple[list[float] | None, str | None]:
     """Validate a numeric YAML list used by viewport metadata."""
 
     if value is None:
@@ -133,8 +174,12 @@ def _number_list(value: Any, *, length: int, field: str, error_prefix: str) -> t
     return [float(item) for item in value], None
 
 
-def _image_size(value: Any, *, error_prefix: str) -> tuple[list[int] | None, str | None]:
-    """Validate optional ``size: [width, height]`` metadata."""
+def _image_size(
+    value: Any,
+    *,
+    error_prefix: str,
+) -> tuple[list[int] | None, str | None]:
+    """Validate optional ``size: [width, height]`` render metadata."""
 
     if value is None:
         return None, None
@@ -147,33 +192,53 @@ def _image_size(value: Any, *, error_prefix: str) -> tuple[list[int] | None, str
     return list(value), None
 
 
+def _slug(value: Any, fallback: str) -> str:
+    """Create a stable, filename-safe suffix for automatic render names."""
+
+    text = str(value).strip().lower() if value is not None else fallback
+    text = re.sub(r"[^a-z0-9]+", "-", text).strip("-")
+    return text or fallback
+
+
 def parse_design_document(document: DesignDocument) -> tuple[list[DesignRender], list[str]]:
-    """Parse and validate all ``scad-design`` declarations in one document."""
+    """Parse render declarations and apply document-level defaults.
+
+    Precedence is:
+
+    ``project.yml defaults -> scad-render-defaults -> scad-render``
+
+    The project-level image-size default is applied later during rendering.
+    Metadata in ``scad-render`` therefore only needs to contain values that
+    differ for that individual design step.
+    """
 
     path = document.source_file
     text = path.read_text(encoding="utf-8")
+    defaults, errors = _document_defaults(text, path)
     renders: list[DesignRender] = []
-    errors: list[str] = []
     seen_images: set[str] = set()
 
-    for idx, match in enumerate(BLOCK_RE.finditer(text), 1):
-        prefix = f"{path}: block {idx}"
-        try:
-            data = yaml.safe_load(match.group("body")) or {}
-        except yaml.YAMLError as exc:
-            errors.append(f"{prefix}: invalid YAML: {exc}")
+    for idx, match in enumerate(RENDER_BLOCK_RE.finditer(text), 1):
+        prefix = f"{path}: render {idx}"
+        local, error = _load_yaml_mapping(match.group("body"), prefix)
+        if error:
+            errors.append(error)
             continue
+        assert local is not None
 
-        if not isinstance(data, dict):
-            errors.append(f"{prefix}: declaration must be a YAML mapping")
-            continue
-
-        kind = data.get("type")
-        image = data.get("image")
+        # Per-render values override the defaults block. Source-view is the
+        # normal case, so authors do not need to repeat the type on every step.
+        data = {**defaults, **local}
+        kind = data.get("type", "source-view")
+        view = data.get("view")
 
         if kind not in {"source-view", "inline"}:
             errors.append(f"{prefix}: unknown type {kind!r}")
             continue
+
+        image = data.get("image")
+        if image is None:
+            image = f"{idx:02d}-{_slug(view, kind)}.png"
         if not isinstance(image, str) or not image.endswith(".png"):
             errors.append(f"{prefix}: image must end in .png")
             continue
@@ -187,13 +252,18 @@ def parse_design_document(document: DesignDocument) -> tuple[list[DesignRender],
 
         alt = data.get("alt")
         if not isinstance(alt, str) or not alt.strip():
-            alt = Path(image).stem.replace("-", " ").replace("_", " ").strip().title()
+            label = view if isinstance(view, str) and view.strip() else Path(image).stem
+            alt = str(label).replace("-", " ").replace("_", " ").strip().title()
 
-        vpr, error = _number_list(data.get("vpr"), length=3, field="vpr", error_prefix=prefix)
+        vpr, error = _number_list(
+            data.get("vpr"), length=3, field="vpr", error_prefix=prefix
+        )
         if error:
             errors.append(error)
             continue
-        vpt, error = _number_list(data.get("vpt"), length=3, field="vpt", error_prefix=prefix)
+        vpt, error = _number_list(
+            data.get("vpt"), length=3, field="vpt", error_prefix=prefix
+        )
         if error:
             errors.append(error)
             continue
@@ -208,11 +278,14 @@ def parse_design_document(document: DesignDocument) -> tuple[list[DesignRender],
             continue
         vpd = float(vpd_value) if vpd_value is not None else None
 
-        # Exact camera mode requires all three viewport values.  A declaration
-        # with only vpr is intentionally supported as "orientation + auto-fit".
-        if (vpt is not None or vpd is not None) and not (vpr is not None and vpt is not None and vpd is not None):
+        # vpr by itself means "orient and auto-fit". Once vpt/vpd is supplied,
+        # all exact-camera fields must be present to avoid ambiguous framing.
+        if (vpt is not None or vpd is not None) and not (
+            vpr is not None and vpt is not None and vpd is not None
+        ):
             errors.append(
-                f"{prefix}: use either vpr alone for auto-fit, or provide vpr, vpt and vpd together"
+                f"{prefix}: use either vpr alone for auto-fit, or provide "
+                "vpr, vpt and vpd together"
             )
             continue
 
@@ -223,7 +296,10 @@ def parse_design_document(document: DesignDocument) -> tuple[list[DesignRender],
         if kind == "source-view":
             module = data.get("module")
             if not isinstance(module, str) or not module.strip():
-                errors.append(f"{prefix}: source-view requires module")
+                errors.append(
+                    f"{prefix}: source-view requires module "
+                    "(usually set it once in scad-render-defaults)"
+                )
                 continue
 
             source_value = data.get("source")
@@ -234,14 +310,16 @@ def parse_design_document(document: DesignDocument) -> tuple[list[DesignRender],
 
             if source is None or not source.is_file():
                 errors.append(
-                    f"{prefix}: source could not be resolved; specify source explicitly when multiple .scad files exist"
+                    f"{prefix}: source could not be resolved; specify source "
+                    "when multiple .scad files exist"
                 )
                 continue
         else:
             fence = FENCE_RE.match(text[match.end():])
             if not fence:
                 errors.append(
-                    f"{prefix}: inline render must be immediately followed by an openscad fenced block"
+                    f"{prefix}: inline render must be immediately followed by "
+                    "an openscad fenced block"
                 )
                 continue
             inline_code = fence.group("code")
@@ -256,7 +334,7 @@ def parse_design_document(document: DesignDocument) -> tuple[list[DesignRender],
                 alt=alt,
                 source=source,
                 module=module,
-                view=data.get("view"),
+                view=view,
                 inline_code=inline_code,
                 vpr=vpr,
                 vpt=vpt,
@@ -269,7 +347,7 @@ def parse_design_document(document: DesignDocument) -> tuple[list[DesignRender],
 
 
 def lint_design(context: ProjectContext) -> tuple[list[DesignRender], list[str]]:
-    """Lint all project and external design declarations."""
+    """Lint all project and external design-render declarations."""
 
     all_renders: list[DesignRender] = []
     errors: list[str] = []
@@ -297,14 +375,14 @@ def _lit(value: Any) -> str:
 
 
 def _entrypoint(render: DesignRender) -> str:
-    """Create the temporary SCAD entrypoint for one declared design view."""
+    """Create the temporary SCAD entrypoint for one design render."""
 
     lines: list[str] = []
     if render.kind == "source-view":
         assert render.source is not None
-        # Absolute source paths keep the temporary entrypoint independent of
-        # its staging directory while relative imports inside the source file
-        # continue to resolve from that source file.
+        # Absolute source paths make the temporary entrypoint independent of
+        # the staging directory. Includes inside that source remain relative to
+        # the source file as OpenSCAD normally expects.
         lines.append(f"use <{render.source.as_posix()}>")
 
     lines.append("$fn = 120;")
@@ -322,18 +400,15 @@ def _entrypoint(render: DesignRender) -> str:
 
 
 def _camera_args(render: DesignRender) -> list[str]:
-    """Return OpenSCAD camera flags without disabling automatic framing.
-
-    Writing ``$vpr`` into a SCAD entrypoint disables OpenSCAD's view-all and
-    autocenter behavior, which made earlier design images appear severely
-    zoomed/cropped.  Passing camera orientation on the command line lets us use
-    ``--viewall --autocenter`` when only ``vpr`` is supplied.
-    """
+    """Return OpenSCAD camera flags while preserving useful auto-fit behavior."""
 
     if render.vpr is None:
         return ["--autocenter", "--viewall"]
 
     if render.vpt is None and render.vpd is None:
+        # OpenSCAD's CLI camera form needs target and distance values too.
+        # A zero distance combined with --viewall means vpr acts only as the
+        # requested orientation and OpenSCAD determines a suitable framing.
         camera = [0.0, 0.0, 0.0, *render.vpr, 0.0]
         return [
             "--camera=" + ",".join(str(v) for v in camera),
@@ -346,8 +421,11 @@ def _camera_args(render: DesignRender) -> list[str]:
     return ["--camera=" + ",".join(str(v) for v in camera)]
 
 
-def _materialized_document_path(context: ProjectContext, document: DesignDocument) -> Path:
-    """Map a source document to its stable path below ``bld/design``."""
+def _generated_document_path(
+    context: ProjectContext,
+    document: DesignDocument,
+) -> Path:
+    """Map one source document to its stable path below ``bld/design``."""
 
     root = context.path(context.config["paths"]["build_root"]) / "design"
     if document.scope == "project":
@@ -357,11 +435,11 @@ def _materialized_document_path(context: ProjectContext, document: DesignDocumen
 
 
 def _copy_source_assets(document: DesignDocument, out_doc: Path) -> None:
-    """Copy non-Markdown design assets before generated renders are written.
+    """Copy static design assets before generated renders are written.
 
-    This keeps materialized documentation compatible with existing libraries
-    that still reference checked-in images or other static assets.  Generated
-    render declarations remain authoritative and overwrite same-named files.
+    This keeps generated documentation compatible with libraries that still
+    reference checked-in images. Generated render declarations remain
+    authoritative and overwrite files with the same names.
     """
 
     source_dir = document.source_file.parent
@@ -376,19 +454,34 @@ def _copy_source_assets(document: DesignDocument, out_doc: Path) -> None:
             shutil.copy2(item, destination)
 
 
-def _materialize_markdown(source_text: str, renders: list[DesignRender]) -> str:
-    """Replace render declarations by image references in the generated copy."""
+def _generate_markdown(source_text: str, renders: list[DesignRender]) -> str:
+    """Create the generated Markdown copy with real image references."""
 
+    replacements: list[tuple[int, int, str]] = []
+
+    # Render-default blocks are authoring metadata and should not appear in the
+    # generated documentation shown to readers.
+    for match in DEFAULTS_BLOCK_RE.finditer(source_text):
+        replacements.append((match.start(), match.end(), ""))
+
+    for render in renders:
+        replacements.append(
+            (
+                render.block_start,
+                render.block_end,
+                f"![{render.alt}](img/{render.image})",
+            )
+        )
+
+    # Work backwards so source offsets remain valid while replacing text.
     result = source_text
-    # Replace from the end of the file so stored source offsets remain valid.
-    for render in sorted(renders, key=lambda item: item.block_start, reverse=True):
-        replacement = f"![{render.alt}](img/{render.image})"
-        result = result[:render.block_start] + replacement + result[render.block_end:]
+    for start, end, replacement in sorted(replacements, reverse=True):
+        result = result[:start] + replacement + result[end:]
     return result
 
 
 def _missing_local_images(markdown: str, document_path: Path) -> list[Path]:
-    """Return missing local ``img/...`` links from a materialized document."""
+    """Return missing local ``img/...`` links from generated Markdown."""
 
     missing: list[Path] = []
     for match in IMAGE_LINK_RE.finditer(markdown):
@@ -399,28 +492,36 @@ def _missing_local_images(markdown: str, document_path: Path) -> list[Path]:
 
 
 def build_design(context: ProjectContext) -> None:
-    """Build a complete, browsable design-documentation snapshot."""
+    """Generate the complete browsable design-documentation tree."""
 
     renders, errors = lint_design(context)
     if errors:
         raise RuntimeError("\n".join(errors))
 
     documents = discover_design_documents(context)
-    by_document: dict[Path, list[DesignRender]] = {doc.source_file: [] for doc in documents}
+    by_document: dict[Path, list[DesignRender]] = {
+        doc.source_file: [] for doc in documents
+    }
     for render in renders:
         by_document.setdefault(render.document.source_file, []).append(render)
 
     openscad = context.config.get("openscad", {}) or {}
     common_flags = [str(v) for v in openscad.get("common_flags", [])]
     render_flags = [str(v) for v in openscad.get("render_flags", ["--render"])]
-    default_size = openscad.get("image_size", [1600, 1000])
+
+    # Design docs use a deliberately modest default image size. Normal project
+    # renders continue to use openscad.image_size.
+    default_size = openscad.get(
+        "design_image_size",
+        openscad.get("image_size", [640, 480]),
+    )
 
     build_root = context.path(context.config["paths"]["build_root"])
-    materialized_root = build_root / "design"
+    generated_root = build_root / "design"
     warnings: list[str] = []
 
-    # Stage the whole tree first.  A failed render therefore leaves the user's
-    # previous bld/design snapshot intact instead of half-updating it.
+    # Build the complete tree in a temporary staging directory first. A failed
+    # render therefore leaves the previous local bld/design untouched.
     with tempfile.TemporaryDirectory(prefix="scad-project-design-build-") as td:
         stage = Path(td) / "design"
         stage.mkdir(parents=True, exist_ok=True)
@@ -433,7 +534,12 @@ def build_design(context: ProjectContext) -> None:
                 out_doc = stage / "project" / document.relative_path
             else:
                 assert document.external_name
-                out_doc = stage / "ext" / document.external_name / document.relative_path
+                out_doc = (
+                    stage
+                    / "ext"
+                    / document.external_name
+                    / document.relative_path
+                )
 
             out_doc.parent.mkdir(parents=True, exist_ok=True)
             _copy_source_assets(document, out_doc)
@@ -449,29 +555,39 @@ def build_design(context: ProjectContext) -> None:
                 size = render.size or default_size
                 output = image_dir / render.image
                 args = [
-                    "xvfb-run", "-a", "openscad",
+                    "xvfb-run",
+                    "-a",
+                    "openscad",
                     *common_flags,
                     *render_flags,
                     *_camera_args(render),
                     f"--imgsize={int(size[0])},{int(size[1])}",
-                    "-o", str(output), str(entry),
+                    "-o",
+                    str(output),
+                    str(entry),
                 ]
                 run_checked(args, cwd=context.root)
+
                 if not output.is_file() or output.stat().st_size == 0:
                     raise RuntimeError(f"Missing or empty design render: {output}")
 
             source_text = document.source_file.read_text(encoding="utf-8")
-            materialized = _materialize_markdown(source_text, doc_renders)
-            out_doc.write_text(materialized, encoding="utf-8")
+            generated = _generate_markdown(source_text, doc_renders)
+            out_doc.write_text(generated, encoding="utf-8")
 
-            # Legacy external docs can contain image links without scad-design
-            # declarations.  Copy source assets when they exist, but warn when
-            # a dependency itself ships a broken legacy reference.  Project
-            # documents are stricter because the project owns those sources.
-            missing = _missing_local_images(materialized, out_doc)
+            # Legacy external docs can contain image links without render
+            # declarations. Copy assets when available and warn when a
+            # dependency itself contains a broken legacy link. Project-owned
+            # documentation stays strict and fails on missing local images.
+            missing = _missing_local_images(generated, out_doc)
             if missing:
-                relative = ", ".join(str(path.relative_to(stage)) for path in missing)
-                message = f"{document.source_file}: missing materialized image(s): {relative}"
+                relative = ", ".join(
+                    str(path.relative_to(stage)) for path in missing
+                )
+                message = (
+                    f"{document.source_file}: missing generated image(s): "
+                    f"{relative}"
+                )
                 if document.scope == "project":
                     raise RuntimeError(message)
                 warnings.append(message)
@@ -479,16 +595,20 @@ def build_design(context: ProjectContext) -> None:
         lines = [
             "# Design documentation",
             "",
-            "Generated from source `design.md` files. Images live next to the materialized documents.",
+            "Generated from source `design.md` files.",
             "",
             "## Project",
             "",
         ]
+
         project_docs = [d for d in documents if d.scope == "project"]
         if project_docs:
             for document in project_docs:
                 link = Path("project") / document.relative_path
-                lines.append(f"- [{document.relative_path.as_posix()}]({link.as_posix()})")
+                lines.append(
+                    f"- [{document.relative_path.as_posix()}]"
+                    f"({link.as_posix()})"
+                )
         else:
             lines.append("- No project design documents found.")
 
@@ -496,19 +616,33 @@ def build_design(context: ProjectContext) -> None:
         external_docs = [d for d in documents if d.scope == "external"]
         if external_docs:
             for document in external_docs:
-                link = Path("ext") / document.external_name / document.relative_path
-                label = f"{document.external_name}: {document.relative_path.as_posix()}"
+                link = (
+                    Path("ext")
+                    / document.external_name
+                    / document.relative_path
+                )
+                label = (
+                    f"{document.external_name}: "
+                    f"{document.relative_path.as_posix()}"
+                )
                 lines.append(f"- [{label}]({link.as_posix()})")
         else:
             lines.append("- No external design documents found.")
 
-        (stage / "README.md").write_text("\n".join(lines) + "\n", encoding="utf-8")
+        (stage / "README.md").write_text(
+            "\n".join(lines) + "\n",
+            encoding="utf-8",
+        )
 
-        if materialized_root.exists():
-            shutil.rmtree(materialized_root)
-        materialized_root.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copytree(stage, materialized_root)
+        if generated_root.exists():
+            shutil.rmtree(generated_root)
+        generated_root.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copytree(stage, generated_root)
 
     for warning in warnings:
         print(f"WARNING: {warning}")
-    print(f"Materialized design documentation: {materialized_root.relative_to(context.root)}")
+
+    print(
+        "Generated design documentation: "
+        f"{generated_root.relative_to(context.root)}"
+    )

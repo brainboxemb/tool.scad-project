@@ -1,22 +1,25 @@
 # Example design
 
-<!-- scad-design
-type: source-view
+<!-- scad-render-defaults
 module: example_design
-view: base
-image: 01-base.png
 vpr: [70, 0, 35]
 -->
 
-<!-- scad-design
-type: inline
-image: 02-wall-thickness.png
+## Base
+
+<!-- scad-render
+view: base
 -->
 
-```openscad
-linear_extrude(height=2)
-difference() {
-    circle(d=20);
-    circle(d=16);
-}
-```
+## Final
+
+<!-- scad-render
+view: final
+-->
+
+A single step can override a default when needed:
+
+<!-- scad-render
+view: detail
+size: [800, 600]
+-->
