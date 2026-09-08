@@ -1,9 +1,10 @@
+"""Publish generated build output as a mutable orphan branch snapshot."""
+
 from __future__ import annotations
 
 import os
 from pathlib import Path
 import shutil
-import subprocess
 import tempfile
 
 from .config import ProjectContext
@@ -11,6 +12,8 @@ from .process import run_checked
 
 
 def publish_build(context: ProjectContext) -> None:
+    """Force-replace the configured build branch with the current bld snapshot."""
+
     build_root = context.path(context.config["paths"]["build_root"])
     if not build_root.exists() or not any(build_root.iterdir()):
         raise RuntimeError("Build directory is empty; run build/design-build first.")
@@ -38,6 +41,7 @@ def publish_build(context: ProjectContext) -> None:
             else:
                 shutil.copy2(item, dest)
 
+        # A fresh repository makes the generated branch independent of source history.
         run_checked(["git", "init", "-q"], cwd=snapshot)
         run_checked(["git", "checkout", "--orphan", "snapshot"], cwd=snapshot)
         run_checked(["git", "config", "user.name", "github-actions[bot]"], cwd=snapshot)

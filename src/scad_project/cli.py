@@ -1,3 +1,5 @@
+"""Command-line dispatcher for project bootstrap, lint, build and publication."""
+
 from __future__ import annotations
 import argparse
 from pathlib import Path
@@ -25,9 +27,12 @@ def fail(errors):
 
 
 def main() -> None:
+    """Parse one project command and execute it against the nearest project.yml."""
+
     p = argparse.ArgumentParser(prog="scad-project")
     p.add_argument("--project", type=Path, default=None)
     sub = p.add_subparsers(dest="command", required=True)
+    # Keep command registration centralized so --help reflects the real API.
     for name in (
         "config-lint", "externals-check", "externals-status",
         "externals-init", "externals-sync", "externals-deinit",
@@ -83,6 +88,7 @@ def main() -> None:
                 raise RuntimeError("\n".join(errors))
             print(f"design renders declared: {len(renders)}")
             print("design documentation: OK")
+        # design-render remains a compatibility alias; design-build is canonical.
         elif args.command in {"design-build", "design-render"}:
             build_design(ctx)
             print("design build: OK")

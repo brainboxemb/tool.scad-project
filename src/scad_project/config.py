@@ -1,3 +1,5 @@
+"""Load and validate the configuration-driven SCAD project context."""
+
 from __future__ import annotations
 
 from dataclasses import dataclass

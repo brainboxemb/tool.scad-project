@@ -1,3 +1,5 @@
+"""Run external tools and convert dangerous OpenSCAD warnings into failures."""
+
 from __future__ import annotations
 
 from pathlib import Path

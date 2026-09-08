@@ -272,3 +272,15 @@ must not publish on PRs.
 
 Keep source branches free of generated PNG/STL/materialized Markdown.
 
+
+
+## Design image framing and legacy assets
+
+Do not emit `$vpr/$vpt/$vpd` into temporary SCAD just to control design images.
+A source-level `$vp*` disables OpenSCAD auto framing. Use CLI camera flags; `vpr`
+alone means orientation plus `--autocenter --viewall`, while an exact camera
+requires `vpr`, `vpt` and `vpd` together.
+
+Materialization copies static sibling assets for backward compatibility.
+Generated declaration images overwrite same-named copied assets. External legacy
+missing images warn; project-owned missing image links fail.

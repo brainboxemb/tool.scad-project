@@ -1,3 +1,5 @@
+"""Manage Git-submodule externals declared by project.yml."""
+
 from __future__ import annotations
 
 from dataclasses import dataclass

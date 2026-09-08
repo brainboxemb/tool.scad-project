@@ -1,15 +1,21 @@
+"""Build configured OpenSCAD PNG and STL outputs."""
+
 from __future__ import annotations
+
 from .config import ProjectContext
 from .process import run_checked
 
 
 def check_libraries(context: ProjectContext) -> list[str]:
-    # Backwards-compatible alias. New code should use check_externals.
+    """Compatibility alias for the old ``libraries-check`` command."""
+
     from .externals import check_externals
     return check_externals(context)
 
 
 def build_project(context: ProjectContext) -> None:
+    """Execute the explicit ``builds`` entries from ``project.yml``."""
+
     osc = context.config.get("openscad", {}) or {}
     common = [str(v) for v in osc.get("common_flags", [])]
     render_flags = [str(v) for v in osc.get("render_flags", ["--render"])]
@@ -20,11 +26,13 @@ def build_project(context: ProjectContext) -> None:
         output = context.path(build["output"])
         output.parent.mkdir(parents=True, exist_ok=True)
 
+        # PNG output needs a virtual display in CI; STL export does not.
         if output.suffix.lower() == ".png":
             size = build.get("size", image_size)
             args = [
                 "xvfb-run", "-a", "openscad",
                 *common, *render_flags,
+                "--autocenter", "--viewall",
                 f"--imgsize={int(size[0])},{int(size[1])}",
                 "-o", str(output), str(source),
             ]

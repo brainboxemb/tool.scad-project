@@ -154,7 +154,7 @@ project source.
 Current expected runtime:
 
 ```text
-ghcr.io/brainboxemb/scad-toolchain:v0.3.0
+ghcr.io/brainboxemb/scad-toolchain:v0.3.1
 ```
 
 The project tool intentionally remains separate from the Docker image.
@@ -418,3 +418,14 @@ branch contains materialized documentation, renders and exports.
 `publish-build` is intended for authenticated CI. Pull requests should build
 and upload artifacts but not publish the branch.
 
+
+### Camera and image handling
+
+A declaration may use `size: [width, height]`. A declaration containing only
+`vpr` uses that orientation together with OpenSCAD auto-centering/view-all.
+Use `vpr`, `vpt` and `vpd` together only when an exact camera is required.
+
+Materialization also copies static files that already live next to a source
+`design.md`. This keeps older external libraries readable while they migrate to
+`scad-design` declarations. Missing legacy images in an external produce a
+warning; missing project-owned images fail the build.
