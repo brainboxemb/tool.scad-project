@@ -27,7 +27,7 @@ fi
 git submodule update --init --recursive -- "$TOOL_PATH"
 
 if [[ "$SKIP_EXTERNALS" -eq 0 ]]; then
-  "$TOOL_PATH/scad-project.sh" externals-init
+  bash "$TOOL_PATH/scad-project.sh" externals-init
 fi
 
 echo

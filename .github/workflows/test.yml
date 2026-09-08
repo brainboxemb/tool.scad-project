@@ -27,7 +27,7 @@ jobs:
         run: scad-project --help
 
       - name: Source launcher smoke
-        run: ./scad-project.sh --help
+        run: bash ./scad-project.sh --help
 
       - name: Unit tests
         run: pytest -q

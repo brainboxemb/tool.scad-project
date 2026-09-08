@@ -180,3 +180,20 @@ Semantics matter:
 Do not make `deinit` equivalent to `git rm`. Repository-level removal is a
 different destructive operation and should be an explicit future command.
 
+
+## Shell launcher portability
+
+Do not rely on the executable bit of `.sh` files in consumer repositories.
+Projects are frequently created/extracted on Windows, where Git mode metadata
+may not be preserved as expected.
+
+In CI/bootstrap, invoke shell launchers explicitly:
+
+```text
+bash ./scad-project.sh ...
+bash tools/tool.scad-project/scad-project.sh ...
+```
+
+The scripts may still be marked executable in this repository, but correctness
+must not depend on that bit.
+

@@ -259,3 +259,16 @@ The old `libraries:` config key and `libraries-check` CLI command remain
 accepted temporarily for v0.1 migration, but new projects should use
 `externals:`.
 
+
+
+### Shell-script portability
+
+When invoking the shell launcher from CI or a bootstrap script, prefer:
+
+```bash
+bash ./scad-project.sh <command>
+```
+
+rather than relying on `./scad-project.sh`. This keeps projects created from a
+ZIP or managed on Windows from depending on preservation of the Unix executable
+bit.
