@@ -7,7 +7,7 @@ def test_minimal_config(tmp_path: Path):
         {
             "project": {"name": "demo"},
             "paths": {"design_root": "dsg/openscad", "build_root": "bld"},
-            "libraries": [],
+            "externals": [],
             "builds": [],
         },
     )

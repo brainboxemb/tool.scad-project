@@ -25,7 +25,11 @@ Initial commands:
 
 ```text
 scad-project config-lint
-scad-project libraries-check
+scad-project externals-check
+scad-project externals-status
+scad-project externals-init
+scad-project externals-sync
+scad-project externals-deinit
 scad-project docs-lint
 scad-project design-lint
 scad-project design-render
@@ -52,8 +56,10 @@ openscad:
     - --render
   image_size: [1600, 1000]
 
-libraries:
+externals:
   - name: lib.scad.clamps
+    type: git-submodule
+    url: https://github.com/brainboxemb/lib.scad.clamps.git
     path: dsg/openscad/ext/lib.scad.clamps
     required_file: openscad/tube-clamp/tube_clamp.scad
 
@@ -165,3 +171,91 @@ Not yet included:
 - embedding this package into the Docker image.
 
 The model, code and documentation are being developed with the assistance of ChatGPT.
+
+
+## Bootstrap and offline-friendly local use
+
+`tool.scad-project` is intended to be pinned in a consuming repository as a Git
+submodule:
+
+```text
+tools/tool.scad-project
+```
+
+The bootstrap scripts live in this repository:
+
+```text
+bootstrap/bootstrap.ps1
+bootstrap/bootstrap.sh
+```
+
+When starting a new project, copy the appropriate bootstrap file to the root of
+the consuming repository.
+
+On Windows:
+
+```powershell
+.\bootstrap.ps1
+```
+
+The bootstrap script deliberately contains only enough logic to:
+
+1. register `tool.scad-project` as `tools/tool.scad-project` when necessary;
+2. initialize that submodule;
+3. invoke the local tool to initialize the project's configured externals.
+
+After the repository and its submodules have been populated once, normal local
+use does not require fetching `tool.scad-project` from GitHub again. The parent
+repository's gitlink pins the exact tool commit.
+
+Run the local tool directly:
+
+```powershell
+.\tools\tool.scad-project\scad-project.ps1 design-lint
+.\tools\tool.scad-project\scad-project.ps1 design-render
+.\tools\tool.scad-project\scad-project.ps1 build
+```
+
+The launcher executes the Python package directly from the checked-out tool
+source; a pip install of `tool.scad-project` itself is not required.
+
+## External management
+
+Project externals are declared in `project.yml`:
+
+```yaml
+externals:
+  - name: lib.scad.clamps
+    type: git-submodule
+    url: https://github.com/brainboxemb/lib.scad.clamps.git
+    path: dsg/openscad/ext/lib.scad.clamps
+    required_file: openscad/tube-clamp/tube_clamp.scad
+```
+
+Commands:
+
+```text
+scad-project externals-status
+    show registered/initialized state and current commit
+
+scad-project externals-init
+    register missing configured submodules and initialize all externals
+
+scad-project externals-sync
+    sync .gitmodules and restore the exact commits pinned by parent gitlinks
+
+scad-project externals-deinit
+    remove local submodule working trees while preserving .gitmodules/gitlinks
+
+scad-project externals-check
+    verify required externals and required files are available
+```
+
+`externals-deinit` is intentionally non-destructive at repository level. It
+does not `git rm` the submodule. A future explicit remove command should handle
+that separately.
+
+The old `libraries:` config key and `libraries-check` CLI command remain
+accepted temporarily for v0.1 migration, but new projects should use
+`externals:`.
+

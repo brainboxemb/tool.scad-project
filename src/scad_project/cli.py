@@ -7,6 +7,14 @@ from .build import build_project, check_libraries
 from .config import ConfigError, load_context, validate_config
 from .design import lint_design, render_design
 from .docs import lint_docs
+from .externals import (
+    check_externals,
+    deinit_externals,
+    external_status,
+    init_externals,
+    sync_externals,
+    validate_externals_config,
+)
 
 
 def fail(errors):
@@ -20,8 +28,10 @@ def main() -> None:
     p.add_argument("--project", type=Path, default=None)
     sub = p.add_subparsers(dest="command", required=True)
     for name in (
-        "config-lint", "libraries-check", "docs-lint",
-        "design-lint", "design-render", "build", "verify",
+        "config-lint", "externals-check", "externals-status",
+        "externals-init", "externals-sync", "externals-deinit",
+        "libraries-check", "docs-lint", "design-lint",
+        "design-render", "build", "verify",
     ):
         sub.add_parser(name)
 
@@ -34,11 +44,32 @@ def main() -> None:
 
         if args.command == "config-lint":
             print("project.yml: OK")
-        elif args.command == "libraries-check":
-            errors = check_libraries(ctx)
+        elif args.command in {"externals-check", "libraries-check"}:
+            errors = validate_externals_config(ctx) + check_externals(ctx)
             if errors:
                 raise RuntimeError("\n".join(errors))
-            print("libraries: OK")
+            print("externals: OK")
+        elif args.command == "externals-status":
+            errors = validate_externals_config(ctx)
+            if errors:
+                raise RuntimeError("\n".join(errors))
+            rows = external_status(ctx)
+            if not rows:
+                print("No externals configured.")
+            for row in rows:
+                print(
+                    f"{row['name']}: {row['state']} "
+                    f"[{row['commit']}] {row['path']}"
+                )
+        elif args.command == "externals-init":
+            init_externals(ctx)
+            print("externals initialized")
+        elif args.command == "externals-sync":
+            sync_externals(ctx)
+            print("externals synchronized")
+        elif args.command == "externals-deinit":
+            deinit_externals(ctx)
+            print("externals deinitialized")
         elif args.command == "docs-lint":
             errors = lint_docs(ctx)
             if errors:
@@ -56,13 +87,17 @@ def main() -> None:
             render_design(ctx)
             print("design renders: OK")
         elif args.command == "build":
-            errors = check_libraries(ctx)
+            errors = validate_externals_config(ctx) + check_externals(ctx)
             if errors:
                 raise RuntimeError("\n".join(errors))
             build_project(ctx)
             print("build: OK")
         elif args.command == "verify":
-            errors = check_libraries(ctx) + lint_docs(ctx)
+            errors = (
+                validate_externals_config(ctx)
+                + check_externals(ctx)
+                + lint_docs(ctx)
+            )
             _, design_errors, stale = lint_design(ctx)
             errors += design_errors
             if errors:

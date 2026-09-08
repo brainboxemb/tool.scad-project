@@ -81,13 +81,17 @@ design.md               -> design intent and visual explanation
 
 `ghcr.io/brainboxemb/scad-toolchain:v0.3.0`
 
-## v0.1.0 scope
+## v0.2.0 scope
 
 Initial commands:
 
 ```text
 config-lint
-libraries-check
+externals-check
+externals-status
+externals-init
+externals-sync
+externals-deinit
 docs-lint
 design-lint
 design-render
@@ -97,3 +101,82 @@ verify
 
 Do not yet add copyright/watermark processing, verification branch publishing,
 or Docker embedding. First validate this interface using `template.scad-project`.
+
+
+## Bootstrap architecture
+
+The consumer project should pin this repository as:
+
+```text
+tools/tool.scad-project
+```
+
+Do not require a network pip install for normal project use.
+
+Official bootstrap source files live in this repo:
+
+```text
+bootstrap/bootstrap.ps1
+bootstrap/bootstrap.sh
+```
+
+A project copies the bootstrap file to its root. Bootstrap is intentionally
+small and has only one special responsibility that cannot be delegated to the
+tool itself: making `tools/tool.scad-project` available.
+
+Bootstrap chain:
+
+```text
+consumer bootstrap.ps1
+    -> register/init tools/tool.scad-project submodule
+    -> local scad-project launcher
+    -> externals-init
+    -> remaining configured project submodules
+```
+
+Local launchers:
+
+```text
+scad-project.ps1
+scad-project.sh
+```
+
+They execute `scad_project` from the checked-out `src/` tree using PYTHONPATH,
+so the tool package itself does not need to be pip-installed.
+
+## External schema and semantics
+
+New projects use:
+
+```yaml
+externals:
+  - name: ...
+    type: git-submodule
+    url: ...
+    path: ...
+    required_file: ...
+```
+
+The old `libraries:` key is accepted only as a migration compatibility path.
+
+Commands:
+
+```text
+externals-init
+externals-sync
+externals-status
+externals-check
+externals-deinit
+```
+
+Semantics matter:
+
+- `init`: add missing configured git submodules, then initialize recursively.
+- `sync`: restore/configure the exact parent-repo-pinned gitlink commits.
+- `status`: report local state and current commit.
+- `check`: validate availability/required files.
+- `deinit`: remove local checkout only; preserve `.gitmodules` and gitlink.
+
+Do not make `deinit` equivalent to `git rm`. Repository-level removal is a
+different destructive operation and should be an explicit future command.
+

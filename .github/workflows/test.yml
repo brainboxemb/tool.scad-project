@@ -23,8 +23,11 @@ jobs:
       - name: Show runtime
         run: scad-toolchain-info
 
-      - name: CLI smoke
+      - name: Installed CLI smoke
         run: scad-project --help
+
+      - name: Source launcher smoke
+        run: ./scad-project.sh --help
 
       - name: Unit tests
         run: pytest -q

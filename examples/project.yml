@@ -12,8 +12,10 @@ openscad:
     - --render
   image_size: [1600, 1000]
 
-libraries:
+externals:
   - name: lib.scad.clamps
+    type: git-submodule
+    url: https://github.com/brainboxemb/lib.scad.clamps.git
     path: dsg/openscad/ext/lib.scad.clamps
     required_file: openscad/tube-clamp/tube_clamp.scad
 

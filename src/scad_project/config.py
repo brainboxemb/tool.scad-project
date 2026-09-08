@@ -56,10 +56,22 @@ def validate_config(context: ProjectContext) -> list[str]:
             if not c["paths"].get(key):
                 errors.append(f"Missing value: paths.{key}")
 
-    for index, lib in enumerate(c.get("libraries", []) or []):
-        for key in ("name", "path", "required_file"):
-            if not isinstance(lib, dict) or not lib.get(key):
-                errors.append(f"libraries[{index}].{key} is required")
+    externals = c.get("externals")
+    if externals is None:
+        externals = c.get("libraries", [])
+
+    if not isinstance(externals, list):
+        errors.append("externals must be a list")
+    else:
+        for index, external in enumerate(externals):
+            if not isinstance(external, dict):
+                errors.append(f"externals[{index}] must be a mapping")
+                continue
+            for key in ("name", "path"):
+                if not external.get(key):
+                    errors.append(f"externals[{index}].{key} is required")
+            if not external.get("url"):
+                errors.append(f"externals[{index}].url is required")
 
     seen_names: set[str] = set()
     seen_outputs: set[str] = set()

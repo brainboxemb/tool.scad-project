@@ -4,15 +4,9 @@ from .process import run_checked
 
 
 def check_libraries(context: ProjectContext) -> list[str]:
-    errors = []
-    for lib in context.config.get("libraries", []) or []:
-        required = context.path(lib["path"]) / lib["required_file"]
-        if not required.is_file():
-            errors.append(
-                f"External library not initialized: "
-                f"{required.relative_to(context.root)}"
-            )
-    return errors
+    # Backwards-compatible alias. New code should use check_externals.
+    from .externals import check_externals
+    return check_externals(context)
 
 
 def build_project(context: ProjectContext) -> None:
