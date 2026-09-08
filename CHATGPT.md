@@ -381,7 +381,7 @@ functional verification evidence. `verification.commands` remain project
 specific while orchestration/publication remains generic.
 
 
-## Versioned dependency policy (v0.4.2)
+## Versioned dependency policy (v0.4.3)
 
 `project.yml` is the dependency-policy source. Parent gitlinks are the resolved
 lock.
@@ -394,7 +394,7 @@ tooling:
     type: git-submodule
     url: https://github.com/brainboxemb/tool.scad-project.git
     path: tools/tool.scad-project
-    ref: v0.4.2
+    ref: v0.4.3
 ```
 
 External libraries also carry their own `ref`.
@@ -423,4 +423,14 @@ Canonical convenience wrappers:
 - `update-repo.sh`
 
 Consumer repositories may copy these to their root.
+
+
+## Python-free update-repo layer
+
+The canonical `update-repo.ps1` / `update-repo.sh` scripts must remain
+Python-free, like bootstrap. They may parse only the `tooling` and `externals`
+subset of `project.yml`.
+
+Do not replace them with wrappers around `scad-project repo-update`; dependency
+management must work before Python is installed.
 

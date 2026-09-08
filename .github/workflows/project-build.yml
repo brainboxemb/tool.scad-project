@@ -25,7 +25,7 @@ jobs:
       image: ghcr.io/brainboxemb/scad-toolchain:v0.3.0
 
     env:
-      SCAD_PROJECT_WORKFLOW_VERSION: v0.4.2
+      SCAD_PROJECT_WORKFLOW_VERSION: v0.4.3
 
     steps:
       - name: Checkout project and pinned submodules

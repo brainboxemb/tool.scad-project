@@ -538,7 +538,7 @@ tooling:
     type: git-submodule
     url: https://github.com/brainboxemb/tool.scad-project.git
     path: tools/tool.scad-project
-    ref: v0.4.2
+    ref: v0.4.3
 
 externals:
   - name: lib.scad.clamps
@@ -552,7 +552,7 @@ externals:
 `ref` is per dependency and supports:
 
 ```text
-v0.4.2
+v0.4.3
     exact tag
 
 latest
@@ -602,13 +602,31 @@ changed gitlinks available for normal `git diff` / `git status` review.
 For tooling, workflow callers are derived from the resolved tooling ref:
 
 ```text
-ref: v0.4.2  -> @v0.4.2
+ref: v0.4.3  -> @v0.4.3
 ref: latest  -> @<resolved newest tag>
 ref: main    -> @main
 ```
 
 This keeps dependency policy in `project.yml` while satisfying GitHub Actions'
 requirement that reusable workflow refs are literal in workflow YAML.
+
+
+### Python-free repository updater
+
+`update-repo.ps1` and `update-repo.sh` are deliberately part of the bootstrap
+layer and do not invoke Python or the `scad-project` CLI.
+
+They require only Git plus PowerShell/bash, parse only the dependency subset of
+`project.yml`, resolve exact tags / `latest` / branch refs, update gitlinks and
+align reusable workflow refs.
+
+On Windows:
+
+```powershell
+.\update-repo.ps1
+```
+
+works before Python is installed.
 
 ## Reusable GitHub workflows
 
@@ -621,7 +639,7 @@ Build workflow:
 ```yaml
 jobs:
   build:
-    uses: brainboxemb/tool.scad-project/.github/workflows/project-build.yml@v0.4.2
+    uses: brainboxemb/tool.scad-project/.github/workflows/project-build.yml@v0.4.3
 ```
 
 Projects with separate functional verification can additionally use:
@@ -629,7 +647,7 @@ Projects with separate functional verification can additionally use:
 ```yaml
 jobs:
   verify:
-    uses: brainboxemb/tool.scad-project/.github/workflows/project-verify.yml@v0.4.2
+    uses: brainboxemb/tool.scad-project/.github/workflows/project-verify.yml@v0.4.3
     with:
       verification_path: vrf/out
 ```
@@ -658,7 +676,7 @@ tooling:
     type: git-submodule
     url: https://github.com/brainboxemb/tool.scad-project.git
     path: tools/tool.scad-project
-    ref: v0.4.2
+    ref: v0.4.3
 ```
 
 For a release-pinned consumer, these three references should represent the same
@@ -667,7 +685,7 @@ release:
 ```text
 project.yml tooling.tool_scad_project_version
 Git submodule tools/tool.scad-project
-reusable workflow @v0.4.2
+reusable workflow @v0.4.3
 ```
 
 `scad-project tooling-check` verifies the running CLI against `project.yml` and,
