@@ -329,3 +329,53 @@ work naturally.
 Inline render snippets are OpenSCAD-only until an explicit Python inline format
 is designed.
 
+
+## Reusable workflow convention
+
+`tool.scad-project` owns the standard reusable GitHub workflows:
+
+```text
+.github/workflows/project-build.yml
+.github/workflows/project-verify.yml
+```
+
+Consumer repositories should contain only thin caller workflows and pin them to
+a release tag. Do not duplicate the standard lint/design/build/publication step
+sequence in each consumer unless there is a project-specific reason.
+
+The local Git submodule and reusable workflow are two views of the same tooling
+release. Consumer updates should move these together:
+
+```text
+project.yml tooling.tool_scad_project_version
+.gitlink tools/tool.scad-project
+workflow uses: ...@vX.Y.Z
+```
+
+`SCAD_PROJECT_WORKFLOW_VERSION` is set by the reusable workflow and checked by
+`tooling-check` against both project config and the running local CLI.
+
+## Canonical bootstrap source
+
+`bootstrap/bootstrap.ps1` and `bootstrap/bootstrap.sh` are the canonical source
+for consumer root bootstrap files.
+
+Required behavior:
+- support a missing parent directory such as `tools/`;
+- register a missing gitlink using `.gitmodules` URL/path;
+- preserve a valid existing checkout;
+- fail on conflicting non-Git content;
+- restore pinned commits with `submodule update --init --recursive`;
+- validate mode `160000` for every declared gitlink before reporting success.
+
+Do not maintain project-specific bootstrap implementations when the canonical
+script can be copied unchanged.
+
+## Generated branch standardization
+
+`build-index` owns the common root README for the mutable `build` branch.
+Consumers should not hand-author different build-branch index text in their CI.
+
+`project-verify.yml` is optional and intended only for projects with genuine
+functional verification evidence. `verification.commands` remain project
+specific while orchestration/publication remains generic.

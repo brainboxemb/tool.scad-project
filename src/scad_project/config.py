@@ -85,6 +85,31 @@ def validate_config(context: ProjectContext) -> list[str]:
             if not external.get("url"):
                 errors.append(f"externals[{index}].url is required")
 
+    tooling = c.get("tooling")
+    if tooling is not None:
+        if not isinstance(tooling, dict):
+            errors.append("tooling must be a mapping")
+        elif not tooling.get("tool_scad_project_version"):
+            errors.append("Missing value: tooling.tool_scad_project_version")
+
+    verification = c.get("verification")
+    if verification is not None:
+        if not isinstance(verification, dict):
+            errors.append("verification must be a mapping")
+        else:
+            commands = verification.get("commands", [])
+            if not isinstance(commands, list):
+                errors.append("verification.commands must be a list")
+            else:
+                for index, command in enumerate(commands):
+                    if not isinstance(command, list) or not command:
+                        errors.append(
+                            f"verification.commands[{index}] must be a non-empty argv list"
+                        )
+            output_root = verification.get("output_root")
+            if output_root is not None and not isinstance(output_root, str):
+                errors.append("verification.output_root must be a path string")
+
     seen_names: set[str] = set()
     seen_outputs: set[str] = set()
     for index, build in enumerate(c.get("builds", []) or []):

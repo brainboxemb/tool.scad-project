@@ -1,6 +1,9 @@
 project:
   name: example.scad-project
 
+tooling:
+  tool_scad_project_version: v0.4.1
+
 paths:
   design_root: dsg/openscad
   build_root: bld
@@ -11,15 +14,7 @@ openscad:
   render_flags:
     - --render
   image_size: [1600, 1000]
+  design_image_size: [640, 480]
 
-externals:
-  - name: lib.scad.clamps
-    type: git-submodule
-    url: https://github.com/brainboxemb/lib.scad.clamps.git
-    path: dsg/openscad/ext/lib.scad.clamps
-    required_file: openscad/tube-clamp/tube_clamp.scad
-
-builds:
-  - name: assembly-png
-    source: dsg/openscad/render/assembly.scad
-    output: bld/png/assembly.png
+publication:
+  build_branch: build

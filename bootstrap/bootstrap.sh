@@ -6,7 +6,6 @@ if [[ -z "$repo_root" ]]; then
   echo "ERROR: run bootstrap.sh from inside a Git repository." >&2
   exit 1
 fi
-
 cd "$repo_root"
 
 if [[ ! -f .gitmodules ]]; then
@@ -15,7 +14,6 @@ if [[ ! -f .gitmodules ]]; then
 fi
 
 mapfile -t path_lines < <(git config -f .gitmodules --get-regexp '^submodule\..*\.path$' || true)
-
 if [[ "${#path_lines[@]}" -eq 0 ]]; then
   echo "ERROR: no submodules declared in .gitmodules." >&2
   exit 1
@@ -38,23 +36,39 @@ for line in "${path_lines[@]}"; do
     continue
   fi
 
-  echo "Repairing/registering gitlink: $path"
+  echo "Registering missing gitlink: $path"
+  parent="$(dirname "$path")"
+  [[ "$parent" == "." ]] || mkdir -p "$parent"
 
   if [[ -d "$path" && -n "$(ls -A "$path" 2>/dev/null)" && ! -e "$path/.git" ]]; then
-    echo "ERROR: $path already contains non-submodule files." >&2
+    echo "ERROR: $path contains non-submodule files." >&2
     exit 1
   fi
-
   if [[ -d "$path" && -z "$(ls -A "$path" 2>/dev/null)" ]]; then
     rmdir "$path"
   fi
 
   git submodule add --force "$url" "$path"
+
+  if ! is_gitlink "$path"; then
+    echo "ERROR: registration did not create gitlink mode 160000 for $path." >&2
+    exit 1
+  fi
 done
 
 git submodule sync --recursive
 git submodule update --init --recursive
 
+for line in "${path_lines[@]}"; do
+  path="${line#* }"
+  if ! is_gitlink "$path"; then
+    echo "ERROR: bootstrap validation failed for $path (not mode 160000)." >&2
+    exit 1
+  fi
+done
+
 echo
-echo "Bootstrap complete."
+echo "Bootstrap complete. All declared submodules have gitlinks."
 git submodule status --recursive
+echo
+echo "Review parent repository changes with: git status"

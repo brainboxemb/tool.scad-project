@@ -9,7 +9,10 @@ from .build import build_project, check_libraries
 from .config import ConfigError, load_context, validate_config
 from .design import build_design, lint_design
 from .docs import lint_docs
-from .publish import publish_build
+from .publish import publish_build, publish_verification
+from .index import write_build_index
+from .tooling import tooling_errors
+from .verification import run_functional_verification
 from .externals import (
     check_externals,
     deinit_externals,
@@ -38,7 +41,8 @@ def main() -> None:
         "externals-init", "externals-sync", "externals-deinit",
         "libraries-check", "docs-lint", "design-lint",
         "design-build", "design-render", "build", "verify",
-        "publish-build",
+        "functional-verify", "build-index", "tooling-check",
+        "publish-build", "publish-verification",
     ):
         sub.add_parser(name)
 
@@ -51,6 +55,11 @@ def main() -> None:
 
         if args.command == "config-lint":
             print("project.yml: OK")
+        elif args.command == "tooling-check":
+            errors = tooling_errors(ctx)
+            if errors:
+                raise RuntimeError("\n".join(errors))
+            print("tooling versions: OK")
         elif args.command in {"externals-check", "libraries-check"}:
             errors = validate_externals_config(ctx) + check_externals(ctx)
             if errors:
@@ -98,6 +107,12 @@ def main() -> None:
                 raise RuntimeError("\n".join(errors))
             build_project(ctx)
             print("build: OK")
+        elif args.command == "functional-verify":
+            run_functional_verification(ctx)
+            print("functional verification: OK")
+        elif args.command == "build-index":
+            output = write_build_index(ctx)
+            print(f"build index: {output.relative_to(ctx.root)}")
         elif args.command == "verify":
             errors = (
                 validate_externals_config(ctx)
@@ -112,6 +127,8 @@ def main() -> None:
             print("verify: OK")
         elif args.command == "publish-build":
             publish_build(ctx)
+        elif args.command == "publish-verification":
+            publish_verification(ctx)
 
     except (ConfigError, RuntimeError) as exc:
         print(f"ERROR: {exc}", file=sys.stderr)

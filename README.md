@@ -524,3 +524,102 @@ Generation also copies static files that already live next to a source
 `design.md`. This keeps older external libraries readable while they migrate to
 `scad-design` declarations. Missing legacy images in an external produce a
 warning; missing project-owned images fail the build.
+
+## Reusable GitHub workflows
+
+Consumer repositories should keep their GitHub Actions files thin and pin the
+reusable workflows to the same `tool.scad-project` release as their local tool
+submodule.
+
+Build workflow:
+
+```yaml
+jobs:
+  build:
+    uses: brainboxemb/tool.scad-project/.github/workflows/project-build.yml@v0.4.1
+```
+
+Projects with separate functional verification can additionally use:
+
+```yaml
+jobs:
+  verify:
+    uses: brainboxemb/tool.scad-project/.github/workflows/project-verify.yml@v0.4.1
+    with:
+      verification_path: vrf/out
+```
+
+The reusable build workflow standardizes:
+
+- toolchain selection;
+- tooling-version validation;
+- configuration/external/source/design linting;
+- OpenSCAD and PythonSCAD generated design documentation;
+- configured PNG/STL builds;
+- build artifact upload;
+- generated `build` branch publication.
+
+The reusable verification workflow runs the generic source/build verification,
+then project-specific `verification.commands`, and can publish the configured
+verification output to the `verification` branch.
+
+### Tooling version alignment
+
+A consumer declares the expected tool release in `project.yml`:
+
+```yaml
+tooling:
+  tool_scad_project_version: v0.4.1
+```
+
+For a release-pinned consumer, these three references should represent the same
+release:
+
+```text
+project.yml tooling.tool_scad_project_version
+Git submodule tools/tool.scad-project
+reusable workflow @v0.4.1
+```
+
+`scad-project tooling-check` verifies the running CLI against `project.yml` and,
+inside the reusable workflows, also checks the workflow release marker.
+
+### Functional verification configuration
+
+Projects that publish verification evidence can declare argv-style commands:
+
+```yaml
+verification:
+  commands:
+    - [bash, scripts/run-verification.sh]
+    - [bash, scripts/build-verification-index.sh]
+  output_root: vrf/out
+
+publication:
+  verification_branch: verification
+```
+
+Commands are stored as argument lists rather than shell strings so quoting and
+execution remain explicit.
+
+## Canonical bootstrap
+
+The canonical consumer bootstrap scripts live in:
+
+```text
+bootstrap/bootstrap.ps1
+bootstrap/bootstrap.sh
+```
+
+Consumer repositories copy these scripts to their repository root. The
+bootstrap handles missing parent directories (for example `tools/`) and ends by
+verifying that every declared submodule exists as a Git gitlink with mode
+`160000`. It must fail instead of reporting success when registration is
+incomplete.
+
+## Standard generated build index
+
+`scad-project build-index` writes the common root `bld/README.md`. It links only
+to generated sections that actually exist (`design`, `png`, `stl`). This keeps
+the `build` branch presentation consistent across libraries and consumer
+projects.

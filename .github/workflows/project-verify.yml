@@ -1,0 +1,70 @@
+name: Reusable SCAD project verification
+
+on:
+  workflow_call:
+    inputs:
+      artifact_name:
+        description: Name of the uploaded verification artifact
+        required: false
+        type: string
+        default: scad-project-verification
+      publish:
+        description: Publish the generated verification branch
+        required: false
+        type: boolean
+        default: true
+      verification_path:
+        description: Path containing generated verification evidence
+        required: false
+        type: string
+        default: vrf/out
+
+permissions:
+  contents: write
+  packages: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    container:
+      image: ghcr.io/brainboxemb/scad-toolchain:v0.3.0
+
+    env:
+      SCAD_PROJECT_WORKFLOW_VERSION: v0.4.1
+
+    steps:
+      - name: Checkout project and pinned submodules
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          fetch-depth: 0
+
+      - name: Show toolchain
+        run: scad-toolchain-info
+
+      - name: Configure Git safe directory
+        run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
+
+      - name: Check tooling version alignment
+        run: bash ./tools/tool.scad-project/scad-project.sh tooling-check
+
+      - name: Verify project source and configured builds
+        run: bash ./tools/tool.scad-project/scad-project.sh verify
+
+      - name: Run project functional verification
+        run: bash ./tools/tool.scad-project/scad-project.sh functional-verify
+
+      - name: Upload verification evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ inputs.artifact_name }}
+          path: ${{ inputs.verification_path }}
+
+      - name: Publish verification branch
+        if: inputs.publish && github.event_name != 'pull_request'
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          git config --global credential.helper store
+          printf "https://x-access-token:%s@github.com\n" "$GITHUB_TOKEN" > ~/.git-credentials
+          bash ./tools/tool.scad-project/scad-project.sh publish-verification
