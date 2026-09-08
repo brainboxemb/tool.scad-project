@@ -289,8 +289,10 @@ foreach ($Dependency in $Dependencies) {
     Ensure-DependencyRegistration -RepoRoot $RepoRoot -Dependency $Dependency
 }
 
-Invoke-Git -Args @("submodule", "sync", "--recursive") -WorkingDirectory $RepoRoot
-Invoke-Git -Args @("submodule", "update", "--init", "--recursive") -WorkingDirectory $RepoRoot
+Invoke-Git -Args @("submodule", "sync") -WorkingDirectory $RepoRoot
+$DirectPaths = @($Dependencies | ForEach-Object { $_.Path })
+$UpdateArgs = @("submodule", "update", "--init", "--") + $DirectPaths
+Invoke-Git -Args $UpdateArgs -WorkingDirectory $RepoRoot
 
 $Ordered = @(
     @($Dependencies | Where-Object { $_.Role -ne "tooling" }) +

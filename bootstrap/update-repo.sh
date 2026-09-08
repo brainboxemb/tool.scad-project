@@ -161,8 +161,13 @@ for row in "${deps[@]}"; do
   ensure_registered "$name" "$url" "$path"
 done
 
-git submodule sync --recursive
-git submodule update --init --recursive
+git submodule sync
+direct_paths=()
+for row in "${deps[@]}"; do
+  IFS='|' read -r _role _name _type _url _path _ref <<< "$row"
+  direct_paths+=("$_path")
+done
+git submodule update --init -- "${direct_paths[@]}"
 
 declare -a ordered=()
 for row in "${deps[@]}"; do [[ "$row" == tooling\|* ]] || ordered+=("$row"); done

@@ -120,13 +120,13 @@ foreach ($Submodule in $Submodules) {
 
 Write-Host ""
 Write-Host "Synchronizing submodule URLs..."
-Invoke-Git -Args @("-C", $RepoRoot, "submodule", "sync", "--recursive") | Out-Null
+Invoke-Git -Args @("-C", $RepoRoot, "submodule", "sync") | Out-Null
 
 if (-not $SkipUpdate) {
     Write-Host "Initializing/restoring pinned submodule commits..."
-    Invoke-Git -Args @(
-        "-C", $RepoRoot, "submodule", "update", "--init", "--recursive"
-    ) | Out-Null
+    $Paths = @($Submodules | ForEach-Object { $_.Path })
+    $UpdateArgs = @("-C", $RepoRoot, "submodule", "update", "--init", "--") + $Paths
+    Invoke-Git -Args $UpdateArgs | Out-Null
 }
 
 foreach ($Submodule in $Submodules) {
@@ -138,7 +138,7 @@ foreach ($Submodule in $Submodules) {
 Write-Host ""
 Write-Host "Bootstrap complete. All declared submodules have gitlinks."
 Write-Host ""
-& git -C $RepoRoot submodule status --recursive
+& git -C $RepoRoot submodule status
 if ($LASTEXITCODE -ne 0) { throw "Unable to read final submodule status." }
 
 Write-Host ""

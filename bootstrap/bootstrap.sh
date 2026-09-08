@@ -24,12 +24,14 @@ is_gitlink() {
   git ls-files --stage -- "$path" 2>/dev/null | grep -q '^160000 '
 }
 
+direct_paths=()
 for line in "${path_lines[@]}"; do
   key="${line%% *}"
   path="${line#* }"
   name="${key#submodule.}"
   name="${name%.path}"
   url="$(git config -f .gitmodules --get "submodule.${name}.url")"
+  direct_paths+=("$path")
 
   if is_gitlink "$path"; then
     echo "Registered: $path"
@@ -56,8 +58,8 @@ for line in "${path_lines[@]}"; do
   fi
 done
 
-git submodule sync --recursive
-git submodule update --init --recursive
+git submodule sync
+git submodule update --init -- "${direct_paths[@]}"
 
 for line in "${path_lines[@]}"; do
   path="${line#* }"
@@ -69,6 +71,6 @@ done
 
 echo
 echo "Bootstrap complete. All declared submodules have gitlinks."
-git submodule status --recursive
+git submodule status
 echo
 echo "Review parent repository changes with: git status"

@@ -381,7 +381,7 @@ functional verification evidence. `verification.commands` remain project
 specific while orchestration/publication remains generic.
 
 
-## Versioned dependency policy (v0.4.3)
+## Versioned dependency policy (v0.4.4)
 
 `project.yml` is the dependency-policy source. Parent gitlinks are the resolved
 lock.
@@ -394,7 +394,7 @@ tooling:
     type: git-submodule
     url: https://github.com/brainboxemb/tool.scad-project.git
     path: tools/tool.scad-project
-    ref: v0.4.3
+    ref: v0.4.4
 ```
 
 External libraries also carry their own `ref`.
@@ -433,4 +433,21 @@ subset of `project.yml`.
 
 Do not replace them with wrappers around `scad-project repo-update`; dependency
 management must work before Python is installed.
+
+## Direct-only submodule rule (v0.4.4)
+
+Normal repository operations must initialize/update only direct dependencies.
+
+Do not use `git submodule ... --recursive` in:
+- bootstrap;
+- update-repo;
+- repo-sync/repo-update;
+- externals-init/externals-sync;
+- reusable consumer build/verify workflows.
+
+A dependency's own submodules are development dependencies of that repository
+and are initialized only when that repository acts as the standalone project.
+
+Recursive checkout is allowed only in a dedicated integration test explicitly
+designed to validate complete nested dependency trees.
 

@@ -25,13 +25,13 @@ jobs:
       image: ghcr.io/brainboxemb/scad-toolchain:v0.3.0
 
     env:
-      SCAD_PROJECT_WORKFLOW_VERSION: v0.4.3
+      SCAD_PROJECT_WORKFLOW_VERSION: v0.4.4
 
     steps:
       - name: Checkout project and pinned submodules
         uses: actions/checkout@v4
         with:
-          submodules: recursive
+          submodules: true
           fetch-depth: 0
 
       - name: Show toolchain

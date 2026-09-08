@@ -525,6 +525,41 @@ Generation also copies static files that already live next to a source
 `scad-design` declarations. Missing legacy images in an external produce a
 warning; missing project-owned images fail the build.
 
+## Direct dependency checkout
+
+Submodule traversal is intentionally **non-recursive by default**.
+
+A consumer initializes only the dependencies that it directly declares in its
+own repository configuration:
+
+```text
+template.scad-project
+├── tools/tool.scad-project
+└── dsg/openscad/ext/lib.scad.clamps
+```
+
+When `lib.scad.clamps` is consumed by the template, its own development
+submodule is not automatically initialized:
+
+```text
+dsg/openscad/ext/lib.scad.clamps/tools/tool.scad-project
+    not checked out by the template
+```
+
+If `lib.scad.clamps` is cloned as a standalone repository, its own bootstrap
+initializes its direct tooling dependency normally.
+
+This rule applies to:
+
+- `bootstrap.ps1` / `bootstrap.sh`;
+- `update-repo.ps1` / `update-repo.sh`;
+- `repo-sync` / `repo-update`;
+- `externals-init` / `externals-sync`;
+- reusable GitHub workflows.
+
+Recursive checkout is reserved for an explicit integration test whose purpose
+is to validate the entire dependency tree.
+
 ## Versioned repository dependencies
 
 `project.yml` is the policy source for both project tooling and reusable CAD
@@ -538,7 +573,7 @@ tooling:
     type: git-submodule
     url: https://github.com/brainboxemb/tool.scad-project.git
     path: tools/tool.scad-project
-    ref: v0.4.3
+    ref: v0.4.4
 
 externals:
   - name: lib.scad.clamps
@@ -552,7 +587,7 @@ externals:
 `ref` is per dependency and supports:
 
 ```text
-v0.4.3
+v0.4.4
     exact tag
 
 latest
@@ -602,7 +637,7 @@ changed gitlinks available for normal `git diff` / `git status` review.
 For tooling, workflow callers are derived from the resolved tooling ref:
 
 ```text
-ref: v0.4.3  -> @v0.4.3
+ref: v0.4.4  -> @v0.4.4
 ref: latest  -> @<resolved newest tag>
 ref: main    -> @main
 ```
@@ -639,7 +674,7 @@ Build workflow:
 ```yaml
 jobs:
   build:
-    uses: brainboxemb/tool.scad-project/.github/workflows/project-build.yml@v0.4.3
+    uses: brainboxemb/tool.scad-project/.github/workflows/project-build.yml@v0.4.4
 ```
 
 Projects with separate functional verification can additionally use:
@@ -647,7 +682,7 @@ Projects with separate functional verification can additionally use:
 ```yaml
 jobs:
   verify:
-    uses: brainboxemb/tool.scad-project/.github/workflows/project-verify.yml@v0.4.3
+    uses: brainboxemb/tool.scad-project/.github/workflows/project-verify.yml@v0.4.4
     with:
       verification_path: vrf/out
 ```
@@ -676,7 +711,7 @@ tooling:
     type: git-submodule
     url: https://github.com/brainboxemb/tool.scad-project.git
     path: tools/tool.scad-project
-    ref: v0.4.3
+    ref: v0.4.4
 ```
 
 For a release-pinned consumer, these three references should represent the same
@@ -685,7 +720,7 @@ release:
 ```text
 project.yml tooling.tool_scad_project_version
 Git submodule tools/tool.scad-project
-reusable workflow @v0.4.3
+reusable workflow @v0.4.4
 ```
 
 `scad-project tooling-check` verifies the running CLI against `project.yml` and,

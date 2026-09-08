@@ -345,12 +345,18 @@ def repo_sync(context: ProjectContext) -> None:
     for dep in configured_dependencies(context):
         _ensure_registered(context, dep)
 
-    run_checked(["git", "submodule", "sync", "--recursive"], cwd=context.root)
-    run_checked(
-        ["git", "submodule", "update", "--init", "--recursive"],
-        cwd=context.root,
-    )
-    print("Repository dependencies restored from committed gitlinks.")
+    direct_paths = [
+        dep.path.replace("\\", "/").rstrip("/")
+        for dep in configured_dependencies(context)
+    ]
+
+    run_checked(["git", "submodule", "sync"], cwd=context.root)
+    if direct_paths:
+        run_checked(
+            ["git", "submodule", "update", "--init", "--", *direct_paths],
+            cwd=context.root,
+        )
+    print("Direct repository dependencies restored from committed gitlinks.")
 
 
 def repo_update(context: ProjectContext) -> list[dict[str, str]]:
@@ -364,11 +370,17 @@ def repo_update(context: ProjectContext) -> list[dict[str, str]]:
     for dep in dependencies:
         _ensure_registered(context, dep)
 
-    run_checked(["git", "submodule", "sync", "--recursive"], cwd=context.root)
-    run_checked(
-        ["git", "submodule", "update", "--init", "--recursive"],
-        cwd=context.root,
-    )
+    direct_paths = [
+        dep.path.replace("\\", "/").rstrip("/")
+        for dep in dependencies
+    ]
+
+    run_checked(["git", "submodule", "sync"], cwd=context.root)
+    if direct_paths:
+        run_checked(
+            ["git", "submodule", "update", "--init", "--", *direct_paths],
+            cwd=context.root,
+        )
 
     # Update ordinary libraries first. Update the running tool last so the
     # current process has already loaded all code it needs from its checkout.

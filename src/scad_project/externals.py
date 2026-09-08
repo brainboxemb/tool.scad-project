@@ -165,16 +165,21 @@ def init_externals(context: ProjectContext) -> None:
             )
             modules = _gitmodules(context)
 
-    # Use gitlinks already committed in the parent repository. This command
-    # restores their pinned commits rather than silently following remote HEAD.
+    # Restore only direct externals declared by this project. Nested submodules
+    # belong to the dependency when that repository is used standalone.
+    paths = [
+        external.path.replace("\\", "/").rstrip("/")
+        for external in configured_externals(context)
+    ]
     run_checked(
-        ["git", "submodule", "sync", "--recursive"],
+        ["git", "submodule", "sync"],
         cwd=context.root,
     )
-    run_checked(
-        ["git", "submodule", "update", "--init", "--recursive"],
-        cwd=context.root,
-    )
+    if paths:
+        run_checked(
+            ["git", "submodule", "update", "--init", "--", *paths],
+            cwd=context.root,
+        )
 
 
 def sync_externals(context: ProjectContext) -> None:
@@ -182,14 +187,19 @@ def sync_externals(context: ProjectContext) -> None:
     if errors:
         raise RuntimeError("\n".join(errors))
 
+    paths = [
+        external.path.replace("\\", "/").rstrip("/")
+        for external in configured_externals(context)
+    ]
     run_checked(
-        ["git", "submodule", "sync", "--recursive"],
+        ["git", "submodule", "sync"],
         cwd=context.root,
     )
-    run_checked(
-        ["git", "submodule", "update", "--init", "--recursive"],
-        cwd=context.root,
-    )
+    if paths:
+        run_checked(
+            ["git", "submodule", "update", "--init", "--", *paths],
+            cwd=context.root,
+        )
 
 
 def deinit_externals(context: ProjectContext) -> None:
