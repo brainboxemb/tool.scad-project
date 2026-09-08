@@ -272,3 +272,35 @@ bash ./scad-project.sh <command>
 rather than relying on `./scad-project.sh`. This keeps projects created from a
 ZIP or managed on Windows from depending on preservation of the Unix executable
 bit.
+
+
+## Python-free bootstrap
+
+Bootstrap is deliberately independent of Python and of the `scad-project` CLI.
+
+Required local tools:
+
+```text
+PowerShell + Git        (Windows)
+bash + Git              (Linux/macOS)
+```
+
+The consumer repository ships a `.gitmodules` file containing the technical
+submodule registrations. The bootstrap script:
+
+1. reads every path/URL from `.gitmodules`;
+2. detects whether the corresponding gitlink already exists in the parent repo;
+3. repairs/registers missing gitlinks with `git submodule add --force`;
+4. preserves already-correct submodules;
+5. runs `git submodule sync --recursive`;
+6. runs `git submodule update --init --recursive`.
+
+This makes the script safe to re-run after a partially completed bootstrap.
+
+`project.yml` remains the semantic project configuration. `.gitmodules` is the
+technical Git representation required before Python/project tooling is
+available. `scad-project` can later lint that these declarations agree.
+
+A bootstrap must never require Python merely to obtain the project's pinned
+tooling and CAD-library submodules.
+

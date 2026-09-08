@@ -197,3 +197,31 @@ bash tools/tool.scad-project/scad-project.sh ...
 The scripts may still be marked executable in this repository, but correctness
 must not depend on that bit.
 
+
+## Bootstrap hard requirement: no Python
+
+Bootstrap must work before Python or the `scad-project` CLI is available.
+
+Allowed dependencies:
+
+```text
+PowerShell/bash
+Git
+```
+
+The consumer template carries `.gitmodules`. Bootstrap reads it directly using
+`git config -f .gitmodules`, then ensures each configured path has a real
+parent-repository gitlink.
+
+The script is intentionally idempotent/recovery-oriented:
+- correct gitlink -> keep;
+- registered but uninitialized -> `submodule update --init`;
+- `.gitmodules` entry but missing gitlink -> `submodule add --force`;
+- interrupted checkout already present as Git working tree -> reuse;
+- unrelated non-Git files occupying a submodule path -> stop with a clear error.
+
+Do not call `scad-project externals-init` from bootstrap. That would reintroduce
+the Python bootstrap dependency.
+
+After bootstrap, normal project operations may use the local Python tool.
+
