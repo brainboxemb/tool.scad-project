@@ -1,0 +1,23 @@
+project:
+  name: example.scad-project
+
+paths:
+  design_root: dsg/openscad
+  build_root: bld
+
+openscad:
+  common_flags:
+    - --enable=object-function
+  render_flags:
+    - --render
+  image_size: [1600, 1000]
+
+libraries:
+  - name: lib.scad.clamps
+    path: dsg/openscad/ext/lib.scad.clamps
+    required_file: openscad/tube-clamp/tube_clamp.scad
+
+builds:
+  - name: assembly-png
+    source: dsg/openscad/render/assembly.scad
+    output: bld/png/assembly.png

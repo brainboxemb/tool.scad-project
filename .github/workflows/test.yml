@@ -1,0 +1,30 @@
+name: Test scad-project tool
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    container:
+      image: ghcr.io/brainboxemb/scad-toolchain:v0.3.0
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install package
+        run: python3 -m pip install --break-system-packages -e '.[test]'
+
+      - name: Show runtime
+        run: scad-toolchain-info
+
+      - name: CLI smoke
+        run: scad-project --help
+
+      - name: Unit tests
+        run: pytest -q
