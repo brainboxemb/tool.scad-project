@@ -1,0 +1,88 @@
+name: Release scad-project tool
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Immutable release tag, e.g. v0.6.0'
+        required: true
+        type: string
+      release_sha:
+        description: 'Exact already-verified commit SHA to tag'
+        required: true
+        type: string
+
+permissions:
+  contents: write
+  actions: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout main with full history
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Validate release inputs
+        env:
+          VERSION: ${{ inputs.version }}
+          RELEASE_SHA: ${{ inputs.release_sha }}
+        run: |
+          set -euo pipefail
+
+          if [[ ! "${VERSION}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "ERROR: version must match vX.Y.Z" >&2
+            exit 1
+          fi
+
+          git fetch --tags --force origin
+
+          if ! git cat-file -e "${RELEASE_SHA}^{commit}" 2>/dev/null; then
+            echo "ERROR: release_sha is not a known commit: ${RELEASE_SHA}" >&2
+            exit 1
+          fi
+
+          if git rev-parse -q --verify "refs/tags/${VERSION}" >/dev/null; then
+            echo "ERROR: release tag already exists: ${VERSION}" >&2
+            exit 1
+          fi
+
+          PACKAGE_VERSION="$(python3 - <<'PY'
+import tomllib
+with open("pyproject.toml", "rb") as fh:
+    print(tomllib.load(fh)["project"]["version"])
+PY
+)"
+          EXPECTED="v${PACKAGE_VERSION}"
+
+          if [[ "${VERSION}" != "${EXPECTED}" ]]; then
+            echo "ERROR: requested ${VERSION}, but pyproject.toml declares ${EXPECTED}" >&2
+            exit 1
+          fi
+
+      - name: Create annotated release tag
+        env:
+          VERSION: ${{ inputs.version }}
+          RELEASE_SHA: ${{ inputs.release_sha }}
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git tag -a "${VERSION}" "${RELEASE_SHA}" -m "tool.scad-project ${VERSION}"
+          git push origin "refs/tags/${VERSION}"
+
+      - name: Dispatch tests on released tag
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VERSION: ${{ inputs.version }}
+        run: |
+          set -euo pipefail
+          gh api \
+            --method POST \
+            "repos/${GITHUB_REPOSITORY}/actions/workflows/test.yml/dispatches" \
+            -f ref="${VERSION}"
+
+          echo "Dispatched test.yml on ${VERSION}."
