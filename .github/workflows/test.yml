@@ -1,4 +1,4 @@
-name: Test scad-project tool
+name: Test
 
 on:
   push:
