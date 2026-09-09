@@ -32,7 +32,7 @@ Publication behavior is resolved centrally from the GitHub source context.
 - production branch: publish mutable `build` / `verification`;
 - non-production branch: publish mutable shared `dev/build` / `dev/verification`;
 - pull request: artifact-only;
-- version tag: artifact-only in v0.5.0.
+- version tag: artifact-only in v0.6.0.
 
 Do not add branch-specific temporary workflows or edit `project.yml` merely to
 redirect one development branch. Projects declare the branch names once; the
@@ -96,29 +96,33 @@ design.md               -> design intent and visual explanation
 
 ## Toolchain baseline
 
-`ghcr.io/brainboxemb/scad-toolchain:v0.3.0`
+`ghcr.io/brainboxemb/scad-toolchain:v0.4.0`
 
-## v0.2.0 scope
+## PNG watermark orchestration
 
-Initial commands:
+Image processing belongs in `docker.scad-toolchain`; project policy and
+orchestration belong in this repository.
 
-```text
-config-lint
-externals-check
-externals-status
-externals-init
-externals-sync
-externals-deinit
-docs-lint
-design-lint
-design-render
-build
-verify
+Supported configuration:
+
+```yaml
+rendering:
+  watermark:
+    text: "© 2026 brainboxemb"
 ```
 
-Do not yet add copyright/watermark processing, verification branch publishing,
-or Docker embedding. First validate this interface using `template.scad-project`.
+Rules:
 
+- omit `rendering.watermark` to disable watermarking;
+- if present, `text` must be a non-empty string;
+- apply it only to configured PNG build outputs;
+- render to a temporary unwatermarked PNG first;
+- call the public `scad-image-watermark` command from the toolchain;
+- verify the final PNG exists and is non-empty;
+- remove the temporary PNG after processing;
+- do not import Pillow or duplicate watermark drawing code here;
+- do not watermark STL or generated design-documentation images unless that
+  becomes an explicit future policy.
 
 ## Bootstrap architecture
 
@@ -398,7 +402,7 @@ functional verification evidence. `verification.commands` remain project
 specific while orchestration/publication remains generic.
 
 
-## Versioned dependency policy (v0.5.0)
+## Versioned dependency policy (v0.6.0)
 
 `project.yml` is the dependency-policy source. Parent gitlinks are the resolved
 lock.
@@ -411,7 +415,7 @@ tooling:
     type: git-submodule
     url: https://github.com/brainboxemb/tool.scad-project.git
     path: tools/tool.scad-project
-    ref: v0.5.0
+    ref: v0.6.0
 ```
 
 External libraries also carry their own `ref`.
@@ -451,7 +455,7 @@ subset of `project.yml`.
 Do not replace them with wrappers around `scad-project repo-update`; dependency
 management must work before Python is installed.
 
-## Direct-only submodule rule (v0.5.0)
+## Direct-only submodule rule (v0.6.0)
 
 Normal repository operations must initialize/update only direct dependencies.
 
