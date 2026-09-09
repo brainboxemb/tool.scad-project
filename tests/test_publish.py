@@ -135,8 +135,7 @@ def test_publication_info_contains_source_provenance(tmp_path: Path):
     assert "Workflow run        : https://github.com/brainboxemb/demo/actions/runs/99" in info
     assert "SCAD toolchain image: ghcr.io/brainboxemb/scad-toolchain:v0.4.0" in info
     assert "SCAD toolchain ver. : v0.4.0" in info
-    from scad_project import __version__
-    assert f"tool.scad-project   : v{__version__}" in info
+    assert "tool.scad-project   : v0.6.1" in info
     assert "Runtime components" in info
     assert "OpenSCAD   : OpenSCAD version test" in info
 
@@ -164,4 +163,5 @@ def test_publication_info_uses_package_version_outside_reusable_workflow(
         "GITHUB_REF_NAME": "main",
     }
     info = publication_info_text(ctx, "build", env)
-    assert "tool.scad-project   : v0.6.1" in info
+    from scad_project import __version__
+    assert f"tool.scad-project   : v{__version__}" in info
