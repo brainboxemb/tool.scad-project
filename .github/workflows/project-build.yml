@@ -25,7 +25,7 @@ jobs:
       image: ghcr.io/brainboxemb/scad-toolchain:v0.3.0
 
     env:
-      SCAD_PROJECT_WORKFLOW_VERSION: v0.4.4
+      SCAD_PROJECT_WORKFLOW_VERSION: v0.5.0
 
     steps:
       - name: Checkout project and pinned submodules
@@ -63,6 +63,9 @@ jobs:
 
       - name: Generate build index
         run: bash ./tools/tool.scad-project/scad-project.sh build-index
+
+      - name: Record publication provenance
+        run: bash ./tools/tool.scad-project/scad-project.sh publication-info-build
 
       - name: Upload generated build
         uses: actions/upload-artifact@v4

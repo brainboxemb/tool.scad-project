@@ -9,7 +9,7 @@ from .build import build_project, check_libraries
 from .config import ConfigError, load_context, validate_config
 from .design import build_design, lint_design
 from .docs import lint_docs
-from .publish import publish_build, publish_verification
+from .publish import publish_build, publish_verification, write_publication_info
 from .index import write_build_index
 from .tooling import tooling_errors
 from .verification import run_functional_verification
@@ -48,6 +48,7 @@ def main() -> None:
         "libraries-check", "docs-lint", "design-lint",
         "design-build", "design-render", "build", "verify",
         "functional-verify", "build-index", "tooling-check",
+        "publication-info-build", "publication-info-verification",
         "publish-build", "publish-verification",
         "repo-sync", "repo-update", "repo-status",
     ):
@@ -147,6 +148,12 @@ def main() -> None:
                 raise RuntimeError("\n".join(errors))
             build_project(ctx)
             print("verify: OK")
+        elif args.command == "publication-info-build":
+            output = write_publication_info(ctx, "build")
+            print(f"publication info: {output.relative_to(ctx.root)}")
+        elif args.command == "publication-info-verification":
+            output = write_publication_info(ctx, "verification")
+            print(f"publication info: {output.relative_to(ctx.root)}")
         elif args.command == "publish-build":
             publish_build(ctx)
         elif args.command == "publish-verification":
