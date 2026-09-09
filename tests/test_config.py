@@ -93,3 +93,39 @@ def test_watermark_config_rejects_empty_text(tmp_path: Path):
         "rendering.watermark.text must be a non-empty string"
         in validate_config(ctx)
     )
+
+
+def test_directory_build_paths_are_valid(tmp_path: Path):
+    ctx = ProjectContext(
+        tmp_path, tmp_path / "project.yml",
+        {
+            "project": {"name": "demo"},
+            "paths": {
+                "design_root": "dsg",
+                "build_root": "bld",
+                "render_root": "dsg/openscad/render",
+                "export_root": "dsg/openscad/export",
+            },
+            "externals": [],
+        },
+    )
+    assert validate_config(ctx) == []
+
+
+def test_directory_build_paths_reject_empty_values(tmp_path: Path):
+    ctx = ProjectContext(
+        tmp_path, tmp_path / "project.yml",
+        {
+            "project": {"name": "demo"},
+            "paths": {
+                "design_root": "dsg",
+                "build_root": "bld",
+                "render_root": "",
+                "export_root": [],
+            },
+            "externals": [],
+        },
+    )
+    errors = validate_config(ctx)
+    assert "paths.render_root must be a non-empty path string" in errors
+    assert "paths.export_root must be a non-empty path string" in errors
