@@ -1,4 +1,4 @@
-name: Release scad-project tool
+name: Release
 
 on:
   workflow_dispatch:
