@@ -32,14 +32,37 @@ Publication behavior is resolved centrally from the GitHub source context.
 - production branch: publish mutable `build` / `verification`;
 - non-production branch: publish mutable shared `dev/build` / `dev/verification`;
 - pull request: artifact-only;
-- version tag: artifact-only in v0.6.0.
+- version tag: artifact-only in v0.6.1.
 
 Do not add branch-specific temporary workflows or edit `project.yml` merely to
 redirect one development branch. Projects declare the branch names once; the
 tool resolves the active destination.
 
-Every generated build/verification artifact and mutable branch snapshot should
-contain `publication-info.txt` with source-ref provenance.
+Every generated build/verification artifact and mutable branch snapshot must
+contain `publication-info.txt` with source, tooling and runtime provenance.
+
+This file is the current-generation replacement for the classic
+`openscad-build.txt`. Do not reintroduce separate engine-specific build-info
+files unless a future requirement cannot be represented in the unified record.
+
+Required layers:
+
+```text
+Source
+    repository / ref / commit / workflow
+
+Tooling
+    SCAD_TOOLCHAIN_IMAGE
+    SCAD_TOOLCHAIN_VERSION
+    SCAD_PROJECT_WORKFLOW_VERSION
+
+Runtime components
+    scad-toolchain-info output
+```
+
+The immutable Docker image is the primary runtime version pin. Exact OpenSCAD
+and other component versions remain diagnostic evidence supplied by
+`scad-toolchain-info`.
 
 
 ## Design documentation
@@ -363,7 +386,7 @@ A normal release is started through `workflow_dispatch` with:
 
 ```text
 version
-    immutable semantic tag, e.g. v0.6.0
+    immutable semantic tag, e.g. v0.6.1
 
 release_sha
     exact already-verified commit SHA
@@ -435,7 +458,7 @@ functional verification evidence. `verification.commands` remain project
 specific while orchestration/publication remains generic.
 
 
-## Versioned dependency policy (v0.6.0)
+## Versioned dependency policy (v0.6.1)
 
 `project.yml` is the dependency-policy source. Parent gitlinks are the resolved
 lock.
@@ -448,7 +471,7 @@ tooling:
     type: git-submodule
     url: https://github.com/brainboxemb/tool.scad-project.git
     path: tools/tool.scad-project
-    ref: v0.6.0
+    ref: v0.6.1
 ```
 
 External libraries also carry their own `ref`.
@@ -488,7 +511,7 @@ subset of `project.yml`.
 Do not replace them with wrappers around `scad-project repo-update`; dependency
 management must work before Python is installed.
 
-## Direct-only submodule rule (v0.6.0)
+## Direct-only submodule rule (v0.6.1)
 
 Normal repository operations must initialize/update only direct dependencies.
 
