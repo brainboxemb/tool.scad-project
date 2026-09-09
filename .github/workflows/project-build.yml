@@ -22,10 +22,10 @@ jobs:
   build:
     runs-on: ubuntu-latest
     container:
-      image: ghcr.io/brainboxemb/scad-toolchain:v0.3.0
+      image: ghcr.io/brainboxemb/scad-toolchain:v0.4.0
 
     env:
-      SCAD_PROJECT_WORKFLOW_VERSION: v0.5.0
+      SCAD_PROJECT_WORKFLOW_VERSION: v0.6.0
 
     steps:
       - name: Checkout project and pinned submodules

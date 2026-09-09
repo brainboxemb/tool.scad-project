@@ -58,3 +58,38 @@ def test_publication_policy_rejects_wrong_types(tmp_path: Path):
     assert "publication.production.source_branch must be a string" in errors
     assert "publication.development.build_branch must be a string" in errors
     assert "publication.tags.pattern must be a string" in errors
+
+
+def test_watermark_config(tmp_path: Path):
+    ctx = ProjectContext(
+        tmp_path, tmp_path / "project.yml",
+        {
+            "project": {"name": "demo"},
+            "paths": {"design_root": "dsg/openscad", "build_root": "bld"},
+            "externals": [],
+            "builds": [],
+            "rendering": {
+                "watermark": {
+                    "text": "© 2026 brainboxemb",
+                }
+            },
+        },
+    )
+    assert validate_config(ctx) == []
+
+
+def test_watermark_config_rejects_empty_text(tmp_path: Path):
+    ctx = ProjectContext(
+        tmp_path, tmp_path / "project.yml",
+        {
+            "project": {"name": "demo"},
+            "paths": {"design_root": "dsg/openscad", "build_root": "bld"},
+            "externals": [],
+            "builds": [],
+            "rendering": {"watermark": {"text": ""}},
+        },
+    )
+    assert (
+        "rendering.watermark.text must be a non-empty string"
+        in validate_config(ctx)
+    )

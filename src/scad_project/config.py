@@ -103,6 +103,24 @@ def validate_config(context: ProjectContext) -> list[str]:
                 elif not modern.get("ref"):
                     errors.append("tooling.tool_scad_project.ref is required")
 
+    rendering = c.get("rendering")
+    if rendering is not None:
+        if not isinstance(rendering, dict):
+            errors.append("rendering must be a mapping")
+        else:
+            watermark = rendering.get("watermark")
+            if watermark is not None:
+                if not isinstance(watermark, dict):
+                    errors.append("rendering.watermark must be a mapping")
+                else:
+                    text = watermark.get("text")
+                    if text is None:
+                        errors.append("rendering.watermark.text is required")
+                    elif not isinstance(text, str) or not text.strip():
+                        errors.append(
+                            "rendering.watermark.text must be a non-empty string"
+                        )
+
     verification = c.get("verification")
     if verification is not None:
         if not isinstance(verification, dict):
