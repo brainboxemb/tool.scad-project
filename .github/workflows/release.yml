@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: 'Immutable release tag, e.g. v0.6.0'
+        description: 'Immutable release tag, e.g. v0.6.1'
         required: true
         type: string
       release_sha:
