@@ -15,6 +15,8 @@ template.scad-project
     reference consumer
 ```
 
+Release history: [`CHANGELOG.md`](CHANGELOG.md)
+
 The CLI is:
 
 ```text
