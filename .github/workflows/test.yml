@@ -7,27 +7,38 @@ on:
   pull_request:
   workflow_dispatch:
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   test:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     container:
       image: ghcr.io/brainboxemb/scad-toolchain:v0.4.0
 
     steps:
       - name: Checkout
+        timeout-minutes: 2
         uses: actions/checkout@v4
 
       - name: Install package
+        timeout-minutes: 2
         run: python3 -m pip install --break-system-packages -e '.[test]'
 
       - name: Show runtime
+        timeout-minutes: 2
         run: scad-toolchain-info
 
       - name: Installed CLI smoke
+        timeout-minutes: 2
         run: scad-project --help
 
       - name: Source launcher smoke
+        timeout-minutes: 2
         run: bash ./scad-project.sh --help
 
       - name: Unit tests
+        timeout-minutes: 5
         run: pytest -q
