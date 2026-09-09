@@ -487,31 +487,70 @@ image links. The source Markdown and external checkouts are never modified.
 are migrated, but new documentation should use `scad-render`.
 
 
-## Generated build branch
+## Publication policy
 
-Generated content belongs off the source branch.
+Generated content belongs off the source branch. Publication is resolved from
+the GitHub ref that produced the build, so projects do not need a temporary
+workflow or temporary `project.yml` edit for development branches.
 
-`project.yml` may define:
+Recommended configuration:
+
+```yaml
+publication:
+  production:
+    source_branch: main
+    build_branch: build
+    verification_branch: verification
+
+  development:
+    build_branch: dev/build
+    verification_branch: dev/verification
+
+  tags:
+    pattern: "v*"
+```
+
+The standard behavior is:
+
+| Source context | Build | Verification |
+| --- | --- | --- |
+| production branch (`main`) | mutable `build` branch | mutable `verification` branch |
+| other branch | mutable `dev/build` branch | mutable `dev/verification` branch |
+| pull request | workflow artifact only | workflow artifact only |
+| matching version tag | workflow artifact only | workflow artifact only |
+
+Development branches deliberately share one mutable pair of publication
+branches. The newest development run replaces the previous snapshot. Every
+generated artifact and branch snapshot therefore receives a root
+`publication-info.txt` containing the source repository, ref type, ref, commit,
+actor and workflow-run URL.
+
+Tags never overwrite the mutable production or development branches. In v0.5.0
+they produce immutable workflow-run artifacts only. Attaching those artifacts
+to a GitHub Release can be added as a separate release policy without changing
+the branch semantics.
+
+The older flat configuration remains accepted during migration:
 
 ```yaml
 publication:
   build_branch: build
+  verification_branch: verification
 ```
 
-CI can then run:
+CI prepares provenance before artifact upload:
+
+```text
+scad-project publication-info-build
+scad-project publication-info-verification
+```
+
+and then resolves the destination when publishing:
 
 ```text
 scad-project publish-build
+scad-project publish-verification
 ```
-
-which force-replaces a mutable orphan `build` branch with the current contents
-of `bld/`.
-
-The source branch therefore contains only source/configuration, while the build
-branch contains generated documentation, renders and exports.
-
-`publish-build` is intended for authenticated CI. Pull requests should build
-and upload artifacts but not publish the branch.
 
 
 ### Camera and image handling
@@ -573,7 +612,7 @@ tooling:
     type: git-submodule
     url: https://github.com/brainboxemb/tool.scad-project.git
     path: tools/tool.scad-project
-    ref: v0.4.4
+    ref: v0.5.0
 
 externals:
   - name: lib.scad.clamps
@@ -587,7 +626,7 @@ externals:
 `ref` is per dependency and supports:
 
 ```text
-v0.4.4
+v0.5.0
     exact tag
 
 latest
@@ -637,7 +676,7 @@ changed gitlinks available for normal `git diff` / `git status` review.
 For tooling, workflow callers are derived from the resolved tooling ref:
 
 ```text
-ref: v0.4.4  -> @v0.4.4
+ref: v0.5.0  -> @v0.5.0
 ref: latest  -> @<resolved newest tag>
 ref: main    -> @main
 ```
@@ -674,7 +713,7 @@ Build workflow:
 ```yaml
 jobs:
   build:
-    uses: brainboxemb/tool.scad-project/.github/workflows/project-build.yml@v0.4.4
+    uses: brainboxemb/tool.scad-project/.github/workflows/project-build.yml@v0.5.0
 ```
 
 Projects with separate functional verification can additionally use:
@@ -682,7 +721,7 @@ Projects with separate functional verification can additionally use:
 ```yaml
 jobs:
   verify:
-    uses: brainboxemb/tool.scad-project/.github/workflows/project-verify.yml@v0.4.4
+    uses: brainboxemb/tool.scad-project/.github/workflows/project-verify.yml@v0.5.0
     with:
       verification_path: vrf/out
 ```
@@ -711,7 +750,7 @@ tooling:
     type: git-submodule
     url: https://github.com/brainboxemb/tool.scad-project.git
     path: tools/tool.scad-project
-    ref: v0.4.4
+    ref: v0.5.0
 ```
 
 For a release-pinned consumer, these three references should represent the same
@@ -720,7 +759,7 @@ release:
 ```text
 project.yml tooling.tool_scad_project_version
 Git submodule tools/tool.scad-project
-reusable workflow @v0.4.4
+reusable workflow @v0.5.0
 ```
 
 `scad-project tooling-check` verifies the running CLI against `project.yml` and,
