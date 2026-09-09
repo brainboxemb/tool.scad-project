@@ -58,6 +58,13 @@ def validate_config(context: ProjectContext) -> list[str]:
         if not paths.get("build_root"):
             errors.append("Missing value: paths.build_root")
 
+        for key in ("render_root", "export_root"):
+            value = paths.get(key)
+            if value is not None and (
+                not isinstance(value, str) or not value.strip()
+            ):
+                errors.append(f"paths.{key} must be a non-empty path string")
+
         design_root = paths.get("design_root")
         design_roots = paths.get("design_roots")
         if not design_root and not design_roots:
