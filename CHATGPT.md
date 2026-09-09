@@ -25,6 +25,23 @@ Project-specific declarations belong in root `project.yml`.
 
 Prefer extending configuration over adding project-specific shell scripts.
 
+## Publication-context rule
+
+Publication behavior is resolved centrally from the GitHub source context.
+
+- production branch: publish mutable `build` / `verification`;
+- non-production branch: publish mutable shared `dev/build` / `dev/verification`;
+- pull request: artifact-only;
+- version tag: artifact-only in v0.5.0.
+
+Do not add branch-specific temporary workflows or edit `project.yml` merely to
+redirect one development branch. Projects declare the branch names once; the
+tool resolves the active destination.
+
+Every generated build/verification artifact and mutable branch snapshot should
+contain `publication-info.txt` with source-ref provenance.
+
+
 ## Design documentation
 
 Preferred layout:
@@ -381,7 +398,7 @@ functional verification evidence. `verification.commands` remain project
 specific while orchestration/publication remains generic.
 
 
-## Versioned dependency policy (v0.4.4)
+## Versioned dependency policy (v0.5.0)
 
 `project.yml` is the dependency-policy source. Parent gitlinks are the resolved
 lock.
@@ -394,7 +411,7 @@ tooling:
     type: git-submodule
     url: https://github.com/brainboxemb/tool.scad-project.git
     path: tools/tool.scad-project
-    ref: v0.4.4
+    ref: v0.5.0
 ```
 
 External libraries also carry their own `ref`.
@@ -434,7 +451,7 @@ subset of `project.yml`.
 Do not replace them with wrappers around `scad-project repo-update`; dependency
 management must work before Python is installed.
 
-## Direct-only submodule rule (v0.4.4)
+## Direct-only submodule rule (v0.5.0)
 
 Normal repository operations must initialize/update only direct dependencies.
 
