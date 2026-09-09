@@ -4,7 +4,7 @@ from scad_project.config import ProjectContext
 from scad_project.tooling import tooling_errors
 
 
-def context(ref="v0.7.1"):
+def context(ref="v0.7.2"):
     return ProjectContext(
         root=Path("."),
         config_file=Path("project.yml"),
@@ -74,3 +74,57 @@ def test_release_version_markers_are_aligned():
         )
         assert match, f"Missing workflow version marker in {workflow_path}"
         assert match.group(1) == package_version
+
+
+def test_workflow_timeouts_are_bounded():
+    import yaml
+
+    expected = {
+        ".github/workflows/project-build.yml": {
+            "job": ("build", 15),
+            "steps": {
+                "Checkout project and pinned submodules": 2,
+                "Generate design documentation": 5,
+                "Build configured outputs": 5,
+                "Upload generated build": 2,
+                "Publish generated build branch": 2,
+            },
+        },
+        ".github/workflows/project-verify.yml": {
+            "job": ("verify", 15),
+            "steps": {
+                "Checkout project and pinned submodules": 2,
+                "Verify project source and configured builds": 5,
+                "Run project functional verification": 5,
+                "Upload verification evidence": 2,
+                "Publish verification branch": 2,
+            },
+        },
+        ".github/workflows/test.yml": {
+            "job": ("test", 15),
+            "steps": {
+                "Checkout": 2,
+                "Unit tests": 5,
+            },
+        },
+        ".github/workflows/release.yml": {
+            "job": ("release", 10),
+            "steps": {
+                "Checkout main with full history": 2,
+                "Validate release inputs": 2,
+                "Create annotated release tag": 2,
+                "Dispatch tests on released tag": 2,
+            },
+        },
+    }
+
+    for workflow_path, policy in expected.items():
+        data = yaml.safe_load(Path(workflow_path).read_text(encoding="utf-8"))
+        job_name, job_timeout = policy["job"]
+        job = data["jobs"][job_name]
+
+        assert job["timeout-minutes"] == job_timeout
+
+        steps = {step["name"]: step for step in job["steps"]}
+        for step_name, timeout in policy["steps"].items():
+            assert steps[step_name]["timeout-minutes"] == timeout
