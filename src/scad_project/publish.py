@@ -7,8 +7,10 @@ from fnmatch import fnmatch
 import os
 from pathlib import Path
 import shutil
+import subprocess
 import tempfile
 
+from . import __version__
 from .config import ProjectContext
 from .process import run_checked
 
@@ -112,12 +114,33 @@ def resolve_publication_target(
     )
 
 
+def _runtime_component_info() -> str | None:
+    """Return scad-toolchain-info output when the runtime exposes it."""
+
+    command = shutil.which("scad-toolchain-info")
+    if not command:
+        return None
+
+    completed = subprocess.run(
+        [command],
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    if completed.returncode != 0:
+        return f"scad-toolchain-info failed (exit {completed.returncode})"
+
+    output = completed.stdout.strip()
+    return output or None
+
+
 def publication_info_text(
     context: ProjectContext,
     kind: str,
     environ: dict[str, str] | None = None,
+    runtime_info: str | None = None,
 ) -> str:
-    """Return provenance text for generated artifacts and snapshots."""
+    """Return source, tooling and runtime provenance for generated output."""
 
     env = environ or os.environ
     target = resolve_publication_target(context, kind, env)
@@ -133,17 +156,42 @@ def publication_info_text(
         else "unknown"
     )
 
+    toolchain_image = env.get("SCAD_TOOLCHAIN_IMAGE", "unknown")
+    toolchain_version = env.get("SCAD_TOOLCHAIN_VERSION", "unknown")
+    tool_version = env.get(
+        "SCAD_PROJECT_WORKFLOW_VERSION",
+        f"v{__version__}",
+    )
+
     lines = [
-        f"Publication context: {target.context}",
-        f"Publication kind   : {kind}",
-        f"Publication branch : {target.branch or '(artifact only)'}",
-        f"Source repository  : {repository}",
-        f"Source ref type    : {target.source_ref_type}",
-        f"Source ref         : {target.source_ref}",
-        f"Source commit      : {commit}",
-        f"Triggered by       : {actor}",
-        f"Workflow run       : {workflow_run}",
+        f"Publication context : {target.context}",
+        f"Publication kind    : {kind}",
+        f"Publication branch  : {target.branch or '(artifact only)'}",
+        "",
+        "Source",
+        "------",
+        f"Repository          : {repository}",
+        f"Ref type            : {target.source_ref_type}",
+        f"Ref                 : {target.source_ref}",
+        f"Commit              : {commit}",
+        f"Triggered by        : {actor}",
+        f"Workflow run        : {workflow_run}",
+        "",
+        "Tooling",
+        "-------",
+        f"SCAD toolchain image: {toolchain_image}",
+        f"SCAD toolchain ver. : {toolchain_version}",
+        f"tool.scad-project   : {tool_version}",
     ]
+
+    if runtime_info:
+        lines.extend([
+            "",
+            "Runtime components",
+            "------------------",
+            runtime_info.rstrip(),
+        ])
+
     return "\n".join(lines) + "\n"
 
 
@@ -165,7 +213,14 @@ def write_publication_info(context: ProjectContext, kind: str) -> Path:
 
     root.mkdir(parents=True, exist_ok=True)
     output = root / "publication-info.txt"
-    output.write_text(publication_info_text(context, kind), encoding="utf-8")
+    output.write_text(
+        publication_info_text(
+            context,
+            kind,
+            runtime_info=_runtime_component_info(),
+        ),
+        encoding="utf-8",
+    )
     return output
 
 

@@ -117,12 +117,27 @@ def test_publication_info_contains_source_provenance(tmp_path: Path):
         "GITHUB_SERVER_URL": "https://github.com",
         "GITHUB_RUN_ID": "99",
     }
-    info = publication_info_text(ctx, "build", env)
-    assert "Publication context: development" in info
-    assert "Publication branch : dev/build" in info
-    assert "Source ref         : feature/example" in info
-    assert "Source commit      : abc123" in info
-    assert "Workflow run       : https://github.com/brainboxemb/demo/actions/runs/99" in info
+    env.update({
+        "SCAD_TOOLCHAIN_IMAGE": "ghcr.io/brainboxemb/scad-toolchain:v0.4.0",
+        "SCAD_TOOLCHAIN_VERSION": "v0.4.0",
+        "SCAD_PROJECT_WORKFLOW_VERSION": "v0.6.1",
+    })
+    info = publication_info_text(
+        ctx,
+        "build",
+        env,
+        runtime_info="OpenSCAD   : OpenSCAD version test",
+    )
+    assert "Publication context : development" in info
+    assert "Publication branch  : dev/build" in info
+    assert "Ref                 : feature/example" in info
+    assert "Commit              : abc123" in info
+    assert "Workflow run        : https://github.com/brainboxemb/demo/actions/runs/99" in info
+    assert "SCAD toolchain image: ghcr.io/brainboxemb/scad-toolchain:v0.4.0" in info
+    assert "SCAD toolchain ver. : v0.4.0" in info
+    assert "tool.scad-project   : v0.6.1" in info
+    assert "Runtime components" in info
+    assert "OpenSCAD   : OpenSCAD version test" in info
 
 
 def test_write_publication_info_to_build_root(tmp_path: Path, monkeypatch):
@@ -135,4 +150,17 @@ def test_write_publication_info_to_build_root(tmp_path: Path, monkeypatch):
 
     assert output == tmp_path / "bld" / "publication-info.txt"
     assert output.is_file()
-    assert "Publication branch : build" in output.read_text(encoding="utf-8")
+    assert "Publication branch  : build" in output.read_text(encoding="utf-8")
+
+
+def test_publication_info_uses_package_version_outside_reusable_workflow(
+    tmp_path: Path,
+):
+    ctx = context(tmp_path)
+    env = {
+        "GITHUB_EVENT_NAME": "push",
+        "GITHUB_REF_TYPE": "branch",
+        "GITHUB_REF_NAME": "main",
+    }
+    info = publication_info_text(ctx, "build", env)
+    assert "tool.scad-project   : v0.6.1" in info
