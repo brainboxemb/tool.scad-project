@@ -351,6 +351,39 @@ Inline render snippets are OpenSCAD-only until an explicit Python inline format
 is designed.
 
 
+## Tool release workflow
+
+Use the permanent workflow:
+
+```text
+.github/workflows/release.yml
+```
+
+A normal release is started through `workflow_dispatch` with:
+
+```text
+version
+    immutable semantic tag, e.g. v0.6.0
+
+release_sha
+    exact already-verified commit SHA
+```
+
+The workflow validates that the requested version matches the package version in
+`pyproject.toml`, refuses to overwrite an existing tag, creates an annotated
+tag on the explicit release commit, and then explicitly dispatches
+`.github/workflows/test.yml` on that tag.
+
+The explicit dispatch is required because a tag pushed with `GITHUB_TOKEN`
+does not itself create a follow-up workflow run.
+
+If the connected GitHub interface cannot directly invoke `workflow_dispatch`,
+use a temporary dispatcher workflow only to invoke the permanent
+`release.yml`. Do not duplicate tag creation logic in that temporary helper.
+Remove the helper immediately after the release workflow has started.
+
+A release is accepted only after the tagged `test.yml` run is green.
+
 ## Reusable workflow convention
 
 `tool.scad-project` owns the standard reusable GitHub workflows:
