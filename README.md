@@ -256,7 +256,7 @@ project source.
 Current expected runtime:
 
 ```text
-ghcr.io/brainboxemb/scad-toolchain:v0.3.1
+ghcr.io/brainboxemb/scad-toolchain:v0.4.0
 ```
 
 The project tool intentionally remains separate from the Docker image.
@@ -647,7 +647,7 @@ tooling:
     type: git-submodule
     url: https://github.com/brainboxemb/tool.scad-project.git
     path: tools/tool.scad-project
-    ref: v0.6.0
+    ref: v0.6.1
 
 externals:
   - name: lib.scad.clamps
@@ -661,7 +661,7 @@ externals:
 `ref` is per dependency and supports:
 
 ```text
-v0.6.0
+v0.6.1
     exact tag
 
 latest
@@ -711,7 +711,7 @@ changed gitlinks available for normal `git diff` / `git status` review.
 For tooling, workflow callers are derived from the resolved tooling ref:
 
 ```text
-ref: v0.6.0  -> @v0.6.0
+ref: v0.6.1  -> @v0.6.1
 ref: latest  -> @<resolved newest tag>
 ref: main    -> @main
 ```
@@ -748,7 +748,7 @@ Build workflow:
 ```yaml
 jobs:
   build:
-    uses: brainboxemb/tool.scad-project/.github/workflows/project-build.yml@v0.6.0
+    uses: brainboxemb/tool.scad-project/.github/workflows/project-build.yml@v0.6.1
 ```
 
 Projects with separate functional verification can additionally use:
@@ -756,7 +756,7 @@ Projects with separate functional verification can additionally use:
 ```yaml
 jobs:
   verify:
-    uses: brainboxemb/tool.scad-project/.github/workflows/project-verify.yml@v0.6.0
+    uses: brainboxemb/tool.scad-project/.github/workflows/project-verify.yml@v0.6.1
     with:
       verification_path: vrf/out
 ```
@@ -785,7 +785,7 @@ tooling:
     type: git-submodule
     url: https://github.com/brainboxemb/tool.scad-project.git
     path: tools/tool.scad-project
-    ref: v0.6.0
+    ref: v0.6.1
 ```
 
 For a release-pinned consumer, these three references should represent the same
@@ -794,7 +794,7 @@ release:
 ```text
 project.yml tooling.tool_scad_project_version
 Git submodule tools/tool.scad-project
-reusable workflow @v0.6.0
+reusable workflow @v0.6.1
 ```
 
 `scad-project tooling-check` verifies the running CLI against `project.yml` and,
@@ -832,6 +832,45 @@ bootstrap handles missing parent directories (for example `tools/`) and ends by
 verifying that every declared submodule exists as a Git gitlink with mode
 `160000`. It must fail instead of reporting success when registration is
 incomplete.
+
+## Generated provenance
+
+Every generated build or verification snapshot contains:
+
+```text
+publication-info.txt
+```
+
+This is the current-generation replacement for the classic
+`openscad-build.txt` file. It keeps source and runtime evidence together
+instead of creating engine-specific metadata files.
+
+The record contains:
+
+```text
+Source
+    repository
+    ref / commit
+    workflow run
+
+Tooling
+    immutable SCAD toolchain image
+    SCAD toolchain release
+    tool.scad-project release
+
+Runtime components
+    scad-toolchain-info output
+    OpenSCAD
+    PythonSCAD
+    BOSL2 / pybosl2
+    Shapely
+    openscad_docsgen
+    Pillow
+```
+
+The immutable Docker image is the primary runtime version pin. Exact component
+versions remain useful diagnostic and reproduction evidence, but they are
+managed as part of that image.
 
 ## Standard generated build index
 
