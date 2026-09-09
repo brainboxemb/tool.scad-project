@@ -121,6 +121,45 @@ def validate_config(context: ProjectContext) -> list[str]:
             if output_root is not None and not isinstance(output_root, str):
                 errors.append("verification.output_root must be a path string")
 
+    publication = c.get("publication")
+    if publication is not None:
+        if not isinstance(publication, dict):
+            errors.append("publication must be a mapping")
+        else:
+            for section_name in ("production", "development", "tags"):
+                section = publication.get(section_name)
+                if section is not None and not isinstance(section, dict):
+                    errors.append(f"publication.{section_name} must be a mapping")
+
+            production = publication.get("production", {}) or {}
+            development = publication.get("development", {}) or {}
+            tags = publication.get("tags", {}) or {}
+
+            if isinstance(production, dict):
+                source_branch = production.get("source_branch")
+                if source_branch is not None and not isinstance(source_branch, str):
+                    errors.append("publication.production.source_branch must be a string")
+                for key in ("build_branch", "verification_branch"):
+                    value = production.get(key)
+                    if value is not None and not isinstance(value, str):
+                        errors.append(f"publication.production.{key} must be a string")
+
+            if isinstance(development, dict):
+                for key in ("build_branch", "verification_branch"):
+                    value = development.get(key)
+                    if value is not None and not isinstance(value, str):
+                        errors.append(f"publication.development.{key} must be a string")
+
+            if isinstance(tags, dict):
+                pattern = tags.get("pattern")
+                if pattern is not None and not isinstance(pattern, str):
+                    errors.append("publication.tags.pattern must be a string")
+
+            for key in ("build_branch", "verification_branch"):
+                value = publication.get(key)
+                if value is not None and not isinstance(value, str):
+                    errors.append(f"publication.{key} must be a string")
+
     seen_names: set[str] = set()
     seen_outputs: set[str] = set()
     for index, build in enumerate(c.get("builds", []) or []):
