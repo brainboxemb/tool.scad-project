@@ -56,6 +56,10 @@ openscad:
     - --render
   image_size: [1600, 1000]
 
+rendering:
+  watermark:
+    text: "© 2026 brainboxemb"
+
 externals:
   - name: lib.scad.clamps
     type: git-submodule
@@ -72,6 +76,37 @@ builds:
     source: dsg/openscad/render/assembly.scad
     output: bld/stl/assembly.stl
 ```
+
+## Render post-processing
+
+PNG build outputs can optionally receive a watermark through project
+configuration:
+
+```yaml
+rendering:
+  watermark:
+    text: "© 2026 brainboxemb"
+```
+
+When configured, `scad-project build` first renders the normal PNG and then
+calls the public `scad-image-watermark` command supplied by
+`docker.scad-toolchain`.
+
+The responsibility split is intentional:
+
+```text
+docker.scad-toolchain
+    -> generic image operation
+
+tool.scad-project
+    -> configuration and orchestration
+
+consumer project
+    -> watermark text/policy
+```
+
+The setting applies only to configured PNG build outputs. STL builds and
+generated design-documentation images are unchanged.
 
 ## Design documentation
 
@@ -612,7 +647,7 @@ tooling:
     type: git-submodule
     url: https://github.com/brainboxemb/tool.scad-project.git
     path: tools/tool.scad-project
-    ref: v0.5.0
+    ref: v0.6.0
 
 externals:
   - name: lib.scad.clamps
@@ -626,7 +661,7 @@ externals:
 `ref` is per dependency and supports:
 
 ```text
-v0.5.0
+v0.6.0
     exact tag
 
 latest
@@ -676,7 +711,7 @@ changed gitlinks available for normal `git diff` / `git status` review.
 For tooling, workflow callers are derived from the resolved tooling ref:
 
 ```text
-ref: v0.5.0  -> @v0.5.0
+ref: v0.6.0  -> @v0.6.0
 ref: latest  -> @<resolved newest tag>
 ref: main    -> @main
 ```
@@ -713,7 +748,7 @@ Build workflow:
 ```yaml
 jobs:
   build:
-    uses: brainboxemb/tool.scad-project/.github/workflows/project-build.yml@v0.5.0
+    uses: brainboxemb/tool.scad-project/.github/workflows/project-build.yml@v0.6.0
 ```
 
 Projects with separate functional verification can additionally use:
@@ -721,7 +756,7 @@ Projects with separate functional verification can additionally use:
 ```yaml
 jobs:
   verify:
-    uses: brainboxemb/tool.scad-project/.github/workflows/project-verify.yml@v0.5.0
+    uses: brainboxemb/tool.scad-project/.github/workflows/project-verify.yml@v0.6.0
     with:
       verification_path: vrf/out
 ```
@@ -750,7 +785,7 @@ tooling:
     type: git-submodule
     url: https://github.com/brainboxemb/tool.scad-project.git
     path: tools/tool.scad-project
-    ref: v0.5.0
+    ref: v0.6.0
 ```
 
 For a release-pinned consumer, these three references should represent the same
@@ -759,7 +794,7 @@ release:
 ```text
 project.yml tooling.tool_scad_project_version
 Git submodule tools/tool.scad-project
-reusable workflow @v0.5.0
+reusable workflow @v0.6.0
 ```
 
 `scad-project tooling-check` verifies the running CLI against `project.yml` and,
