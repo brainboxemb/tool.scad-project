@@ -79,6 +79,69 @@ builds:
     output: bld/stl/assembly.stl
 ```
 
+## Directory-based builds
+
+Normal OpenSCAD build entrypoints can be discovered from configured directories
+instead of being listed one by one under `builds:`.
+
+```yaml
+paths:
+  design_root: dsg
+  build_root: bld
+  render_root: dsg/openscad/render
+  export_root: dsg/openscad/export
+```
+
+Rules:
+
+```text
+render_root/*.scad -> build_root/png/*.png
+export_root/*.scad -> build_root/stl/*.stl
+```
+
+Only direct `.scad` children are discovered. Subdirectories are not scanned.
+Underscores in entrypoint filenames are converted to hyphens in generated
+output names.
+
+Optional `render.yml` and `export.yml` files beside the entrypoints describe
+special build behavior. Files not assigned to a profile are built once with
+normal defaults.
+
+Example `render.yml`:
+
+```yaml
+defaults:
+  image_size: [2560, 1440]
+
+profiles:
+  multi-size:
+    sizes: [small, medium, large]
+    image_size: [1800, 1200]
+    files:
+      - middle_coupler.scad
+```
+
+This generates:
+
+```text
+middle-coupler-small.png
+middle-coupler-medium.png
+middle-coupler-large.png
+```
+
+and invokes OpenSCAD with `-D size="<value>"` for each configured size.
+
+A profile-level `image_size` overrides `defaults.image_size`, which in turn
+overrides `openscad.image_size` for those directory-based render entrypoints.
+
+The same `sizes` and `files` profile structure is supported by `export.yml`
+for STL generation. `image_size` has no effect on STL output.
+
+The existing root `builds:` list remains supported for compatibility and for
+exceptional explicit source/output mappings. If an explicit build and a
+directory-discovered build resolve to the same output path, the explicit build
+wins.
+
 ## Render post-processing
 
 PNG build outputs can optionally receive a watermark through project

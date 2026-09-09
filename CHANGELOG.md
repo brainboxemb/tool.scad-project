@@ -2,6 +2,19 @@
 
 Functional changes to released `tool.scad-project` versions.
 
+## v0.7.0
+
+### Added
+
+- Directory-based OpenSCAD build discovery through configured `render_root` and `export_root` paths.
+- Optional `render.yml` and `export.yml` build profiles beside entrypoints.
+- Multi-size profile expansion using `sizes`, passed to OpenSCAD as `-D size="..."`.
+- Profile-level PNG `image_size` overrides with directory defaults and project-level fallback.
+
+### Changed
+
+- Explicit `builds:` entries remain supported as compatibility/exception overrides instead of being required for every normal render/export entrypoint.
+
 ## v0.6.1
 
 ### Added
