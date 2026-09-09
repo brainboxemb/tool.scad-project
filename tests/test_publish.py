@@ -163,4 +163,5 @@ def test_publication_info_uses_package_version_outside_reusable_workflow(
         "GITHUB_REF_NAME": "main",
     }
     info = publication_info_text(ctx, "build", env)
-    assert "tool.scad-project   : v0.6.1" in info
+    from scad_project import __version__
+    assert f"tool.scad-project   : v{__version__}" in info

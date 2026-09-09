@@ -2,6 +2,13 @@
 
 Functional changes to released `tool.scad-project` versions.
 
+## v0.7.1
+
+### Fixed
+
+- Align the package runtime version and reusable workflow version markers with the released tool version.
+- Add regression coverage so package and workflow version markers cannot silently drift apart again.
+
 ## v0.7.0
 
 ### Added

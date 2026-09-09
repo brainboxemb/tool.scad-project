@@ -4,7 +4,7 @@ from scad_project.config import ProjectContext
 from scad_project.tooling import tooling_errors
 
 
-def context(ref="v0.6.1"):
+def context(ref="v0.7.1"):
     return ProjectContext(
         root=Path("."),
         config_file=Path("project.yml"),
@@ -50,3 +50,27 @@ def test_tooling_requires_ref(monkeypatch):
         config={"tooling": {"tool_scad_project": {}}},
     )
     assert tooling_errors(ctx) == ["Missing tooling tool.scad-project ref"]
+
+
+def test_release_version_markers_are_aligned():
+    import re
+    import tomllib
+    from scad_project import __version__
+
+    package_version = tomllib.loads(
+        Path("pyproject.toml").read_text(encoding="utf-8")
+    )["project"]["version"]
+
+    assert __version__ == package_version
+
+    for workflow_path in (
+        Path(".github/workflows/project-build.yml"),
+        Path(".github/workflows/project-verify.yml"),
+    ):
+        text = workflow_path.read_text(encoding="utf-8")
+        match = re.search(
+            r"SCAD_PROJECT_WORKFLOW_VERSION:\s*v([0-9]+\.[0-9]+\.[0-9]+)",
+            text,
+        )
+        assert match, f"Missing workflow version marker in {workflow_path}"
+        assert match.group(1) == package_version
