@@ -802,6 +802,25 @@ On Windows:
 
 works before Python is installed.
 
+## Workflow timeout policy
+
+Reusable workflows use deliberately short fail-safe timeouts. Normal SCAD
+project workloads are expected to finish in minutes, so a stuck render or
+publish step should not occupy a runner for an hour.
+
+```text
+reusable Build job         15 min
+reusable Verify job        15 min
+setup/lint/upload/publish   2 min per step
+design/build/verification   5 min per heavy step
+tool Test job              15 min
+tool Release job           10 min
+```
+
+These limits follow the same philosophy as the earlier reusable OpenSCAD
+Actions workflows: enough headroom for normal rendering, but intentionally
+short when a process hangs.
+
 ## Reusable GitHub workflows
 
 Consumer repositories should keep their GitHub Actions files thin and pin the

@@ -21,61 +21,76 @@ permissions:
 jobs:
   build:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     container:
       image: ghcr.io/brainboxemb/scad-toolchain:v0.4.0
 
     env:
-      SCAD_PROJECT_WORKFLOW_VERSION: v0.7.1
+      SCAD_PROJECT_WORKFLOW_VERSION: v0.7.2
       SCAD_TOOLCHAIN_IMAGE: ghcr.io/brainboxemb/scad-toolchain:v0.4.0
       SCAD_TOOLCHAIN_VERSION: v0.4.0
 
     steps:
       - name: Checkout project and pinned submodules
+        timeout-minutes: 2
         uses: actions/checkout@v4
         with:
           submodules: true
           fetch-depth: 0
 
       - name: Show toolchain
+        timeout-minutes: 2
         run: scad-toolchain-info
 
       - name: Configure Git safe directory
+        timeout-minutes: 2
         run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
 
       - name: Check tooling version alignment
+        timeout-minutes: 2
         run: bash ./tools/tool.scad-project/scad-project.sh tooling-check
 
       - name: Lint project configuration
+        timeout-minutes: 2
         run: bash ./tools/tool.scad-project/scad-project.sh config-lint
 
       - name: Check external dependencies
+        timeout-minutes: 2
         run: bash ./tools/tool.scad-project/scad-project.sh externals-check
 
       - name: Lint OpenSCAD source documentation
+        timeout-minutes: 2
         run: bash ./tools/tool.scad-project/scad-project.sh docs-lint
 
       - name: Lint design documentation
+        timeout-minutes: 2
         run: bash ./tools/tool.scad-project/scad-project.sh design-lint
 
       - name: Generate design documentation
+        timeout-minutes: 5
         run: bash ./tools/tool.scad-project/scad-project.sh design-build
 
       - name: Build configured outputs
+        timeout-minutes: 5
         run: bash ./tools/tool.scad-project/scad-project.sh build
 
       - name: Generate build index
+        timeout-minutes: 2
         run: bash ./tools/tool.scad-project/scad-project.sh build-index
 
       - name: Record publication provenance
+        timeout-minutes: 2
         run: bash ./tools/tool.scad-project/scad-project.sh publication-info-build
 
       - name: Upload generated build
+        timeout-minutes: 2
         uses: actions/upload-artifact@v4
         with:
           name: ${{ inputs.artifact_name }}
           path: bld
 
       - name: Publish generated build branch
+        timeout-minutes: 2
         if: inputs.publish && github.event_name != 'pull_request'
         env:
           GITHUB_TOKEN: ${{ github.token }}

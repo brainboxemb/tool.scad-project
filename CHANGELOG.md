@@ -2,6 +2,17 @@
 
 Functional changes to released `tool.scad-project` versions.
 
+## v0.7.2
+
+### Changed
+
+- Bound reusable Build and Verify jobs to 15 minutes.
+- Bound setup, lint, artifact and publication steps to 2 minutes.
+- Bound design rendering, configured output builds and verification work to 5 minutes.
+- Bound the tool test workflow to 15 minutes and the release workflow to 10 minutes.
+- Add regression coverage for the workflow timeout policy.
+
+
 ## v0.7.1
 
 ### Fixed
