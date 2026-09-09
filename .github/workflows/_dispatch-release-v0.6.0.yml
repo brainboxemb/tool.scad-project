@@ -1,0 +1,21 @@
+name: One-shot dispatch tool v0.6.0 release
+
+on:
+  push:
+    branches:
+      - main
+
+permissions:
+  actions: write
+  contents: read
+
+jobs:
+  dispatch:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Dispatch permanent release workflow
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          gh workflow run release.yml             --ref main             -f version=v0.6.0             -f release_sha=ebc013206b7e2a07b11df7cad94da8dea6c9f0a8
