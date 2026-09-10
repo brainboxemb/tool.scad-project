@@ -7,6 +7,7 @@ import sys
 
 from .build import check_libraries
 from .build_engine import build_project
+from .build_engine_config import validate_build_engine_config
 from .config import ConfigError, load_context, validate_config
 from .design_policy import build_design, lint_design
 from .docs import lint_docs
@@ -58,7 +59,7 @@ def main() -> None:
     args = p.parse_args()
     try:
         ctx = load_context(args.project)
-        errors = validate_config(ctx)
+        errors = validate_config(ctx) + validate_build_engine_config(ctx)
         if errors:
             raise RuntimeError("\n".join(errors))
 
