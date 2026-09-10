@@ -27,13 +27,29 @@ def test_release_workflow_preflights_before_build_and_verify():
     assert text.count("source_sha: ${{ inputs.source_sha }}") >= 2
 
 
-def test_release_preflight_requires_source_on_production_branch():
+def test_release_preflight_requires_current_production_head():
     text = read(RELEASE)
 
     assert 'PRODUCTION_BRANCH="$(python - <<\'PY\'' in text
     assert 'production.get("source_branch", "main")' in text
-    assert "git merge-base --is-ancestor" in text
-    assert "is not on production branch" in text
+    assert 'PRODUCTION_SHA="$(git rev-parse "refs/remotes/origin/${PRODUCTION_BRANCH}")"' in text
+    assert '"${RELEASE_SOURCE_SHA}" != "${PRODUCTION_SHA}"' in text
+    assert "must equal current ${PRODUCTION_BRANCH} HEAD" in text
+    assert "git merge-base --is-ancestor" not in text
+    assert 'echo "production_branch=${PRODUCTION_BRANCH}" >> "$GITHUB_OUTPUT"' in text
+
+
+def test_release_finalizer_revalidates_production_head_before_side_effects():
+    text = read(RELEASE)
+
+    revalidate = text.index("name: Revalidate production source and release namespace")
+    package = text.index("name: Package release downloads")
+    publish = text.index("name: Publish immutable release branches")
+
+    assert revalidate < package < publish
+    assert "PRODUCTION_BRANCH: ${{ needs.preflight.outputs.production_branch }}" in text
+    assert "advanced after preflight" in text
+    assert text.count('PRODUCTION_SHA="$(git rev-parse "refs/remotes/origin/${PRODUCTION_BRANCH}")"') == 2
 
 
 def test_release_workflow_finalizes_branches_before_tag_and_github_release():
@@ -48,6 +64,17 @@ def test_release_workflow_finalizes_branches_before_tag_and_github_release():
     assert "scad-project release-package" in text
     assert "scad-project release-notes" in text
     assert ".release/SHA256SUMS.txt" in text
+
+
+def test_release_workflow_verifies_generated_checksums_before_publication():
+    text = read(RELEASE)
+
+    package = text.index("name: Package release downloads")
+    checksums = text.index("name: Verify release checksums")
+    publish = text.index("name: Publish immutable release branches")
+
+    assert package < checksums < publish
+    assert "sha256sum -c SHA256SUMS.txt" in text
 
 
 def test_release_workflow_checks_exact_source_and_existing_release_namespace():
