@@ -259,7 +259,7 @@ function Update-WorkflowRefs {
         return
     }
 
-    $Pattern = '(brainboxemb/tool\.scad-project/\.github/workflows/(?:project-build|project-verify)\.yml)@[^\s''"]+'
+    $Pattern = '(brainboxemb/tool\.scad-project/\.github/workflows/(?:project-build|project-verify|project-release)\.yml)@[^\s''"]+'
 
     Get-ChildItem $WorkflowDir -File |
         Where-Object { $_.Extension -in @(".yml", ".yaml") } |
