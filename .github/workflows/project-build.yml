@@ -87,9 +87,23 @@ jobs:
         timeout-minutes: 2
         run: bash ./tools/tool.scad-project/scad-project.sh design-lint
 
+      - name: Restore generated design documentation
+        id: design-cache
+        timeout-minutes: 2
+        uses: actions/cache@v4
+        with:
+          path: bld/design
+          key: scad-project-design-v1-${{ runner.os }}-${{ github.repository_id }}-${{ env.SCAD_TOOLCHAIN_VERSION }}-${{ steps.scons-cache.outputs.tool_sha }}-${{ hashFiles('project.yml', '.gitmodules', 'dsg/**/*.scad', 'dsg/**/*.py', 'dsg/**/design/**') }}
+
       - name: Generate design documentation
+        if: steps.design-cache.outputs.cache-hit != 'true'
         timeout-minutes: 5
         run: bash ./tools/tool.scad-project/scad-project.sh design-build
+
+      - name: Report restored design documentation
+        if: steps.design-cache.outputs.cache-hit == 'true'
+        timeout-minutes: 2
+        run: echo "Design documentation restored from cache; design-build skipped."
 
       - name: Build configured outputs
         timeout-minutes: 5
