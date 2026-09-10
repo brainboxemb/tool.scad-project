@@ -28,12 +28,12 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     container:
-      image: ghcr.io/brainboxemb/scad-toolchain:v0.4.0
+      image: ghcr.io/brainboxemb/scad-toolchain:v0.4.1
 
     env:
-      SCAD_PROJECT_WORKFLOW_VERSION: v0.7.3
-      SCAD_TOOLCHAIN_IMAGE: ghcr.io/brainboxemb/scad-toolchain:v0.4.0
-      SCAD_TOOLCHAIN_VERSION: v0.4.0
+      SCAD_PROJECT_WORKFLOW_VERSION: v0.8.0
+      SCAD_TOOLCHAIN_IMAGE: ghcr.io/brainboxemb/scad-toolchain:v0.4.1
+      SCAD_TOOLCHAIN_VERSION: v0.4.1
 
     steps:
       - name: Checkout project and pinned submodules
@@ -43,13 +43,34 @@ jobs:
           submodules: true
           fetch-depth: 0
 
+      - name: Configure Git safe directories
+        timeout-minutes: 2
+        run: |
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
+          git config --global --add safe.directory "$GITHUB_WORKSPACE/tools/tool.scad-project"
+
+      - name: Resolve SCons cache namespace
+        id: scons-cache
+        timeout-minutes: 2
+        shell: bash
+        run: |
+          set -euo pipefail
+          TOOL_SHA="$(git -C tools/tool.scad-project rev-parse HEAD)"
+          echo "tool_sha=${TOOL_SHA}" >> "$GITHUB_OUTPUT"
+          echo "SCons cache namespace: toolchain=${SCAD_TOOLCHAIN_VERSION}, tool=${TOOL_SHA}"
+
+      - name: Restore SCons build cache
+        timeout-minutes: 2
+        uses: actions/cache@v4
+        with:
+          path: .cache/scad-project/scons
+          key: scad-project-scons-v1-${{ runner.os }}-${{ github.repository_id }}-${{ env.SCAD_TOOLCHAIN_VERSION }}-${{ steps.scons-cache.outputs.tool_sha }}-${{ hashFiles('project.yml', '.gitmodules', 'dsg/**/*.scad', 'dsg/**/*.py', 'dsg/**/render.yml', 'dsg/**/export.yml', 'dsg/**/*.stl', 'dsg/**/*.off', 'dsg/**/*.amf', 'dsg/**/*.3mf', 'dsg/**/*.obj', 'dsg/**/*.dxf', 'dsg/**/*.svg', 'dsg/**/*.dat', 'dsg/**/*.txt', 'dsg/**/*.png') }}
+          restore-keys: |
+            scad-project-scons-v1-${{ runner.os }}-${{ github.repository_id }}-${{ env.SCAD_TOOLCHAIN_VERSION }}-${{ steps.scons-cache.outputs.tool_sha }}-
+
       - name: Show toolchain
         timeout-minutes: 2
         run: scad-toolchain-info
-
-      - name: Configure Git safe directory
-        timeout-minutes: 2
-        run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
 
       - name: Check tooling version alignment
         timeout-minutes: 2

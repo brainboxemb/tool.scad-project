@@ -2,7 +2,11 @@ project:
   name: example.scad-project
 
 tooling:
-  tool_scad_project_version: v0.4.1
+  tool_scad_project:
+    type: git-submodule
+    url: https://github.com/brainboxemb/tool.scad-project.git
+    path: tools/tool.scad-project
+    ref: v0.8.0
 
 paths:
   design_root: dsg/openscad
@@ -11,6 +15,10 @@ paths:
 design:
   # Set false in consumers that should publish only project-owned design docs.
   include_externals: true
+
+build_engine:
+  # Omit this section to keep the backwards-compatible direct build engine.
+  engine: scons
 
 openscad:
   common_flags:

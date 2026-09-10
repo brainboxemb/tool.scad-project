@@ -4,7 +4,7 @@ from scad_project.config import ProjectContext
 from scad_project.tooling import tooling_errors
 
 
-def context(ref="v0.7.3"):
+def context(ref="v0.8.0"):
     return ProjectContext(
         root=Path("."),
         config_file=Path("project.yml"),
@@ -110,10 +110,11 @@ def test_workflow_timeouts_are_bounded():
         ".github/workflows/release.yml": {
             "job": ("release", 10),
             "steps": {
-                "Checkout main with full history": 2,
-                "Validate release inputs": 2,
+                "Checkout release workflow ref with full history": 2,
+                "Resolve and validate release request": 2,
                 "Create annotated release tag": 2,
                 "Dispatch tests on released tag": 2,
+                "Remove release request branch": 2,
             },
         },
     }

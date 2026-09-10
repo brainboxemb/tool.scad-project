@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "scad-project"
-version = "0.7.3"
+version = "0.8.0"
 description = "Reusable workflow tooling for configuration-driven OpenSCAD projects."
 readme = "README.md"
 requires-python = ">=3.11"
@@ -12,6 +12,7 @@ dependencies = ["PyYAML==6.0.2"]
 
 [project.optional-dependencies]
 test = ["pytest>=8,<9"]
+scons = ["SCons==4.11.1"]
 
 [project.scripts]
 scad-project = "scad_project.cli:main"

@@ -16,7 +16,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     container:
-      image: ghcr.io/brainboxemb/scad-toolchain:v0.4.0
+      image: ghcr.io/brainboxemb/scad-toolchain:v0.4.1
 
     steps:
       - name: Checkout

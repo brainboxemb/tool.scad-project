@@ -51,6 +51,12 @@ paths:
   design_root: dsg
   build_root: bld
 
+design:
+  include_externals: false
+
+build_engine:
+  engine: scons
+
 openscad:
   common_flags:
     - --enable=object-function
@@ -78,6 +84,10 @@ builds:
     source: dsg/openscad/render/assembly.scad
     output: bld/stl/assembly.stl
 ```
+
+`build_engine` is optional. Omitting it keeps the backwards-compatible direct
+build engine. `design.include_externals` defaults to `true`; set it to `false`
+when a consumer should publish only its project-owned design documentation.
 
 ## Directory-based builds
 
@@ -141,6 +151,42 @@ The existing root `builds:` list remains supported for compatibility and for
 exceptional explicit source/output mappings. If an explicit build and a
 directory-discovered build resolve to the same output path, the explicit build
 wins.
+
+## Selective SCons build engine
+
+`tool.scad-project` v0.8.0 adds an optional SCons backend behind the existing
+`scad-project build` command:
+
+```yaml
+build_engine:
+  engine: scons
+```
+
+The direct engine remains the default when this section is omitted. Both
+engines consume the same configured target model; enabling SCons does not add a
+second `render.yml`, `export.yml` or `builds:` format.
+
+The SCons backend tracks OpenSCAD dependencies through transitive `use` and
+`include` references. Literal file inputs loaded through `import()` or
+`surface()` are tracked as leaf dependencies. A dynamic file-loading expression
+that cannot be represented deterministically is rejected in SCons mode instead
+of risking a stale cached output; use a literal file path or the direct engine
+for such a target.
+
+Reusable Build and Verify workflows persist SCons `CacheDir` data through
+GitHub Actions cache. A clean runner does not need the previous `bld/` tree or
+`.sconsign`: unchanged missing outputs can be restored by build signature while
+only targets affected by changed dependencies are executed again. Cache
+namespaces include the repository, immutable toolchain version, exact
+`tool.scad-project` gitlink and relevant project inputs.
+
+The reusable Build workflow also caches the complete generated `bld/design`
+tree. An exact design-input cache hit restores that tree and skips
+`design-build`. A changed design input currently rebuilds the whole generated
+design tree; per-document design dependency selection is intentionally deferred.
+
+When SCons is active, Build uploads a small `last-build.json` report artifact
+showing which configured targets were executed and which were restored/current.
 
 ## Render post-processing
 
@@ -321,10 +367,11 @@ project source.
 Current expected runtime:
 
 ```text
-ghcr.io/brainboxemb/scad-toolchain:v0.4.0
+ghcr.io/brainboxemb/scad-toolchain:v0.4.1
 ```
 
-The project tool intentionally remains separate from the Docker image.
+This runtime contains SCons 4.11.1 for the selective build backend. The project
+tool intentionally remains separate from the Docker image.
 
 ## Scope of v0.1.0
 
@@ -583,6 +630,17 @@ bld/design/
 The generated `design.md` replaces render declarations with ordinary Markdown
 image links. The source Markdown and external checkouts are never modified.
 
+Set:
+
+```yaml
+design:
+  include_externals: false
+```
+
+to omit external-library design documentation from a consumer build while
+keeping those external CAD sources available to project models. The default is
+`true` for backwards compatibility.
+
 `scad-design` remains accepted as a compatibility syntax while older libraries
 are migrated, but new documentation should use `scad-render`.
 
@@ -712,7 +770,7 @@ tooling:
     type: git-submodule
     url: https://github.com/brainboxemb/tool.scad-project.git
     path: tools/tool.scad-project
-    ref: v0.6.1
+    ref: v0.8.0
 
 externals:
   - name: lib.scad.clamps
@@ -726,7 +784,7 @@ externals:
 `ref` is per dependency and supports:
 
 ```text
-v0.6.1
+v0.8.0
     exact tag
 
 latest
@@ -776,7 +834,7 @@ changed gitlinks available for normal `git diff` / `git status` review.
 For tooling, workflow callers are derived from the resolved tooling ref:
 
 ```text
-ref: v0.6.1  -> @v0.6.1
+ref: v0.8.0  -> @v0.8.0
 ref: latest  -> @<resolved newest tag>
 ref: main    -> @main
 ```
@@ -832,7 +890,7 @@ Build workflow:
 ```yaml
 jobs:
   build:
-    uses: brainboxemb/tool.scad-project/.github/workflows/project-build.yml@v0.6.1
+    uses: brainboxemb/tool.scad-project/.github/workflows/project-build.yml@v0.8.0
 ```
 
 Projects with separate functional verification can additionally use:
@@ -840,7 +898,7 @@ Projects with separate functional verification can additionally use:
 ```yaml
 jobs:
   verify:
-    uses: brainboxemb/tool.scad-project/.github/workflows/project-verify.yml@v0.6.1
+    uses: brainboxemb/tool.scad-project/.github/workflows/project-verify.yml@v0.8.0
     with:
       verification_path: vrf/out
 ```
@@ -850,8 +908,8 @@ The reusable build workflow standardizes:
 - toolchain selection;
 - tooling-version validation;
 - configuration/external/source/design linting;
-- OpenSCAD and PythonSCAD generated design documentation;
-- configured PNG/STL builds;
+- generated-design cache restore/build;
+- dependency-selective configured PNG/STL builds when SCons is enabled;
 - build artifact upload;
 - generated `build` branch publication.
 
@@ -869,16 +927,16 @@ tooling:
     type: git-submodule
     url: https://github.com/brainboxemb/tool.scad-project.git
     path: tools/tool.scad-project
-    ref: v0.6.1
+    ref: v0.8.0
 ```
 
 For a release-pinned consumer, these three references should represent the same
 release:
 
 ```text
-project.yml tooling.tool_scad_project_version
+project.yml tooling.tool_scad_project.ref
 Git submodule tools/tool.scad-project
-reusable workflow @v0.6.1
+reusable workflow @v0.8.0
 ```
 
 `scad-project tooling-check` verifies the running CLI against `project.yml` and,
@@ -946,6 +1004,7 @@ Runtime components
     scad-toolchain-info output
     OpenSCAD
     PythonSCAD
+    SCons
     BOSL2 / pybosl2
     Shapely
     openscad_docsgen
