@@ -13,6 +13,7 @@ from .design_policy import build_design, lint_design
 from .docs import lint_docs
 from .publish import publish_build, publish_verification, write_publication_info
 from .release import package_release, publish_release_branches
+from .release_config import validate_release_config
 from .release_notes import write_release_notes
 from .index import write_build_index
 from .tooling import tooling_errors
@@ -80,7 +81,11 @@ def main() -> None:
     args = p.parse_args()
     try:
         ctx = load_context(args.project)
-        errors = validate_config(ctx) + validate_build_engine_config(ctx)
+        errors = (
+            validate_config(ctx)
+            + validate_build_engine_config(ctx)
+            + validate_release_config(ctx)
+        )
         if errors:
             raise RuntimeError("\n".join(errors))
 
