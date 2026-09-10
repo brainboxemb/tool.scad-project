@@ -2,8 +2,18 @@ from pathlib import Path
 import os
 import zipfile
 
+import pytest
+
 from scad_project.config import ProjectContext
-from scad_project.release import package_release, release_asset_prefix
+import scad_project.release as release_module
+from scad_project.release import (
+    package_release,
+    publish_release_branches,
+    release_asset_prefix,
+)
+
+
+SOURCE_SHA = "0123456789abcdef0123456789abcdef01234567"
 
 
 def context(tmp_path: Path) -> ProjectContext:
@@ -35,6 +45,39 @@ def seed_outputs(tmp_path: Path) -> None:
     (tmp_path / "bld" / "stl" / "part-a.stl").write_text("solid a\n", encoding="utf-8")
     (tmp_path / "vrf" / "out" / "README.md").write_text("verification\n", encoding="utf-8")
     (tmp_path / "vrf" / "out" / "png" / "fit.png").write_bytes(b"PNG-fit")
+
+
+def seed_release_provenance(tmp_path: Path, *, version: str = "v0.1.0") -> None:
+    (tmp_path / "bld").mkdir(parents=True, exist_ok=True)
+    (tmp_path / "vrf" / "out").mkdir(parents=True, exist_ok=True)
+    (tmp_path / "bld" / "publication-info.txt").write_text(
+        "\n".join(
+            [
+                "Publication context : release",
+                "Publication kind    : build",
+                f"Publication branch  : rel/{version}/build",
+                "Ref type            : tag",
+                f"Ref                 : {version}",
+                f"Commit              : {SOURCE_SHA}",
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    (tmp_path / "vrf" / "out" / "publication-info.txt").write_text(
+        "\n".join(
+            [
+                "Publication context : release",
+                "Publication kind    : verification",
+                f"Publication branch  : rel/{version}/verification",
+                "Ref type            : tag",
+                f"Ref                 : {version}",
+                f"Commit              : {SOURCE_SHA}",
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
 
 
 def test_release_asset_prefix_uses_project_and_version(tmp_path: Path):
@@ -121,3 +164,102 @@ def test_stl_bundle_is_omitted_when_project_has_no_stls(tmp_path: Path):
     assert artifacts.stl_bundle is None
     assert not (artifacts.output_dir / "demo.project-v0.1.0-stl.zip").exists()
     assert len(artifacts.checksums.read_text(encoding="utf-8").splitlines()) == 2
+
+
+def test_publish_release_branches_preflights_and_publishes_both(
+    tmp_path: Path,
+    monkeypatch,
+):
+    seed_release_provenance(tmp_path)
+    published: list[tuple[str, bool]] = []
+    checked: list[str] = []
+
+    def branch_exists(cwd: Path, branch: str) -> bool:
+        checked.append(branch)
+        return False
+
+    def publish_snapshot(source_root, branch, message, *, immutable=False):
+        published.append((branch, immutable))
+
+    monkeypatch.setattr(release_module, "_remote_branch_exists", branch_exists)
+    monkeypatch.setattr(release_module, "_publish_snapshot", publish_snapshot)
+
+    branches = publish_release_branches(context(tmp_path), "v0.1.0", SOURCE_SHA)
+
+    assert checked == ["rel/v0.1.0/build", "rel/v0.1.0/verification"]
+    assert published == [
+        ("rel/v0.1.0/build", True),
+        ("rel/v0.1.0/verification", True),
+    ]
+    assert branches.build_branch == "rel/v0.1.0/build"
+    assert branches.verification_branch == "rel/v0.1.0/verification"
+
+
+def test_publish_release_branches_refuses_any_existing_release_branch(
+    tmp_path: Path,
+    monkeypatch,
+):
+    seed_release_provenance(tmp_path)
+    published: list[str] = []
+
+    monkeypatch.setattr(
+        release_module,
+        "_remote_branch_exists",
+        lambda cwd, branch: branch.endswith("/verification"),
+    )
+    monkeypatch.setattr(
+        release_module,
+        "_publish_snapshot",
+        lambda source_root, branch, message, *, immutable=False: published.append(branch),
+    )
+
+    with pytest.raises(RuntimeError, match="already exists"):
+        publish_release_branches(context(tmp_path), "v0.1.0", SOURCE_SHA)
+
+    assert published == []
+
+
+def test_publish_release_branches_requires_matching_provenance(
+    tmp_path: Path,
+    monkeypatch,
+):
+    seed_release_provenance(tmp_path)
+    (tmp_path / "bld" / "publication-info.txt").write_text(
+        "Publication context : release\nCommit              : wrong\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(release_module, "_remote_branch_exists", lambda *args: False)
+
+    with pytest.raises(RuntimeError, match="provenance does not match"):
+        publish_release_branches(context(tmp_path), "v0.1.0", SOURCE_SHA)
+
+
+def test_verification_publish_failure_rolls_back_new_build_branch(
+    tmp_path: Path,
+    monkeypatch,
+):
+    seed_release_provenance(tmp_path)
+    calls: list[str] = []
+    rollback: list[list[str]] = []
+
+    monkeypatch.setattr(release_module, "_remote_branch_exists", lambda *args: False)
+
+    def publish_snapshot(source_root, branch, message, *, immutable=False):
+        calls.append(branch)
+        if branch.endswith("/verification"):
+            raise RuntimeError("verification push failed")
+
+    monkeypatch.setattr(release_module, "_publish_snapshot", publish_snapshot)
+    monkeypatch.setattr(
+        release_module,
+        "run_checked",
+        lambda command, **kwargs: rollback.append(command),
+    )
+
+    with pytest.raises(RuntimeError, match="verification push failed"):
+        publish_release_branches(context(tmp_path), "v0.1.0", SOURCE_SHA)
+
+    assert calls == ["rel/v0.1.0/build", "rel/v0.1.0/verification"]
+    assert rollback == [
+        ["git", "push", "origin", "--delete", "rel/v0.1.0/build"]
+    ]
