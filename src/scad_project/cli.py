@@ -5,7 +5,8 @@ import argparse
 from pathlib import Path
 import sys
 
-from .build import build_project, check_libraries
+from .build import check_libraries
+from .build_engine import build_project
 from .config import ConfigError, load_context, validate_config
 from .design_policy import build_design, lint_design
 from .docs import lint_docs
