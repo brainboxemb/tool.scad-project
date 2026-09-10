@@ -5,6 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from .config import ProjectContext
+from .publish import resolve_publication_target
 
 
 KNOWN_SECTIONS = (
@@ -17,9 +18,10 @@ KNOWN_SECTIONS = (
 def write_build_index(context: ProjectContext) -> Path:
     """Write the common root README for the generated build snapshot.
 
-    Only links whose targets currently exist are included. This keeps the
-    branch index identical in style across projects without advertising output
-    types that a particular project does not generate.
+    Only links whose targets currently exist are included. Publication details
+    are resolved from the same policy used by the publisher so mutable
+    production snapshots and immutable release snapshots describe themselves
+    correctly.
     """
 
     build_root = context.path(context.config["paths"]["build_root"])
@@ -31,10 +33,23 @@ def write_build_index(context: ProjectContext) -> Path:
         if candidate.exists():
             links.append((label, target))
 
+    publication = resolve_publication_target(context, "build")
+    if publication.branch:
+        branch_text = f"`{publication.branch}`"
+    else:
+        branch_text = "artifact only (no generated branch)"
+
+    if publication.immutable:
+        policy_text = "immutable release snapshot; never replaced or force-pushed"
+    elif publication.publish:
+        policy_text = "mutable snapshot; replaced by the next successful publication"
+    else:
+        policy_text = "artifact-only output; not published to a generated branch"
+
     lines = [
         "# Generated build output",
         "",
-        "This branch contains generated output for the latest successful project build.",
+        "This directory contains generated output for a successful project build.",
         "It is generated automatically and should not be edited manually.",
         "",
         "## Contents",
@@ -48,20 +63,14 @@ def write_build_index(context: ProjectContext) -> Path:
 
     lines += [
         "",
-        "## Branch roles",
+        "## Publication",
         "",
-        "```text",
-        "main",
-        "    source code",
-        "    source design documentation",
-        "    project configuration",
+        f"- Context: `{publication.context}`",
+        f"- Source: {publication.source_ref_type} `{publication.source_ref}`",
+        f"- Generated branch: {branch_text}",
+        f"- Policy: {policy_text}",
         "",
-        "build",
-        "    generated design documentation",
-        "    generated build output",
-        "```",
-        "",
-        "Files on this branch are replaced by the next successful build publication.",
+        "See `publication-info.txt` for the exact source commit, tooling and runtime provenance.",
         "",
     ]
 
