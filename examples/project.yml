@@ -33,9 +33,15 @@ publication:
     source_branch: main
     build_branch: prod/build
     verification_branch: prod/verification
+
   development:
     build_branch: dev/build
     verification_branch: dev/verification
-  releases:
-    build_branch_template: rel/{version}/build
-    verification_branch_template: rel/{version}/verification
+
+  tags:
+    pattern: "v*"
+
+  release:
+    branch_prefix: rel
+    tag_pattern: "v*"
+    changelog: CHANGELOG.md
