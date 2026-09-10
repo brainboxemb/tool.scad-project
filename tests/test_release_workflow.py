@@ -11,18 +11,29 @@ def read(path: Path) -> str:
     return path.read_text(encoding="utf-8")
 
 
-def test_release_workflow_coordinates_build_and_verify_before_finalize():
+def test_release_workflow_preflights_before_build_and_verify():
     text = read(RELEASE)
 
-    assert "jobs:\n  build:" in text
+    assert "jobs:\n  preflight:" in text
+    assert "\n  build:" in text
     assert "\n  verify:" in text
     assert "\n  finalize:" in text
-    assert "needs: [build, verify]" in text
+    assert text.count("needs: preflight") == 2
+    assert "needs: [preflight, build, verify]" in text
 
     assert text.count("publish: false") == 2
     assert text.count("source_ref: ${{ inputs.source_sha }}") == 2
     assert text.count("release_version: ${{ inputs.version }}") == 2
     assert text.count("source_sha: ${{ inputs.source_sha }}") >= 2
+
+
+def test_release_preflight_requires_source_on_production_branch():
+    text = read(RELEASE)
+
+    assert 'PRODUCTION_BRANCH="$(python - <<\'PY\'' in text
+    assert 'production.get("source_branch", "main")' in text
+    assert "git merge-base --is-ancestor" in text
+    assert "is not on production branch" in text
 
 
 def test_release_workflow_finalizes_branches_before_tag_and_github_release():
@@ -35,6 +46,7 @@ def test_release_workflow_finalizes_branches_before_tag_and_github_release():
     assert publish < tag < github_release
     assert "scad-project release-publish-branches" in text
     assert "scad-project release-package" in text
+    assert "scad-project release-notes" in text
     assert ".release/SHA256SUMS.txt" in text
 
 
@@ -45,6 +57,8 @@ def test_release_workflow_checks_exact_source_and_existing_release_namespace():
     assert '"${ACTUAL_SHA}" != "${RELEASE_SOURCE_SHA}"' in text
     assert 'refs/tags/${RELEASE_VERSION}' in text
     assert 'gh release view "${RELEASE_VERSION}"' in text
+    assert 'git ls-remote --heads origin "refs/heads/${BUILD_BRANCH}"' in text
+    assert 'git ls-remote --heads origin "refs/heads/${VERIFICATION_BRANCH}"' in text
 
 
 def test_release_workflow_rolls_back_tag_and_browseable_branches_on_failure():
