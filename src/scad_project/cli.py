@@ -13,6 +13,7 @@ from .design_policy import build_design, lint_design
 from .docs import lint_docs
 from .publish import publish_build, publish_verification, write_publication_info
 from .release import package_release, publish_release_branches
+from .release_notes import write_release_notes
 from .index import write_build_index
 from .tooling import tooling_errors
 from .verification import run_functional_verification
@@ -69,6 +70,12 @@ def main() -> None:
     release_publish = sub.add_parser("release-publish-branches")
     release_publish.add_argument("--version", required=True)
     release_publish.add_argument("--source-sha", required=True)
+
+    release_notes = sub.add_parser("release-notes")
+    release_notes.add_argument("--version", required=True)
+    release_notes.add_argument("--source-sha", required=True)
+    release_notes.add_argument("--output", type=Path, required=True)
+    release_notes.add_argument("--repository", default=None)
 
     args = p.parse_args()
     try:
@@ -183,6 +190,15 @@ def main() -> None:
             branches = publish_release_branches(ctx, args.version, args.source_sha)
             print(f"release build branch: {branches.build_branch}")
             print(f"release verification branch: {branches.verification_branch}")
+        elif args.command == "release-notes":
+            output = write_release_notes(
+                ctx,
+                args.version,
+                args.source_sha,
+                args.output,
+                repository=args.repository,
+            )
+            print(f"release notes: {output.relative_to(ctx.root) if output.is_relative_to(ctx.root) else output}")
 
     except (ConfigError, RuntimeError) as exc:
         print(f"ERROR: {exc}", file=sys.stderr)
