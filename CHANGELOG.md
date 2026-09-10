@@ -2,6 +2,14 @@
 
 Functional changes to released `tool.scad-project` versions.
 
+## v0.9.8
+
+### Fixed
+
+- Pin consumer Build, Verify and Release reusable workflow callers to the exact checked-out `tool.scad-project` commit SHA instead of the semantic version tag, avoiding GitHub validation failures when nested reusable workflows are reached through an annotated tag.
+- Keep `project.yml` free to express the semantic tool dependency (`vX.Y.Z`) while the workflow callers use the corresponding immutable commit SHA.
+- Keep root and `bootstrap/` updater scripts synchronized and add regression coverage for the distinction between semantic dependency refs and exact workflow pins.
+
 ## v0.9.7
 
 ### Fixed
