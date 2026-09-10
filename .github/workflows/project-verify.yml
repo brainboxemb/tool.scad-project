@@ -43,9 +43,16 @@ jobs:
           submodules: true
           fetch-depth: 0
 
+      - name: Configure Git safe directories
+        timeout-minutes: 2
+        run: |
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
+          git config --global --add safe.directory "$GITHUB_WORKSPACE/tools/tool.scad-project"
+
       - name: Resolve SCons cache namespace
         id: scons-cache
         timeout-minutes: 2
+        shell: bash
         run: |
           set -euo pipefail
           TOOL_SHA="$(git -C tools/tool.scad-project rev-parse HEAD)"
@@ -64,10 +71,6 @@ jobs:
       - name: Show toolchain
         timeout-minutes: 2
         run: scad-toolchain-info
-
-      - name: Configure Git safe directory
-        timeout-minutes: 2
-        run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
 
       - name: Check tooling version alignment
         timeout-minutes: 2
