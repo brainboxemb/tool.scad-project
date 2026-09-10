@@ -29,6 +29,15 @@ def test_scons_cache_keys_track_profiles_and_common_import_assets():
             assert f"'{pattern}'" in text, f"{workflow} does not hash {pattern}"
 
 
+def test_project_build_scons_cache_tracks_design_metadata():
+    text = Path(".github/workflows/project-build.yml").read_text(encoding="utf-8")
+    scons_cache_block = text.split(
+        "- name: Restore generated design documentation",
+        1,
+    )[0]
+    assert "'dsg/**/design/**'" in scons_cache_block
+
+
 def test_design_cache_tracks_design_tree_and_common_render_assets():
     text = Path(".github/workflows/project-build.yml").read_text(encoding="utf-8")
     assert "'dsg/**/design/**'" in text

@@ -2,7 +2,8 @@
 
 The render engine in :mod:`scad_project.design` remains responsible for
 rendering and discovery. This module applies consumer-level policy without
-changing configured external source dependencies.
+changing configured external source dependencies, and routes SCons projects
+through the selective design renderer.
 """
 
 from __future__ import annotations
@@ -11,6 +12,8 @@ from contextlib import contextmanager
 from collections.abc import Iterator
 
 from . import design as _design
+from . import design_scons as _design_scons
+from .build_engine import _engine_name
 from .config import ProjectContext
 
 
@@ -57,11 +60,14 @@ def lint_design(context: ProjectContext):
 
 
 def build_design(context: ProjectContext) -> None:
-    """Build design documentation while honoring ``include_externals``."""
+    """Build design documentation while honoring policy and build backend."""
 
     include_externals = include_external_designs(context)
     with _design_discovery_policy(context):
-        _design.build_design(context)
+        if _engine_name(context) == "scons":
+            _design_scons.build_design(context)
+        else:
+            _design.build_design(context)
 
     if include_externals:
         return
