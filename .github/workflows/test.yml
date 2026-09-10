@@ -16,7 +16,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     container:
-      image: ghcr.io/brainboxemb/scad-toolchain:v0.4.0
+      image: ghcr.io/brainboxemb/scad-toolchain:v0.4.1
 
     steps:
       - name: Checkout
@@ -25,7 +25,7 @@ jobs:
 
       - name: Install package
         timeout-minutes: 2
-        run: python3 -m pip install --break-system-packages -e '.[test,scons]'
+        run: python3 -m pip install --break-system-packages -e '.[test]'
 
       - name: Show runtime
         timeout-minutes: 2
