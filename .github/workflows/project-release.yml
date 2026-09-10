@@ -32,6 +32,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     outputs:
+      production_branch: ${{ steps.validate.outputs.production_branch }}
       build_branch: ${{ steps.validate.outputs.build_branch }}
       verification_branch: ${{ steps.validate.outputs.verification_branch }}
 
@@ -101,11 +102,12 @@ jobs:
           git check-ref-format --branch "${PRODUCTION_BRANCH}" >/dev/null
           git fetch --no-tags origin \
             "+refs/heads/${PRODUCTION_BRANCH}:refs/remotes/origin/${PRODUCTION_BRANCH}"
-          if ! git merge-base --is-ancestor \
-            "${RELEASE_SOURCE_SHA}" "refs/remotes/origin/${PRODUCTION_BRANCH}"; then
-            echo "ERROR: release source ${RELEASE_SOURCE_SHA} is not on production branch ${PRODUCTION_BRANCH}" >&2
+          PRODUCTION_SHA="$(git rev-parse "refs/remotes/origin/${PRODUCTION_BRANCH}")"
+          if [[ "${RELEASE_SOURCE_SHA}" != "${PRODUCTION_SHA}" ]]; then
+            echo "ERROR: release source ${RELEASE_SOURCE_SHA} must equal current ${PRODUCTION_BRANCH} HEAD ${PRODUCTION_SHA}" >&2
             exit 1
           fi
+          echo "production_branch=${PRODUCTION_BRANCH}" >> "$GITHUB_OUTPUT"
 
           git fetch --tags --force origin
           if git rev-parse -q --verify "refs/tags/${RELEASE_VERSION}" >/dev/null; then
@@ -182,6 +184,7 @@ jobs:
     env:
       RELEASE_VERSION: ${{ inputs.version }}
       RELEASE_SOURCE_SHA: ${{ inputs.source_sha }}
+      PRODUCTION_BRANCH: ${{ needs.preflight.outputs.production_branch }}
       SCAD_PROJECT_RELEASE_VERSION: ${{ inputs.version }}
       SCAD_PROJECT_SOURCE_SHA: ${{ inputs.source_sha }}
 
@@ -229,12 +232,20 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
-      - name: Revalidate tag and GitHub Release namespace
+      - name: Revalidate production source and release namespace
         timeout-minutes: 2
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
+          git fetch --no-tags origin \
+            "+refs/heads/${PRODUCTION_BRANCH}:refs/remotes/origin/${PRODUCTION_BRANCH}"
+          PRODUCTION_SHA="$(git rev-parse "refs/remotes/origin/${PRODUCTION_BRANCH}")"
+          if [[ "${RELEASE_SOURCE_SHA}" != "${PRODUCTION_SHA}" ]]; then
+            echo "ERROR: ${PRODUCTION_BRANCH} advanced after preflight: expected ${RELEASE_SOURCE_SHA}, now ${PRODUCTION_SHA}" >&2
+            exit 1
+          fi
+
           git fetch --tags --force origin
           if git rev-parse -q --verify "refs/tags/${RELEASE_VERSION}" >/dev/null; then
             echo "ERROR: release tag appeared after preflight: ${RELEASE_VERSION}" >&2
@@ -252,6 +263,12 @@ jobs:
           scad-project release-package \
             --version "${RELEASE_VERSION}" \
             --output-dir .release
+
+      - name: Verify release checksums
+        timeout-minutes: 2
+        run: |
+          set -euo pipefail
+          (cd .release && sha256sum -c SHA256SUMS.txt)
 
       - name: Generate release notes from changelog
         timeout-minutes: 2
