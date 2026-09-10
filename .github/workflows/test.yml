@@ -42,3 +42,18 @@ jobs:
       - name: Unit tests
         timeout-minutes: 5
         run: pytest -q
+
+      - name: Generate unit-test documentation
+        timeout-minutes: 2
+        run: |
+          python3 scripts/generate_test_reference.py --output bld/test-docs/index.html
+          test -f bld/test-docs/index.html
+
+      - name: Upload unit-test documentation
+        timeout-minutes: 2
+        uses: actions/upload-artifact@v4
+        with:
+          name: unit-test-documentation
+          path: bld/test-docs
+          if-no-files-found: error
+          retention-days: 14

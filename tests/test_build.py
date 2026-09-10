@@ -1,3 +1,19 @@
+"""Build outputs
+
+Checks:
+PNG and STL outputs follow the project configuration. The tests cover automatic
+render/export discovery, optional PNG watermarking, multi-size profiles and their image
+size, and rejection of a file that is assigned to more than one profile.
+
+Testing approach:
+The tests create small temporary project folders and files. Some tests use pytest's
+`monkeypatch` fixture. Here that means temporarily replacing the function that would
+start OpenSCAD or the watermark tool with a small test function that records the command
+and creates a fake output file. This lets the test verify the exact command and file
+handling without starting the external program. Pytest restores the original function
+automatically after the test.
+"""
+
 from pathlib import Path
 
 import scad_project.build as build_module

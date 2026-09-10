@@ -1,3 +1,17 @@
+"""Non-recursive submodule checkout
+
+Checks:
+Normal bootstrap, repository update, dependency setup and reusable Build/Verify
+workflows must initialize only the submodules they explicitly manage. Recursive
+submodule checkout is forbidden because it can unexpectedly pull nested repositories
+that are not part of the declared project dependency policy.
+
+Testing approach:
+The test reads the relevant scripts, Python modules and workflow files and searches for
+the known recursive-submodule command-line flags. It fails if any of those flags are
+introduced.
+"""
+
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]

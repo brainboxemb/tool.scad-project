@@ -1,3 +1,19 @@
+"""SCons cache reuse on a fresh runner
+
+Checks:
+SCons can restore complete missing outputs from its persistent cache even when a new CI
+runner has neither the previous build directory nor the previous `.sconsign` state. If
+one nested dependency changes, only the target that depends on it is rebuilt while an
+unrelated target is still restored from cache.
+
+Testing approach:
+The test creates a tiny real SCons project with two outputs and runs SCons three times.
+Between runs it deliberately deletes the local build outputs and SCons state while
+keeping only the cache directory, which models a fresh GitHub-hosted runner after
+Actions restores the cache. The third run changes a dependency used by only one output
+and checks which build action actually ran.
+"""
+
 from __future__ import annotations
 
 from pathlib import Path
@@ -87,6 +103,7 @@ def _actions(log: Path) -> list[str]:
 
 
 def test_cache_restores_complete_outputs_and_rebuilds_only_changed_dependency(tmp_path):
+    """Exercise cold build, clean-runner restore, then one transitive dependency change."""
     if shutil.which("scons") is None:
         pytest.skip("SCons experiment dependency is not installed")
 

@@ -1,3 +1,16 @@
+"""Project configuration
+
+Checks:
+A minimal project configuration is valid, supported publication and watermark settings
+are accepted, and invalid types or empty values are rejected with useful messages.
+Render and export directory settings are also checked.
+
+Testing approach:
+The tests construct small Python dictionaries that represent `project.yml` variants and
+pass them to the real project validator. Each case checks either an empty error list or
+the specific validation messages expected for bad input.
+"""
+
 from pathlib import Path
 from scad_project.config import ProjectContext, validate_config
 
@@ -97,7 +110,8 @@ def test_watermark_config_rejects_empty_text(tmp_path: Path):
 
 def test_directory_build_paths_are_valid(tmp_path: Path):
     ctx = ProjectContext(
-        tmp_path, tmp_path / "project.yml",
+        tmp_path,
+        tmp_path / "project.yml",
         {
             "project": {"name": "demo"},
             "paths": {
@@ -114,7 +128,8 @@ def test_directory_build_paths_are_valid(tmp_path: Path):
 
 def test_directory_build_paths_reject_empty_values(tmp_path: Path):
     ctx = ProjectContext(
-        tmp_path, tmp_path / "project.yml",
+        tmp_path,
+        tmp_path / "project.yml",
         {
             "project": {"name": "demo"},
             "paths": {

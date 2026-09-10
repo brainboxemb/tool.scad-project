@@ -1,3 +1,17 @@
+"""Build cache inputs
+
+Checks:
+GitHub Actions cache keys include every project input that can change generated CAD
+output: OpenSCAD and Python source, render/export profiles, design metadata, and
+commonly imported asset formats. This prevents an old cached render or export being
+reused after one of those inputs changes.
+
+Testing approach:
+These tests read the reusable Build and Verify workflow YAML as text and check for the
+required file patterns in the cache hash expressions. GitHub Actions itself is not
+started; the workflow definition is the configuration being verified.
+"""
+
 from pathlib import Path
 
 

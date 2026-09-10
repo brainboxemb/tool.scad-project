@@ -1,3 +1,16 @@
+"""Build engine configuration
+
+Checks:
+The `build_engine` section is optional. When present, `direct` and `scons` are accepted,
+while the wrong data type or an unknown engine name produces the expected validation
+error.
+
+Testing approach:
+Each test creates only the small configuration fragment needed for that case and calls
+the real configuration validator. The returned error list is compared with the expected
+result; no files, renderers or external processes are involved.
+"""
+
 from pathlib import Path
 
 from scad_project.build_engine_config import validate_build_engine_config

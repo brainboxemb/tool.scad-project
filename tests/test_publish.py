@@ -1,3 +1,20 @@
+"""Publication routing and snapshot safety
+
+Checks:
+Builds and verification results go to the correct production, development, pull-request,
+tag or release destination. Publication metadata must record the real source commit.
+Immutable release branches must refuse an existing branch and must never force-push,
+while mutable production/development snapshots may replace their target branch.
+
+Testing approach:
+Most tests supply a small dictionary that represents the GitHub event environment and
+inspect the publication decision or generated provenance text. Tests that would
+otherwise run `git push` use pytest's `monkeypatch` fixture to temporarily replace the
+Git command runner and remote-branch check with recorders. That lets the test verify the
+exact Git operation without changing a real remote repository; pytest restores the
+original functions afterwards.
+"""
+
 from pathlib import Path
 
 import pytest

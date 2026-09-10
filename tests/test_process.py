@@ -1,3 +1,16 @@
+"""OpenSCAD warning handling
+
+Checks:
+OpenSCAD warnings that indicate broken geometry or calculations, such as an unknown
+variable or undefined operation, fail the build. The known viewport warning caused by
+explicit camera settings is allowed.
+
+Testing approach:
+The tests pass representative OpenSCAD output strings directly to the real warning
+checker. This isolates the warning policy from OpenSCAD itself: no process is started
+because only classification of already-produced output is under test.
+"""
+
 import pytest
 
 from scad_project.process import _check_openscad_output
