@@ -4,7 +4,7 @@ from scad_project.config import ProjectContext
 from scad_project.tooling import tooling_errors
 
 
-def context(ref="v0.9.2"):
+def context(ref="v0.9.3"):
     return ProjectContext(
         root=Path("."),
         config_file=Path("project.yml"),
@@ -74,6 +74,26 @@ def test_release_version_markers_are_aligned():
         )
         assert match, f"Missing workflow version marker in {workflow_path}"
         assert match.group(1) == package_version
+
+
+def test_scons_cache_writer_policy():
+    import yaml
+
+    build = yaml.safe_load(
+        Path(".github/workflows/project-build.yml").read_text(encoding="utf-8")
+    )
+    verify = yaml.safe_load(
+        Path(".github/workflows/project-verify.yml").read_text(encoding="utf-8")
+    )
+
+    build_steps = {step["name"]: step for step in build["jobs"]["build"]["steps"]}
+    verify_steps = {step["name"]: step for step in verify["jobs"]["verify"]["steps"]}
+
+    assert build_steps["Restore SCons build cache"]["uses"] == "actions/cache@v4"
+    assert (
+        verify_steps["Restore SCons build cache"]["uses"]
+        == "actions/cache/restore@v4"
+    )
 
 
 def test_workflow_timeouts_are_bounded():

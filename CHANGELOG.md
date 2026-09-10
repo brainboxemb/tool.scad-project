@@ -2,6 +2,14 @@
 
 Functional changes to released `tool.scad-project` versions.
 
+## v0.9.3
+
+### Fixed
+
+- Make the reusable Verify workflow restore the shared SCons cache read-only, leaving Build as the only cache writer.
+- Prevent a parallel Verify run from publishing a newer cache snapshot that contains configured-build objects but omits generated-design objects, which could force unchanged design images to render again on the next Build restore-key fallback.
+- Add regression coverage for the Build-writes / Verify-restores cache policy.
+
 ## v0.9.2
 
 ### Added
