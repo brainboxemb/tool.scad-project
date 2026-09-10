@@ -1,9 +1,13 @@
 from pathlib import Path
 
+import pytest
+
 from scad_project.config import ProjectContext
+import scad_project.publish as publish_module
 from scad_project.publish import (
     publication_info_text,
     resolve_publication_target,
+    resolve_release_publication_target,
     write_publication_info,
 )
 
@@ -17,14 +21,14 @@ def context(tmp_path: Path) -> ProjectContext:
             "paths": {"design_root": "dsg", "build_root": "bld"},
             "verification": {"output_root": "vrf/out"},
             "publication": {
-                "production": {
-                    "source_branch": "main",
-                    "build_branch": "build",
-                    "verification_branch": "verification",
-                },
+                "production": {"source_branch": "main"},
                 "development": {
                     "build_branch": "dev/build",
                     "verification_branch": "dev/verification",
+                },
+                "release": {
+                    "branch_prefix": "rel",
+                    "tag_pattern": "v*",
                 },
                 "tags": {"pattern": "v*"},
             },
@@ -32,18 +36,35 @@ def context(tmp_path: Path) -> ProjectContext:
     )
 
 
-def test_main_uses_production_branches(tmp_path: Path):
+def test_main_uses_production_branch_defaults(tmp_path: Path):
     ctx = context(tmp_path)
     env = {
         "GITHUB_EVENT_NAME": "push",
         "GITHUB_REF_TYPE": "branch",
         "GITHUB_REF_NAME": "main",
     }
-    assert resolve_publication_target(ctx, "build", env).branch == "build"
+    assert resolve_publication_target(ctx, "build", env).branch == "prod/build"
     assert (
         resolve_publication_target(ctx, "verification", env).branch
-        == "verification"
+        == "prod/verification"
     )
+
+
+def test_explicit_production_branch_configuration_still_works(tmp_path: Path):
+    ctx = context(tmp_path)
+    ctx.config["publication"]["production"].update(
+        {
+            "build_branch": "build",
+            "verification_branch": "verification",
+        }
+    )
+    env = {
+        "GITHUB_EVENT_NAME": "push",
+        "GITHUB_REF_TYPE": "branch",
+        "GITHUB_REF_NAME": "main",
+    }
+    assert resolve_publication_target(ctx, "build", env).branch == "build"
+    assert resolve_publication_target(ctx, "verification", env).branch == "verification"
 
 
 def test_feature_branch_uses_shared_development_branches(tmp_path: Path):
@@ -57,6 +78,7 @@ def test_feature_branch_uses_shared_development_branches(tmp_path: Path):
     assert target.context == "development"
     assert target.publish is True
     assert target.branch == "dev/build"
+    assert target.immutable is False
 
 
 def test_pull_request_is_artifact_only(tmp_path: Path):
@@ -74,7 +96,7 @@ def test_pull_request_is_artifact_only(tmp_path: Path):
     assert target.source_ref == "feature/example"
 
 
-def test_version_tag_is_artifact_only(tmp_path: Path):
+def test_ordinary_version_tag_remains_artifact_only(tmp_path: Path):
     ctx = context(tmp_path)
     env = {
         "GITHUB_EVENT_NAME": "push",
@@ -85,6 +107,41 @@ def test_version_tag_is_artifact_only(tmp_path: Path):
     assert target.context == "tag"
     assert target.publish is False
     assert target.branch is None
+
+
+def test_coordinated_release_uses_immutable_versioned_branches(tmp_path: Path):
+    ctx = context(tmp_path)
+    env = {
+        "GITHUB_EVENT_NAME": "workflow_call",
+        "GITHUB_REF_TYPE": "branch",
+        "GITHUB_REF_NAME": "main",
+        "SCAD_PROJECT_RELEASE_VERSION": "v1.2.3",
+    }
+
+    build = resolve_publication_target(ctx, "build", env)
+    verification = resolve_publication_target(ctx, "verification", env)
+
+    assert build.context == "release"
+    assert build.branch == "rel/v1.2.3/build"
+    assert build.publish is True
+    assert build.immutable is True
+    assert build.source_ref_type == "tag"
+    assert build.source_ref == "v1.2.3"
+    assert verification.branch == "rel/v1.2.3/verification"
+    assert verification.immutable is True
+
+
+def test_release_branch_prefix_is_configurable(tmp_path: Path):
+    ctx = context(tmp_path)
+    ctx.config["publication"]["release"]["branch_prefix"] = "release"
+    target = resolve_release_publication_target(ctx, "build", "v2.0.0")
+    assert target.branch == "release/v2.0.0/build"
+
+
+def test_release_version_must_match_configured_pattern(tmp_path: Path):
+    ctx = context(tmp_path)
+    with pytest.raises(RuntimeError, match="does not match configured tag pattern"):
+        resolve_release_publication_target(ctx, "build", "nightly")
 
 
 def test_legacy_flat_branch_configuration_still_works(tmp_path: Path):
@@ -118,26 +175,50 @@ def test_publication_info_contains_source_provenance(tmp_path: Path):
         "GITHUB_RUN_ID": "99",
     }
     env.update({
-        "SCAD_TOOLCHAIN_IMAGE": "ghcr.io/brainboxemb/scad-toolchain:v0.4.0",
-        "SCAD_TOOLCHAIN_VERSION": "v0.4.0",
-        "SCAD_PROJECT_WORKFLOW_VERSION": "v0.6.1",
+        "SCAD_TOOLCHAIN_IMAGE": "ghcr.io/brainboxemb/scad-toolchain:v0.4.1",
+        "SCAD_TOOLCHAIN_VERSION": "v0.4.1",
+        "SCAD_PROJECT_WORKFLOW_VERSION": "v0.8.0",
     })
     info = publication_info_text(
         ctx,
         "build",
         env,
         runtime_info="OpenSCAD   : OpenSCAD version test",
+        submodule_info="dsg/ext/lib.demo : deadbeef",
     )
     assert "Publication context : development" in info
     assert "Publication branch  : dev/build" in info
     assert "Ref                 : feature/example" in info
     assert "Commit              : abc123" in info
     assert "Workflow run        : https://github.com/brainboxemb/demo/actions/runs/99" in info
-    assert "SCAD toolchain image: ghcr.io/brainboxemb/scad-toolchain:v0.4.0" in info
-    assert "SCAD toolchain ver. : v0.4.0" in info
-    assert "tool.scad-project   : v0.6.1" in info
+    assert "SCAD toolchain image: ghcr.io/brainboxemb/scad-toolchain:v0.4.1" in info
+    assert "SCAD toolchain ver. : v0.4.1" in info
+    assert "tool.scad-project   : v0.8.0" in info
+    assert "Git submodules" in info
+    assert "dsg/ext/lib.demo : deadbeef" in info
     assert "Runtime components" in info
     assert "OpenSCAD   : OpenSCAD version test" in info
+
+
+def test_release_provenance_uses_exact_source_sha_override(tmp_path: Path):
+    ctx = context(tmp_path)
+    env = {
+        "GITHUB_EVENT_NAME": "workflow_call",
+        "GITHUB_REF_TYPE": "branch",
+        "GITHUB_REF_NAME": "release-request/v1.2.3",
+        "GITHUB_SHA": "workflow-wrapper-sha",
+        "SCAD_PROJECT_RELEASE_VERSION": "v1.2.3",
+        "SCAD_PROJECT_SOURCE_SHA": "release-source-sha",
+    }
+
+    info = publication_info_text(ctx, "build", env)
+
+    assert "Publication context : release" in info
+    assert "Publication branch  : rel/v1.2.3/build" in info
+    assert "Ref type            : tag" in info
+    assert "Ref                 : v1.2.3" in info
+    assert "Commit              : release-source-sha" in info
+    assert "workflow-wrapper-sha" not in info
 
 
 def test_write_publication_info_to_build_root(tmp_path: Path, monkeypatch):
@@ -150,7 +231,7 @@ def test_write_publication_info_to_build_root(tmp_path: Path, monkeypatch):
 
     assert output == tmp_path / "bld" / "publication-info.txt"
     assert output.is_file()
-    assert "Publication branch  : build" in output.read_text(encoding="utf-8")
+    assert "Publication branch  : prod/build" in output.read_text(encoding="utf-8")
 
 
 def test_publication_info_uses_package_version_outside_reusable_workflow(
@@ -165,3 +246,72 @@ def test_publication_info_uses_package_version_outside_reusable_workflow(
     info = publication_info_text(ctx, "build", env)
     from scad_project import __version__
     assert f"tool.scad-project   : v{__version__}" in info
+
+
+def test_immutable_snapshot_refuses_existing_release_branch(
+    tmp_path: Path,
+    monkeypatch,
+):
+    source = tmp_path / "source"
+    source.mkdir()
+    (source / "README.md").write_text("release", encoding="utf-8")
+    monkeypatch.setenv("GITHUB_REPOSITORY", "brainboxemb/demo")
+    monkeypatch.setattr(publish_module, "run_checked", lambda *args, **kwargs: None)
+    monkeypatch.setattr(publish_module, "_remote_branch_exists", lambda *args: True)
+
+    with pytest.raises(RuntimeError, match="Immutable release publication branch"):
+        publish_module._publish_snapshot(
+            source,
+            "rel/v1.2.3/build",
+            "release",
+            immutable=True,
+        )
+
+
+def test_immutable_snapshot_never_force_pushes(tmp_path: Path, monkeypatch):
+    source = tmp_path / "source"
+    source.mkdir()
+    (source / "README.md").write_text("release", encoding="utf-8")
+    commands: list[list[str]] = []
+    monkeypatch.setenv("GITHUB_REPOSITORY", "brainboxemb/demo")
+    monkeypatch.setattr(
+        publish_module,
+        "run_checked",
+        lambda command, **kwargs: commands.append(command),
+    )
+    monkeypatch.setattr(publish_module, "_remote_branch_exists", lambda *args: False)
+
+    publish_module._publish_snapshot(
+        source,
+        "rel/v1.2.3/build",
+        "release",
+        immutable=True,
+    )
+
+    push = next(command for command in commands if command[:2] == ["git", "push"])
+    assert "--force" not in push
+    assert push[-1] == "HEAD:rel/v1.2.3/build"
+
+
+def test_mutable_snapshot_force_replaces_target(tmp_path: Path, monkeypatch):
+    source = tmp_path / "source"
+    source.mkdir()
+    (source / "README.md").write_text("production", encoding="utf-8")
+    commands: list[list[str]] = []
+    monkeypatch.setenv("GITHUB_REPOSITORY", "brainboxemb/demo")
+    monkeypatch.setattr(
+        publish_module,
+        "run_checked",
+        lambda command, **kwargs: commands.append(command),
+    )
+
+    publish_module._publish_snapshot(
+        source,
+        "prod/build",
+        "production",
+        immutable=False,
+    )
+
+    push = next(command for command in commands if command[:2] == ["git", "push"])
+    assert "--force" in push
+    assert push[-1] == "HEAD:prod/build"
