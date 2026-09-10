@@ -153,7 +153,7 @@ jobs:
 
   build:
     needs: preflight
-    uses: brainboxemb/tool.scad-project/.github/workflows/project-build.yml@feature/versioned-project-release
+    uses: ./.github/workflows/project-build.yml
     with:
       artifact_name: scad-project-release-build
       publish: false
@@ -163,7 +163,7 @@ jobs:
 
   verify:
     needs: preflight
-    uses: brainboxemb/tool.scad-project/.github/workflows/project-verify.yml@feature/versioned-project-release
+    uses: ./.github/workflows/project-verify.yml
     with:
       artifact_name: scad-project-release-verification
       publish: false
