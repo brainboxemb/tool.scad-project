@@ -2,6 +2,13 @@
 
 Functional changes to released `tool.scad-project` versions.
 
+## v0.9.7
+
+### Fixed
+
+- Use explicit GitHub self-repository (`$/`) references when the reusable project release workflow nests Build and Verify, so cross-repository release consumers resolve the complete workflow chain at one tool revision.
+- Add regression coverage for the nested release references and validate the cross-repository release preflight path without creating release side effects.
+
 ## v0.9.6
 
 ### Fixed
