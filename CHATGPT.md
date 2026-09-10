@@ -32,7 +32,7 @@ Publication behavior is resolved centrally from the GitHub source context.
 - production branch: publish mutable `build` / `verification`;
 - non-production branch: publish mutable shared `dev/build` / `dev/verification`;
 - pull request: artifact-only;
-- version tag: artifact-only in v0.6.1.
+- version tag: artifact-only.
 
 Do not add branch-specific temporary workflows or edit `project.yml` merely to
 redirect one development branch. Projects declare the branch names once; the
@@ -119,7 +119,59 @@ design.md               -> design intent and visual explanation
 
 ## Toolchain baseline
 
-`ghcr.io/brainboxemb/scad-toolchain:v0.4.0`
+`ghcr.io/brainboxemb/scad-toolchain:v0.4.1`
+
+SCons 4.11.1 is part of this immutable runtime. Do not add ad-hoc `pip install
+SCons` steps to consumer or tool CI.
+
+## Selective build architecture (v0.8.0)
+
+`tool.scad-project` owns build policy. SCons is an internal optional dependency
+engine behind the existing `scad-project build` interface; it is not a second
+user-facing build system.
+
+Configuration:
+
+```yaml
+build_engine:
+  engine: scons
+```
+
+Rules:
+
+- omitting `build_engine` keeps the `direct` backend as the backwards-compatible
+  default during rollout;
+- both backends must reuse the same target discovery/configuration model from
+  `build.py`; never create a second SCons-specific render/export schema;
+- the OpenSCAD scanner follows `use` / `include` transitively;
+- literal `import()` / `surface()` file inputs are leaf dependencies;
+- unresolved or dynamic file-loading expressions fail safe under SCons instead
+  of silently producing incomplete cache signatures;
+- configured external-library paths remain dependency search roots regardless
+  of whether their design documentation is included;
+- SCons `CacheDir` is the persistent CI state. A clean runner may start without
+  `bld/` and without a previous `.sconsign` and still restore valid missing
+  outputs by build signature;
+- Actions cache namespaces include repository identity, immutable toolchain
+  version, exact `tool.scad-project` gitlink and relevant project inputs;
+- target specs and backend/runtime signatures participate in invalidation, so
+  camera/profile/flag/watermark/tool changes cannot silently reuse stale output;
+- the reusable Build workflow emits a compact SCons report with executed and
+  restored/current target lists.
+
+Generated design documentation is deliberately separate from the per-target
+SCons graph. The reusable Build workflow caches the complete `bld/design` tree
+and skips `design-build` only on an exact design-input cache hit. A changed
+design input currently rebuilds that complete tree. Do not introduce
+per-document selection until measurements justify the extra dependency model.
+
+`template.scad-project` is the integration/validation consumer. Do not create a
+separate `test.scad-project` repository unless future artificial integration
+fixtures would otherwise clutter the normal template.
+
+For the current real-world rollout target, use
+`brainboxemb/2026-009-01.cad.HUB75-display-frame`. Do not confuse it with the
+older `2026-006-01.cad.HUB75-display-frame` repository.
 
 ## PNG watermark orchestration
 
@@ -338,6 +390,10 @@ The generated Markdown contains ordinary image references and omits authoring
 metadata blocks. Build the complete generated design tree in staging first and
 replace `bld/design` only after success.
 
+`design.include_externals: false` affects generated documentation only. It must
+never disable or remove external CAD source dependencies needed by project
+renders.
+
 Use user-facing wording such as "generated design documentation" and keep terminology simple.
 
 
@@ -382,41 +438,33 @@ Use the permanent workflow:
 .github/workflows/release.yml
 ```
 
-A normal release is started through `workflow_dispatch` with:
+A normal release can be started through `workflow_dispatch` with `version` and
+the exact already-verified `release_sha`.
+
+For connected GitHub environments that cannot invoke `workflow_dispatch`, use
+the permanent self-cleaning release-request route instead. Create exactly one
+temporary branch from the current release-workflow `main` tree:
 
 ```text
-version
-    immutable semantic tag, e.g. v0.6.1
-
-release_sha
-    exact already-verified commit SHA
+release-request/vX.Y.Z/<40-character-release-sha>
 ```
 
-The workflow validates that the requested version matches the package version in
-`pyproject.toml`, refuses to overwrite an existing tag, creates an annotated
-tag on the explicit release commit, and then explicitly dispatches
-`.github/workflows/test.yml` on that tag.
+The workflow:
 
-The explicit dispatch is required because a tag pushed with `GITHUB_TOKEN`
-does not itself create a follow-up workflow run.
+1. accepts release-request branches only when created by the repository owner;
+2. validates semantic version and exact SHA;
+3. verifies the target commit exists and that its `pyproject.toml` version
+   matches the requested tag;
+4. refuses to overwrite an existing tag;
+5. creates the annotated release tag on the explicit release commit;
+6. explicitly dispatches `.github/workflows/test.yml` on that tag;
+7. removes the release-request branch even after a failed release attempt.
 
-If the connected GitHub interface cannot directly invoke `workflow_dispatch`,
-do **not** tell the user they must start the release manually. Use the established
-one-shot dispatcher pattern instead:
-
-1. create a temporary `.github/workflows/_dispatch-release-vX.Y.Z.yml` on
-   `main`;
-2. make that workflow trigger only on the commit that introduces the helper;
-3. give it `actions: write` and use `GITHUB_TOKEN` + `gh api` only to dispatch
-   the permanent `release.yml` with `version` and the exact verified
-   `release_sha`;
-4. never duplicate tag creation/version validation in the helper;
-5. after the permanent Release workflow has started, delete the temporary
-   dispatcher from `main`;
-6. accept the release only after the tagged `test.yml` run is green.
-
-This workaround has been used successfully in this repository family and is the
-preferred connected-GitHub release path whenever direct dispatch is unavailable.
+Do not create one-shot `_dispatch-release-*.yml` workflows or leave permanent
+release helper branches behind. For releases that modify workflow files, merge
+the release candidate first and tag the current tested `main` release commit;
+this avoids GitHub workflow-ref permission problems seen when tagging an older
+workflow tree.
 
 A release is accepted only after the tagged `test.yml` run is green.
 
@@ -437,7 +485,7 @@ The local Git submodule and reusable workflow are two views of the same tooling
 release. Consumer updates should move these together:
 
 ```text
-project.yml tooling.tool_scad_project_version
+project.yml tooling.tool_scad_project.ref
 .gitlink tools/tool.scad-project
 workflow uses: ...@vX.Y.Z
 ```
@@ -484,13 +532,13 @@ tooling:
     type: git-submodule
     url: https://github.com/brainboxemb/tool.scad-project.git
     path: tools/tool.scad-project
-    ref: v0.6.1
+    ref: v0.8.0
 ```
 
 External libraries also carry their own `ref`.
 
 Supported values:
-- exact tag, e.g. `v0.7.2`;
+- exact tag, e.g. `v0.8.0`;
 - `latest`, meaning highest stable semantic-version tag;
 - branch name, e.g. `main`.
 
@@ -540,4 +588,3 @@ and are initialized only when that repository acts as the standalone project.
 
 Recursive checkout is allowed only in a dedicated integration test explicitly
 designed to validate complete nested dependency trees.
-
