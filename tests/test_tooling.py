@@ -1,10 +1,13 @@
 from pathlib import Path
 
+from scad_project import __version__
 from scad_project.config import ProjectContext
 from scad_project.tooling import tooling_errors
 
 
-def context(ref="v0.9.5"):
+def context(ref=None):
+    if ref is None:
+        ref = f"v{__version__}"
     return ProjectContext(
         root=Path("."),
         config_file=Path("project.yml"),
@@ -55,7 +58,6 @@ def test_tooling_requires_ref(monkeypatch):
 def test_release_version_markers_are_aligned():
     import re
     import tomllib
-    from scad_project import __version__
 
     package_version = tomllib.loads(
         Path("pyproject.toml").read_text(encoding="utf-8")

@@ -2,6 +2,17 @@
 
 Functional changes to released `tool.scad-project` versions.
 
+## v0.9.6
+
+### Fixed
+
+- Update consumer `project-release.yml` reusable workflow refs together with `project-build.yml` and `project-verify.yml` when `update-repo.ps1` or `update-repo.sh` advances `tool.scad-project`.
+- Keep root updater scripts and their canonical `bootstrap/` copies covered by regression tests so release workflow support cannot silently drift again.
+
+### Changed
+
+- Derive the default tooling-test release ref from the package runtime version instead of duplicating the current version as a hard-coded test constant.
+
 ## v0.9.5
 
 ### Fixed
