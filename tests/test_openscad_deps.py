@@ -5,6 +5,7 @@ import pytest
 from scad_project.openscad_deps import (
     OpenScadDependencyError,
     direct_openscad_dependencies,
+    referenced_file_paths,
     referenced_openscad_paths,
     scan_openscad_dependencies,
 )
@@ -21,12 +22,14 @@ def test_referenced_paths_ignore_commented_directives(tmp_path):
         tmp_path / "main.scad",
         """// use <ignored-line.scad>
 /* include <ignored-block.scad> */
+// import("ignored.stl");
 use <first.scad>
 include <second.scad>
 """,
     )
 
     assert referenced_openscad_paths(source) == ["first.scad", "second.scad"]
+    assert referenced_file_paths(source) == []
 
 
 def test_recursive_scan_follows_nested_dependencies_in_source_order(tmp_path):
@@ -82,6 +85,52 @@ def test_relative_external_dependency_is_followed_transitively(tmp_path):
         adapter.resolve(),
         external.resolve(),
     ]
+
+
+def test_static_import_and_surface_files_are_leaf_dependencies(tmp_path):
+    main = _write(
+        tmp_path / "main.scad",
+        """import("mesh.stl");
+include <helper.scad>
+surface(center=true, file="height.dat");
+import(file="outline.svg", convexity=4);
+""",
+    )
+    mesh = tmp_path / "mesh.stl"
+    mesh.write_bytes(b"solid test\nendsolid test\n")
+    helper = _write(tmp_path / "helper.scad", "cube(1);\n")
+    height = _write(tmp_path / "height.dat", "0 0\n0 0\n")
+    outline = _write(tmp_path / "outline.svg", "<svg></svg>\n")
+
+    assert referenced_file_paths(main) == ["mesh.stl", "height.dat", "outline.svg"]
+    assert scan_openscad_dependencies(main) == [
+        mesh.resolve(),
+        helper.resolve(),
+        height.resolve(),
+        outline.resolve(),
+    ]
+
+
+def test_binary_import_is_not_recursively_parsed_as_scad(tmp_path):
+    main = _write(tmp_path / "main.scad", 'import("mesh.stl");\n')
+    mesh = tmp_path / "mesh.stl"
+    mesh.write_bytes(b"\xff\xfe\x00\x01")
+
+    assert scan_openscad_dependencies(main) == [mesh.resolve()]
+
+
+def test_dynamic_file_reference_fails_safe(tmp_path):
+    main = _write(
+        tmp_path / "main.scad",
+        'import(file=str("mesh", ".stl"));\n',
+    )
+
+    with pytest.raises(OpenScadDependencyError) as exc_info:
+        scan_openscad_dependencies(main)
+
+    message = str(exc_info.value)
+    assert "static file dependency" in message
+    assert "direct build engine" in message
 
 
 def test_missing_dependency_reports_owner_and_search_locations(tmp_path):

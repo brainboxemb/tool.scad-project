@@ -59,7 +59,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: .cache/scad-project/scons
-          key: scad-project-scons-v1-${{ runner.os }}-${{ github.repository_id }}-${{ env.SCAD_TOOLCHAIN_VERSION }}-${{ steps.scons-cache.outputs.tool_sha }}-${{ hashFiles('project.yml', '.gitmodules', 'dsg/**/*.scad', 'dsg/**/*.py') }}
+          key: scad-project-scons-v1-${{ runner.os }}-${{ github.repository_id }}-${{ env.SCAD_TOOLCHAIN_VERSION }}-${{ steps.scons-cache.outputs.tool_sha }}-${{ hashFiles('project.yml', '.gitmodules', 'dsg/**/*.scad', 'dsg/**/*.py', 'dsg/**/render.yml', 'dsg/**/export.yml', 'dsg/**/*.stl', 'dsg/**/*.off', 'dsg/**/*.amf', 'dsg/**/*.3mf', 'dsg/**/*.obj', 'dsg/**/*.dxf', 'dsg/**/*.svg', 'dsg/**/*.dat', 'dsg/**/*.txt', 'dsg/**/*.png') }}
           restore-keys: |
             scad-project-scons-v1-${{ runner.os }}-${{ github.repository_id }}-${{ env.SCAD_TOOLCHAIN_VERSION }}-${{ steps.scons-cache.outputs.tool_sha }}-
 
@@ -93,7 +93,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: bld/design
-          key: scad-project-design-v1-${{ runner.os }}-${{ github.repository_id }}-${{ env.SCAD_TOOLCHAIN_VERSION }}-${{ steps.scons-cache.outputs.tool_sha }}-${{ hashFiles('project.yml', '.gitmodules', 'dsg/**/*.scad', 'dsg/**/*.py', 'dsg/**/design/**') }}
+          key: scad-project-design-v1-${{ runner.os }}-${{ github.repository_id }}-${{ env.SCAD_TOOLCHAIN_VERSION }}-${{ steps.scons-cache.outputs.tool_sha }}-${{ hashFiles('project.yml', '.gitmodules', 'dsg/**/*.scad', 'dsg/**/*.py', 'dsg/**/render.yml', 'dsg/**/export.yml', 'dsg/**/*.stl', 'dsg/**/*.off', 'dsg/**/*.amf', 'dsg/**/*.3mf', 'dsg/**/*.obj', 'dsg/**/*.dxf', 'dsg/**/*.svg', 'dsg/**/*.dat', 'dsg/**/*.txt', 'dsg/**/*.png', 'dsg/**/design/**') }}
 
       - name: Generate design documentation
         if: steps.design-cache.outputs.cache-hit != 'true'
