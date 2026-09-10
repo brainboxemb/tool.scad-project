@@ -1,50 +1,52 @@
-# SCons selective-build experiment
+# SCons selective-build validation record
 
-This experiment evaluates SCons as the dependency/signature engine behind the
-existing `scad-project build` interface. It is deliberately not merged into the
-production build path yet; the implementation remains on the experiment branch
-while the integration behaviour is validated in `template.scad-project`.
+This directory records the validation work that led to the production SCons
+backend in `tool.scad-project` v0.8.0. The user-facing command remains
+`scad-project build`; SCons is an internal dependency/signature engine selected
+through project configuration.
 
-## Why this lives here
+## Architecture
 
-The build policy belongs to `tool.scad-project`. `template.scad-project` remains
-the integration/validation consumer, so a separate test repository is not
-needed for this prototype.
+Build policy belongs to `tool.scad-project`. `template.scad-project` remains the
+integration/validation consumer, so a separate test repository is not needed at
+this stage. A dedicated `test.scad-project` repository should only be introduced
+if later integration cases become artificial enough that they would clutter the
+normal template project.
 
-A dedicated `test.scad-project` repository should only be introduced if later
-integration cases become artificial enough that they would clutter the normal
-template project.
+SCons 4.11.1 is part of immutable
+`ghcr.io/brainboxemb/scad-toolchain:v0.4.1`. Reusable Build/Verify workflows use
+that runtime directly and do not install SCons ad hoc.
 
-## Runtime
+The SCons backend deliberately consumes the same target list as the direct
+backend. There is no second render/export configuration model.
 
-SCons 4.11.1 is part of the immutable
-`ghcr.io/brainboxemb/scad-toolchain:v0.4.1` image. The reusable build and
-verification workflows consume that image directly; they do not install SCons
-ad hoc.
+## Dependency model
 
-The Actions cache namespace is intentionally conservative. It includes:
+The OpenSCAD scanner is small and independently unit-tested. It:
 
-- repository identity;
-- immutable SCAD toolchain version;
-- exact checked-out `tool.scad-project` gitlink SHA;
-- a hash of project configuration and design source inputs.
+- follows `use <...>` and `include <...>` transitively;
+- treats literal `import()` and `surface()` file inputs as leaf dependencies;
+- resolves relative project and configured external-library paths;
+- handles comments, duplicates and cycles deterministically;
+- fails safe on unresolved or dynamic file-loading expressions instead of
+  silently accepting an incomplete cache signature.
 
-When only project inputs change, the primary Actions cache key changes but the
-compatible restore prefix remains available. SCons then decides which targets
-can be restored from `CacheDir` and which targets must execute again.
+## Cache model
 
-## What has been proved
+The Actions cache namespace includes repository identity, immutable SCAD
+runtime version, the exact checked-out `tool.scad-project` gitlink SHA and a hash
+of relevant project build inputs. A compatible restore prefix keeps older SCons
+objects available when only project inputs change; SCons then decides which
+outputs are still valid.
 
-Unit and subprocess tests in this repository prove the lower-level behaviour:
+Only SCons `CacheDir` data needs to persist. `bld/` and `.sconsign` can be absent
+on the next GitHub-hosted runner: valid missing outputs are hydrated by build
+signature.
 
-1. OpenSCAD `use` and `include` dependencies are discovered transitively.
-2. Cycles, duplicates, relative project paths and external-library paths are
-   handled deterministically.
-3. Target specifications participate in SCons signatures.
-4. A clean runner can hydrate unchanged outputs from a restored `CacheDir`.
+## Integration evidence
 
-The real integration experiment is `brainboxemb/template.scad-project` PR #3.
-Using four configured outputs, it produced these results:
+The real integration experiment was `brainboxemb/template.scad-project` PR #3.
+Using four configured OpenSCAD outputs it produced:
 
 | Scenario | Result |
 | --- | --- |
@@ -53,26 +55,32 @@ Using four configured outputs, it produced these results:
 | Only `components/tube/tube.scad` changed | `targets=4 executed=3 not-executed=1` |
 | Temporary tube change reverted | `targets=4 executed=0 not-executed=4` |
 
-For the selective dependency change, the tube PNG and assembly PNG/STL were
-rebuilt, while the independent mounting-plate PNG was restored from cache. This
-is the behaviour required before applying the mechanism to larger projects such
-as the HUB75 frame.
+For the selective change, the tube PNG and assembly PNG/STL were rebuilt while
+the independent mounting-plate PNG was restored from cache. The temporary tube
+change was reverted and does not remain in the final consumer tree.
 
-## Current boundary
+## Generated design documentation
 
-The dependency-aware backend currently covers configured `build` outputs only.
-`design-build` is still a separate renderer and still regenerates all declared
-design-documentation images on each workflow run. In the template integration
-case that means 16 design renders still run even when all four configured build
-outputs are cache hits.
+Design documentation remains separate from the per-target SCons graph. The
+reusable Build workflow uses a whole-tree Actions cache for `bld/design`.
 
-Design-documentation rendering is therefore the next optimization area. It
-should be made optional/selective independently rather than obscuring the now
-proven configured-output behaviour.
+The template validation proved both sides of that policy:
+
+1. a cold design-cache run generated the 16 project design images and stored the
+   complete generated design tree;
+2. an identical-tree run on a fresh runner restored `bld/design`, skipped
+   `design-build` completely, and simultaneously restored all four configured
+   build outputs without OpenSCAD execution.
+
+Any changed design input currently invalidates the whole generated-design cache.
+Per-document design dependency selection is deliberately deferred until there
+is evidence that its additional complexity provides worthwhile savings.
 
 ## Test layout
 
-- `tests/test_openscad_deps.py` unit-tests the scanner independently from SCons.
+- `tests/test_openscad_deps.py` covers the scanner independently from SCons.
 - `tests/test_scons_prototype.py` runs real SCons subprocesses against a small
-  two-target SCAD fixture and simulates clean GitHub-hosted runners between
-  invocations.
+  two-target SCAD fixture and simulates clean GitHub-hosted runners.
+- `tests/test_build_engine.py` and `tests/test_build_engine_config.py` cover the
+  selectable production backend and its configuration contract.
+- `tests/test_cache_workflows.py` guards the reusable workflow cache inputs.

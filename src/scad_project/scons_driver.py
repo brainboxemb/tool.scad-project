@@ -1,4 +1,4 @@
-"""SCons-side driver for the experimental selective OpenSCAD build backend."""
+"""SCons-side driver for the selective OpenSCAD build backend."""
 
 from __future__ import annotations
 
