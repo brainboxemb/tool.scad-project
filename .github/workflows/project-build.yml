@@ -38,14 +38,23 @@ jobs:
           submodules: true
           fetch-depth: 0
 
+      - name: Resolve SCons cache namespace
+        id: scons-cache
+        timeout-minutes: 2
+        run: |
+          set -euo pipefail
+          TOOL_SHA="$(git -C tools/tool.scad-project rev-parse HEAD)"
+          echo "tool_sha=${TOOL_SHA}" >> "$GITHUB_OUTPUT"
+          echo "SCons cache namespace: toolchain=${SCAD_TOOLCHAIN_VERSION}, tool=${TOOL_SHA}"
+
       - name: Restore SCons build cache
         timeout-minutes: 2
         uses: actions/cache@v4
         with:
           path: .cache/scad-project/scons
-          key: scad-project-scons-${{ runner.os }}-${{ github.repository_id }}-${{ hashFiles('project.yml', '.gitmodules', 'dsg/**/*.scad', 'dsg/**/*.py') }}
+          key: scad-project-scons-v1-${{ runner.os }}-${{ github.repository_id }}-${{ env.SCAD_TOOLCHAIN_VERSION }}-${{ steps.scons-cache.outputs.tool_sha }}-${{ hashFiles('project.yml', '.gitmodules', 'dsg/**/*.scad', 'dsg/**/*.py') }}
           restore-keys: |
-            scad-project-scons-${{ runner.os }}-${{ github.repository_id }}-
+            scad-project-scons-v1-${{ runner.os }}-${{ github.repository_id }}-${{ env.SCAD_TOOLCHAIN_VERSION }}-${{ steps.scons-cache.outputs.tool_sha }}-
 
       - name: Show toolchain
         timeout-minutes: 2
