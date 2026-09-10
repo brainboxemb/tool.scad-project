@@ -2,6 +2,20 @@
 
 Functional changes to released `tool.scad-project` versions.
 
+## v0.9.2
+
+### Added
+
+- Add dependency-selective generated design rendering for SCons consumers with one SCons target per generated design PNG.
+- Track OpenSCAD design renders through their source document, generated entrypoint and scanned transitive OpenSCAD dependencies.
+- Track PythonSCAD design renders conservatively against project and configured-external Python sources until Python import scanning is available.
+- Emit `last-design-build.json` with executed versus restored/current design targets.
+
+### Changed
+
+- Keep the existing whole-tree `bld/design` cache as the exact-hit fast path, but let a cache miss fall through to per-image SCons reuse instead of re-rendering every design image.
+- Include generated-design inputs in the persistent SCons cache key so design-only changes can populate reusable per-image cache objects.
+
 ## v0.9.1
 
 ### Added
