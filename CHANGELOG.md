@@ -2,6 +2,14 @@
 
 Functional changes to released `tool.scad-project` versions.
 
+## v0.9.1
+
+### Added
+
+- Generate `bld/png/README.md` automatically as a browseable Markdown gallery whenever the generated build contains a PNG directory.
+- Include generated PNGs in deterministic path order, including nested PNG paths.
+- Link the root generated build index directly to the PNG gallery README.
+
 ## v0.9.0
 
 ### Added
