@@ -401,9 +401,22 @@ The explicit dispatch is required because a tag pushed with `GITHUB_TOKEN`
 does not itself create a follow-up workflow run.
 
 If the connected GitHub interface cannot directly invoke `workflow_dispatch`,
-use a temporary dispatcher workflow only to invoke the permanent
-`release.yml`. Do not duplicate tag creation logic in that temporary helper.
-Remove the helper immediately after the release workflow has started.
+do **not** tell the user they must start the release manually. Use the established
+one-shot dispatcher pattern instead:
+
+1. create a temporary `.github/workflows/_dispatch-release-vX.Y.Z.yml` on
+   `main`;
+2. make that workflow trigger only on the commit that introduces the helper;
+3. give it `actions: write` and use `GITHUB_TOKEN` + `gh api` only to dispatch
+   the permanent `release.yml` with `version` and the exact verified
+   `release_sha`;
+4. never duplicate tag creation/version validation in the helper;
+5. after the permanent Release workflow has started, delete the temporary
+   dispatcher from `main`;
+6. accept the release only after the tagged `test.yml` run is green.
+
+This workaround has been used successfully in this repository family and is the
+preferred connected-GitHub release path whenever direct dispatch is unavailable.
 
 A release is accepted only after the tagged `test.yml` run is green.
 
