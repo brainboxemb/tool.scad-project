@@ -8,6 +8,10 @@ paths:
   design_root: dsg/openscad
   build_root: bld
 
+design:
+  # Set false in consumers that should publish only project-owned design docs.
+  include_externals: true
+
 openscad:
   common_flags:
     - --enable=object-function
