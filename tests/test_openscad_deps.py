@@ -1,3 +1,19 @@
+"""OpenSCAD dependency scanning
+
+Checks:
+The dependency scanner follows `use` and `include` statements through nested files,
+ignores commented-out references, handles duplicate and cyclic references once, searches
+configured library paths, and treats `import()` and `surface()` files as dependencies.
+Binary assets are not parsed as OpenSCAD. Dynamic file expressions fail safely, and
+missing files produce useful diagnostics instead of silently creating an incomplete
+build graph.
+
+Testing approach:
+Each test writes a tiny real file tree containing only the dependency pattern being
+checked and runs the actual scanner against it. The returned dependency order or raised
+error is then compared with the expected result.
+"""
+
 from pathlib import Path
 
 import pytest

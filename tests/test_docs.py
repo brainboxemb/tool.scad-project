@@ -1,3 +1,15 @@
+"""OpenSCAD source documentation
+
+Checks:
+Structured OpenSCAD API documentation must begin with the required file-level `File:` or
+`LibFile:` header. A module comment by itself is not enough.
+
+Testing approach:
+The test writes a deliberately incomplete OpenSCAD file into a temporary project and
+runs the real source-documentation linter. The test passes only when the linter reports
+the missing file-level documentation.
+"""
+
 from pathlib import Path
 from scad_project.config import ProjectContext
 from scad_project.docs import lint_docs

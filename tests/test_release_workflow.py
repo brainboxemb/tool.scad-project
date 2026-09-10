@@ -1,3 +1,21 @@
+"""Release workflow safety
+
+Checks:
+The reusable release workflow must validate the exact current production commit before
+building and again before publication, run Build and Verify before finalization, verify
+checksums before publishing, publish immutable branches before creating the tag/GitHub
+Release, and contain rollback steps for incomplete finalization. Nested reusable
+workflows must use the explicit self-repository references required for cross-repository
+consumers.
+
+Testing approach:
+GitHub Actions workflows cannot be meaningfully executed as a local unit test, so these
+tests inspect the workflow YAML source itself. They check for the required jobs,
+dependencies, commands and ordering. End-to-end behavior is additionally exercised in
+the template reference consumer; this module protects the safety rules from accidental
+YAML edits.
+"""
+
 from pathlib import Path
 
 
@@ -110,6 +128,7 @@ def test_build_and_verify_support_exact_release_source_context():
 
 
 def test_release_workflow_uses_self_repository_reusable_workflows():
+    """Guard the cross-repository release fix that requires explicit self references."""
     text = read(RELEASE)
 
     assert "uses: $/.github/workflows/project-build.yml" in text

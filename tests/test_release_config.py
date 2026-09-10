@@ -1,3 +1,16 @@
+"""Release configuration
+
+Checks:
+The `publication.release` section is optional. When present it must be a mapping, and
+supported values such as branch prefix, tag pattern and changelog path must be non-empty
+strings.
+
+Testing approach:
+The tests construct a few minimal project configurations and call the real release-
+configuration validator. They compare the returned error list with the exact expected
+messages for valid and invalid input.
+"""
+
 from pathlib import Path
 
 from scad_project.config import ProjectContext

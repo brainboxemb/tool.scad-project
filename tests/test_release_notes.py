@@ -1,3 +1,17 @@
+"""Release notes
+
+Checks:
+Release notes can extract the requested version from the supported changelog heading
+styles, fail when that version is missing, require an exact 40-character source commit,
+and include links to the immutable build/verification branches together with checksum
+information.
+
+Testing approach:
+The tests write small temporary changelog files, call the real changelog/release-note
+functions, and inspect the returned Markdown text. No GitHub Release is created; only
+the text and provenance rules are tested.
+"""
+
 from pathlib import Path
 
 import pytest

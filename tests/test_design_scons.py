@@ -1,3 +1,17 @@
+"""Selective design rendering with SCons
+
+Checks:
+Generated design images behave as independent SCons targets: a cold build renders both
+sample images, an unchanged second build renders none, and changing the source for one
+component rerenders only that component's image.
+
+Testing approach:
+This is an integration test rather than a simulated unit test. It creates two tiny real
+OpenSCAD components and runs the actual SCons/OpenSCAD design build three times, then
+reads the generated build report and checks the output files. The test is skipped when
+the required SCAD toolchain programs are not installed.
+"""
+
 from __future__ import annotations
 
 import json
@@ -76,11 +90,13 @@ def _report(tmp_path: Path) -> dict:
 def test_design_images_are_individual_scons_targets(tmp_path: Path):
     context = _context(tmp_path)
 
+    # Cold build: both independent image targets must execute and populate cache.
     build_design(context)
     first = _report(tmp_path)
     assert first["target_count"] == 2
     assert first["executed_count"] == 2
 
+    # Identical second build: SCons should execute no render target at all.
     build_design(context)
     second = _report(tmp_path)
     assert second["target_count"] == 2
@@ -92,6 +108,7 @@ def test_design_images_are_individual_scons_targets(tmp_path: Path):
         encoding="utf-8",
     )
 
+    # Change only alpha: alpha rerenders while beta remains a reusable target.
     build_design(context)
     third = _report(tmp_path)
     assert third["target_count"] == 2

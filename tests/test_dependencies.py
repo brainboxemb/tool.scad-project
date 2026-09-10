@@ -1,3 +1,16 @@
+"""Versioned project dependencies
+
+Checks:
+Tooling and external libraries are discovered from the project configuration in a stable
+order, and dependencies that must be reproducible are required to declare an explicit
+Git reference.
+
+Testing approach:
+The tests create minimal project configurations directly in memory and run the real
+dependency discovery and validation functions. No repository is cloned and no network
+access is needed; only the interpretation of the configuration is being tested.
+"""
+
 from pathlib import Path
 
 from scad_project.config import ProjectContext

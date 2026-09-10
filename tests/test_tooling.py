@@ -1,3 +1,19 @@
+"""Tooling and workflow consistency
+
+Checks:
+The package version and reusable workflow version markers stay aligned, pinned tool
+versions are checked correctly, Build remains the only writer of the shared SCons cache,
+cache names/summaries stay understandable, workflow helper code uses the available
+`python3` command, and agreed job/step timeouts are not accidentally increased.
+
+Testing approach:
+Configuration-level tests call the real tooling validator with controlled environment
+values. Workflow-policy tests read the YAML files and inspect the relevant actions,
+cache keys and timeout values. Where environment variables must be changed for one case,
+pytest's `monkeypatch` fixture makes that change temporary and restores the original
+environment afterwards.
+"""
+
 from pathlib import Path
 
 from scad_project import __version__
@@ -79,6 +95,7 @@ def test_release_version_markers_are_aligned():
 
 
 def test_scons_cache_writer_policy():
+    """Keep Build as the only shared SCons cache writer; Verify is restore-only."""
     import yaml
 
     build = yaml.safe_load(
@@ -104,6 +121,7 @@ def test_scons_cache_writer_policy():
 
 
 def test_cache_workflow_is_human_readable():
+    """Preserve semantic cache names and summaries instead of opaque hash-only UI."""
     import yaml
 
     build = yaml.safe_load(
@@ -131,12 +149,14 @@ def test_cache_workflow_is_human_readable():
 
 
 def test_cache_summary_uses_available_python3_runtime():
+    """Prevent the workflow regression where summary generation called absent `python`."""
     text = Path(".github/workflows/project-build.yml").read_text(encoding="utf-8")
     assert "python3 - <<'PY'" in text
     assert "\n          python - <<'PY'" not in text
 
 
 def test_workflow_timeouts_are_bounded():
+    """Keep every reusable/tool CI job and expensive step within the agreed limits."""
     import yaml
 
     expected = {
@@ -165,6 +185,8 @@ def test_workflow_timeouts_are_bounded():
             "steps": {
                 "Checkout": 2,
                 "Unit tests": 5,
+                "Generate unit-test documentation": 2,
+                "Upload unit-test documentation": 2,
             },
         },
         ".github/workflows/release.yml": {

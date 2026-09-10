@@ -1,3 +1,18 @@
+"""External design documentation policy
+
+Checks:
+External-library design documentation is included by default, can be disabled with a
+boolean setting, rejects invalid setting types, and is actually filtered out when
+disabled. The generated design index must also explain that external documentation was
+intentionally omitted.
+
+Testing approach:
+The tests use small project and external document objects. For cases that need a
+controlled discovery/build result, pytest's `monkeypatch` fixture temporarily replaces
+the internal discovery or build function with a small predictable function, then
+automatically restores the original after the test.
+"""
+
 from pathlib import Path
 
 import pytest

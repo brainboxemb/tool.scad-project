@@ -1,3 +1,18 @@
+"""Build engine selection
+
+Checks:
+The direct build engine remains the default, `scons` can be selected explicitly, invalid
+engine names are rejected, and selecting SCons without SCons installed gives a clear
+error. The SCons handoff must contain the same target details as the normal build path,
+and its report must distinguish outputs built now from outputs reused from cache.
+
+Testing approach:
+The tests build a minimal in-memory project configuration and inspect the generated
+SCons manifest/report JSON. Where backend selection or SCons availability must be
+controlled, pytest's `monkeypatch` fixture temporarily replaces the relevant function
+with a predictable result. No CAD renderer is required for these unit-level checks.
+"""
+
 from __future__ import annotations
 
 import json

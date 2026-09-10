@@ -1,3 +1,16 @@
+"""Project verification commands
+
+Checks:
+Verification commands in `project.yml` must be explicit argument lists such as
+`["python3", "check.py"]`. A single shell command string is rejected so command
+execution does not depend on shell parsing, quoting or command injection behavior.
+
+Testing approach:
+The tests create minimal project configurations containing either the supported
+argument-list form or the rejected shell-string form, then call the real verification-
+command parser and inspect the returned commands or error.
+"""
+
 from pathlib import Path
 import pytest
 

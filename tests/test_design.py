@@ -1,3 +1,16 @@
+"""Design-document render instructions
+
+Checks:
+Render blocks in `design.md` select the correct OpenSCAD or PythonSCAD engine, explicit
+engine settings override filename-based detection, PythonSCAD receives the requested
+design view and image size, and unsupported inline PythonSCAD is rejected.
+
+Testing approach:
+The tests write tiny temporary `design.md` and source files, parse them with the real
+design-document parser, and inspect the render description or command-line arguments
+that would be used. They do not start OpenSCAD or PythonSCAD.
+"""
+
 from pathlib import Path
 
 from scad_project.design import (

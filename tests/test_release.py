@@ -1,3 +1,20 @@
+"""Release packages and atomic release publication
+
+Checks:
+A release creates deterministic build, verification and optional STL ZIP files plus
+sorted SHA-256 checksums. ZIP metadata is normalized so file modification times do not
+change the bundle bytes. Release publication refuses pre-existing release branches,
+requires matching provenance, publishes build and verification branches as immutable
+snapshots, and removes a newly created build branch if publishing verification fails.
+
+Testing approach:
+The packaging tests create small temporary build and verification trees and inspect the
+real ZIP files and checksum file. Publication tests use pytest's `monkeypatch` fixture
+to temporarily replace remote Git checks and pushes with controlled functions that
+record or deliberately fail an operation. This exercises success and rollback logic
+without creating real remote branches.
+"""
+
 from pathlib import Path
 import os
 import zipfile
@@ -128,6 +145,7 @@ def test_release_zip_metadata_is_normalized(tmp_path: Path):
 
 
 def test_release_bundles_ignore_source_file_mtime(tmp_path: Path):
+    """Prove bundle bytes stay reproducible when source mtimes differ."""
     seed_outputs(tmp_path)
     ctx = context(tmp_path)
 
@@ -238,6 +256,7 @@ def test_verification_publish_failure_rolls_back_new_build_branch(
     tmp_path: Path,
     monkeypatch,
 ):
+    """Model a partial publish and require cleanup of the newly created build branch."""
     seed_release_provenance(tmp_path)
     calls: list[str] = []
     rollback: list[list[str]] = []

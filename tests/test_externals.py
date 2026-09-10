@@ -1,3 +1,15 @@
+"""External library configuration
+
+Checks:
+The current `externals:` project configuration is parsed correctly, and the older
+`libraries:` form remains accepted as a migration compatibility path.
+
+Testing approach:
+The tests create small project configurations containing one example external library
+and pass them to the real external-library parser/validator. They verify the resulting
+dependency data without cloning the library.
+"""
+
 from pathlib import Path
 
 from scad_project.config import ProjectContext

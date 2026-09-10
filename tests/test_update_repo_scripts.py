@@ -1,3 +1,18 @@
+"""Repository updater scripts
+
+Checks:
+The root and bootstrap copies of the Bash and PowerShell updater stay identical, an
+update changes Build, Verify and Release workflow references together, and reusable
+workflow calls are pinned to the exact checked-out `tool.scad-project` commit rather
+than an annotated version tag.
+
+Testing approach:
+The tests read the updater scripts as files. They compare duplicate script bytes
+directly and inspect the script text for the required workflow names and exact-SHA
+assignment rules; the updater is not allowed to modify a real consumer repository during
+these unit tests.
+"""
+
 from pathlib import Path
 
 
@@ -24,6 +39,7 @@ def test_root_updaters_match_bootstrap_copies():
 
 
 def test_updaters_cover_all_reusable_project_workflows():
+    """Prevent Release from lagging behind when Build and Verify are upgraded."""
     for root_script, _bootstrap_script in UPDATER_PAIRS:
         text = root_script.read_text(encoding="utf-8")
         for workflow in REUSABLE_PROJECT_WORKFLOWS:
@@ -31,6 +47,7 @@ def test_updaters_cover_all_reusable_project_workflows():
 
 
 def test_updaters_pin_workflows_to_checked_out_tool_commit():
+    """Keep external reusable workflows on an exact SHA while project.yml stays semantic."""
     bash = (ROOT / "update-repo.sh").read_text(encoding="utf-8")
     powershell = (ROOT / "update-repo.ps1").read_text(encoding="utf-8")
 

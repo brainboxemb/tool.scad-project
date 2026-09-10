@@ -1,3 +1,18 @@
+"""Generated build indexes
+
+Checks:
+Build indexes link only to output sections that actually exist, PNG images are listed in
+a deterministic order, an empty PNG directory is described clearly, and production
+versus immutable release indexes show the correct publication context and branch
+information.
+
+Testing approach:
+The tests create small temporary output directories and generated files, then call the
+real index writers and inspect their Markdown. For publication-context cases, pytest's
+`monkeypatch` fixture temporarily sets GitHub-style environment variables for one test
+and restores the previous environment afterwards.
+"""
+
 from pathlib import Path
 
 from scad_project.config import ProjectContext
