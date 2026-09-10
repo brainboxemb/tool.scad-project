@@ -160,23 +160,15 @@ jobs:
             --version "${RELEASE_VERSION}" \
             --output-dir .release
 
-      - name: Prepare release notes
+      - name: Generate release notes from changelog
         timeout-minutes: 2
-        env:
-          BUILD_BRANCH: ${{ steps.preflight.outputs.build_branch }}
-          VERIFICATION_BRANCH: ${{ steps.preflight.outputs.verification_branch }}
         run: |
           set -euo pipefail
-          cat > .release/RELEASE_NOTES.md <<EOF
-          Release **${RELEASE_VERSION}** from source commit \`${RELEASE_SOURCE_SHA}\`.
-
-          Browse generated release documentation directly on GitHub:
-
-          - [Build and design documentation](https://github.com/${GITHUB_REPOSITORY}/tree/${BUILD_BRANCH})
-          - [Verification evidence](https://github.com/${GITHUB_REPOSITORY}/tree/${VERIFICATION_BRANCH})
-
-          Downloadable build, verification and STL bundles are attached to this release together with \`SHA256SUMS.txt\`.
-          EOF
+          scad-project release-notes \
+            --version "${RELEASE_VERSION}" \
+            --source-sha "${RELEASE_SOURCE_SHA}" \
+            --repository "${GITHUB_REPOSITORY}" \
+            --output .release/RELEASE_NOTES.md
 
       - name: Publish immutable release branches
         id: publish-branches
