@@ -373,19 +373,7 @@ ghcr.io/brainboxemb/scad-toolchain:v0.4.1
 This runtime contains SCons 4.11.1 for the selective build backend. The project
 tool intentionally remains separate from the Docker image.
 
-## Scope of v0.1.0
-
-This first version establishes the reusable config/design/build layer.
-
-Not yet included:
-
-- verification branch publication;
-- copyright/watermark processing;
-- project scaffolding/generation;
-- embedding this package into the Docker image.
-
 The model, code and documentation are being developed with the assistance of ChatGPT.
-
 
 ## Bootstrap and offline-friendly local use
 
@@ -473,8 +461,6 @@ The old `libraries:` config key and `libraries-check` CLI command remain
 accepted temporarily for v0.1 migration, but new projects should use
 `externals:`.
 
-
-
 ### Shell-script portability
 
 When invoking the shell launcher from CI or a bootstrap script, prefer:
@@ -486,7 +472,6 @@ bash ./scad-project.sh <command>
 rather than relying on `./scad-project.sh`. This keeps projects created from a
 ZIP or managed on Windows from depending on preservation of the Unix executable
 bit.
-
 
 ## Python-free bootstrap
 
@@ -518,7 +503,6 @@ available. `scad-project` can later lint that these declarations agree.
 A bootstrap must never require Python merely to obtain the project's pinned
 tooling and CAD-library submodules.
 
-
 ## OpenSCAD warning validation
 
 OpenSCAD can return exit code `0` while still reporting warnings that indicate
@@ -542,7 +526,6 @@ Viewall and autocenter disabled in favor of $vp*
 
 This prevents `design-render` or `build` from reporting success merely because
 OpenSCAD returned a zero exit code while geometry was actually incomplete.
-
 
 ## Generated design documentation
 
@@ -644,12 +627,12 @@ keeping those external CAD sources available to project models. The default is
 `scad-design` remains accepted as a compatibility syntax while older libraries
 are migrated, but new documentation should use `scad-render`.
 
+## Publication and release policy
 
-## Publication policy
-
-Generated content belongs off the source branch. Publication is resolved from
-the GitHub ref that produced the build, so projects do not need a temporary
-workflow or temporary `project.yml` edit for development branches.
+Generated content belongs off the source branch. Normal builds resolve their
+publication target from the GitHub ref that produced the build, while a
+coordinated release generates immutable versioned snapshots and downloadable
+release assets from one exact source commit.
 
 Recommended configuration:
 
@@ -657,8 +640,8 @@ Recommended configuration:
 publication:
   production:
     source_branch: main
-    build_branch: build
-    verification_branch: verification
+    build_branch: prod/build
+    verification_branch: prod/verification
 
   development:
     build_branch: dev/build
@@ -666,27 +649,49 @@ publication:
 
   tags:
     pattern: "v*"
+
+  release:
+    branch_prefix: rel
+    tag_pattern: "v*"
+    changelog: CHANGELOG.md
 ```
 
 The standard behavior is:
 
 | Source context | Build | Verification |
 | --- | --- | --- |
-| production branch (`main`) | mutable `build` branch | mutable `verification` branch |
-| other branch | mutable `dev/build` branch | mutable `dev/verification` branch |
+| production branch (`main`) | mutable `prod/build` | mutable `prod/verification` |
+| other branch | mutable `dev/build` | mutable `dev/verification` |
 | pull request | workflow artifact only | workflow artifact only |
-| matching version tag | workflow artifact only | workflow artifact only |
+| ordinary matching tag build | workflow artifact only | workflow artifact only |
+| coordinated release `vX.Y.Z` | immutable `rel/vX.Y.Z/build` | immutable `rel/vX.Y.Z/verification` |
 
-Development branches deliberately share one mutable pair of publication
-branches. The newest development run replaces the previous snapshot. Every
-generated artifact and branch snapshot therefore receives a root
-`publication-info.txt` containing the source repository, ref type, ref, commit,
-actor and workflow-run URL.
+Development and production branches are mutable snapshots. Every generated
+artifact and branch snapshot receives a root `publication-info.txt` containing
+the source repository, ref type, ref, commit, actor, workflow-run URL, tool and
+runtime provenance.
 
-Tags never overwrite the mutable production or development branches. In v0.5.0
-they produce immutable workflow-run artifacts only. Attaching those artifacts
-to a GitHub Release can be added as a separate release policy without changing
-the branch semantics.
+A coordinated release is stricter. Its requested source SHA must equal the
+current HEAD of the configured production source branch at preflight time. That
+same HEAD is fetched and checked again immediately before immutable
+finalization. This prevents releasing a stale production ancestor and closes a
+race where the production branch advances while release Build/Verify jobs are
+running.
+
+Build and Verify run first with branch publication disabled. Only after both
+succeed does finalization:
+
+1. download those exact workflow artifacts;
+2. build deterministic release ZIPs and `SHA256SUMS.txt`;
+3. verify the generated checksums;
+4. generate release notes from the configured changelog;
+5. create immutable `rel/vX.Y.Z/build` and `rel/vX.Y.Z/verification` branches;
+6. create the annotated source tag;
+7. create the GitHub Release and upload the ZIP/checksum assets.
+
+If finalization fails after immutable branches were created, the workflow rolls
+back the incomplete release refs rather than leaving a partial release.
+Existing `rel/*` branches are never force-pushed.
 
 The older flat configuration remains accepted during migration:
 
@@ -696,6 +701,8 @@ publication:
   verification_branch: verification
 ```
 
+but new projects should use the explicit production/development/release model.
+
 CI prepares provenance before artifact upload:
 
 ```text
@@ -703,13 +710,12 @@ scad-project publication-info-build
 scad-project publication-info-verification
 ```
 
-and then resolves the destination when publishing:
+and resolves normal snapshot destinations when publishing:
 
 ```text
 scad-project publish-build
 scad-project publish-verification
 ```
-
 
 ### Camera and image handling
 
@@ -770,7 +776,7 @@ tooling:
     type: git-submodule
     url: https://github.com/brainboxemb/tool.scad-project.git
     path: tools/tool.scad-project
-    ref: v0.8.0
+    ref: v0.9.0
 
 externals:
   - name: lib.scad.clamps
@@ -784,7 +790,7 @@ externals:
 `ref` is per dependency and supports:
 
 ```text
-v0.8.0
+v0.9.0
     exact tag
 
 latest
@@ -834,14 +840,13 @@ changed gitlinks available for normal `git diff` / `git status` review.
 For tooling, workflow callers are derived from the resolved tooling ref:
 
 ```text
-ref: v0.8.0  -> @v0.8.0
+ref: v0.9.0  -> @v0.9.0
 ref: latest  -> @<resolved newest tag>
 ref: main    -> @main
 ```
 
 This keeps dependency policy in `project.yml` while satisfying GitHub Actions'
 requirement that reusable workflow refs are literal in workflow YAML.
-
 
 ### Python-free repository updater
 
@@ -890,7 +895,7 @@ Build workflow:
 ```yaml
 jobs:
   build:
-    uses: brainboxemb/tool.scad-project/.github/workflows/project-build.yml@v0.8.0
+    uses: brainboxemb/tool.scad-project/.github/workflows/project-build.yml@v0.9.0
 ```
 
 Projects with separate functional verification can additionally use:
@@ -898,10 +903,32 @@ Projects with separate functional verification can additionally use:
 ```yaml
 jobs:
   verify:
-    uses: brainboxemb/tool.scad-project/.github/workflows/project-verify.yml@v0.8.0
+    uses: brainboxemb/tool.scad-project/.github/workflows/project-verify.yml@v0.9.0
     with:
       verification_path: vrf/out
 ```
+
+Projects that use coordinated releases keep a similarly thin caller. The
+caller must grant `actions: read` because the reusable release finalizer
+downloads the Build and Verify artifacts from the same workflow run:
+
+```yaml
+permissions:
+  actions: read
+  contents: write
+  packages: read
+
+jobs:
+  release:
+    uses: brainboxemb/tool.scad-project/.github/workflows/project-release.yml@v0.9.0
+    with:
+      version: ${{ inputs.version }}
+      source_sha: ${{ inputs.source_sha }}
+```
+
+Inside `project-release.yml`, the nested Build and Verify calls use local
+same-revision reusable-workflow references. Therefore a release invoked at
+`@v0.9.0` cannot silently use Build/Verify logic from a later tool revision.
 
 The reusable build workflow standardizes:
 
@@ -911,11 +938,11 @@ The reusable build workflow standardizes:
 - generated-design cache restore/build;
 - dependency-selective configured PNG/STL builds when SCons is enabled;
 - build artifact upload;
-- generated `build` branch publication.
+- configured generated build snapshot publication.
 
 The reusable verification workflow runs the generic source/build verification,
 then project-specific `verification.commands`, and can publish the configured
-verification output to the `verification` branch.
+verification output to the configured verification snapshot branch.
 
 ### Tooling version alignment
 
@@ -927,7 +954,7 @@ tooling:
     type: git-submodule
     url: https://github.com/brainboxemb/tool.scad-project.git
     path: tools/tool.scad-project
-    ref: v0.8.0
+    ref: v0.9.0
 ```
 
 For a release-pinned consumer, these three references should represent the same
@@ -936,7 +963,7 @@ release:
 ```text
 project.yml tooling.tool_scad_project.ref
 Git submodule tools/tool.scad-project
-reusable workflow @v0.8.0
+reusable workflow @v0.9.0
 ```
 
 `scad-project tooling-check` verifies the running CLI against `project.yml` and,
@@ -954,7 +981,14 @@ verification:
   output_root: vrf/out
 
 publication:
-  verification_branch: verification
+  production:
+    source_branch: main
+    verification_branch: prod/verification
+  development:
+    verification_branch: dev/verification
+  release:
+    branch_prefix: rel
+    tag_pattern: "v*"
 ```
 
 Commands are stored as argument lists rather than shell strings so quoting and
@@ -1018,6 +1052,7 @@ managed as part of that image.
 ## Standard generated build index
 
 `scad-project build-index` writes the common root `bld/README.md`. It links only
-to generated sections that actually exist (`design`, `png`, `stl`). This keeps
-the `build` branch presentation consistent across libraries and consumer
-projects.
+to generated sections that actually exist (`design`, `png`, `stl`) and records
+the resolved publication context/branch. This keeps mutable `prod/*` snapshots
+and immutable `rel/<version>/*` snapshots self-describing when browsed on
+GitHub.

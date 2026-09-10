@@ -18,6 +18,21 @@ on:
         required: false
         type: string
         default: vrf/out
+      source_ref:
+        description: Optional exact branch, tag or commit to check out
+        required: false
+        type: string
+        default: ''
+      release_version:
+        description: Optional coordinated release version for provenance
+        required: false
+        type: string
+        default: ''
+      source_sha:
+        description: Optional exact source commit SHA for provenance
+        required: false
+        type: string
+        default: ''
 
 permissions:
   contents: write
@@ -31,9 +46,11 @@ jobs:
       image: ghcr.io/brainboxemb/scad-toolchain:v0.4.1
 
     env:
-      SCAD_PROJECT_WORKFLOW_VERSION: v0.8.0
+      SCAD_PROJECT_WORKFLOW_VERSION: v0.9.0
       SCAD_TOOLCHAIN_IMAGE: ghcr.io/brainboxemb/scad-toolchain:v0.4.1
       SCAD_TOOLCHAIN_VERSION: v0.4.1
+      SCAD_PROJECT_RELEASE_VERSION: ${{ inputs.release_version }}
+      SCAD_PROJECT_SOURCE_SHA: ${{ inputs.source_sha || github.sha }}
 
     steps:
       - name: Checkout project and pinned submodules
@@ -42,6 +59,7 @@ jobs:
         with:
           submodules: true
           fetch-depth: 0
+          ref: ${{ inputs.source_ref || github.ref }}
 
       - name: Configure Git safe directories
         timeout-minutes: 2

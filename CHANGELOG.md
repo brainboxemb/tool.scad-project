@@ -2,6 +2,29 @@
 
 Functional changes to released `tool.scad-project` versions.
 
+## v0.9.0
+
+### Added
+
+- Add a reusable, coordinated project release workflow with fail-fast preflight, exact-source Build and Verify jobs, and finalization only after both succeed.
+- Publish mutable production snapshots to `prod/build` and `prod/verification` by default, while retaining configurable production/development branch names.
+- Publish immutable browseable release snapshots to `rel/<version>/build` and `rel/<version>/verification` without force-pushing existing release branches.
+- Generate deterministic build, verification and STL release ZIPs plus `SHA256SUMS.txt`, and verify those checksums before immutable publication and upload.
+- Generate GitHub Release notes from the project's configured changelog and link to the browseable immutable build and verification branches.
+- Record coordinated release context, exact source SHA, tag, tool/submodule pins and runtime provenance in generated release snapshots.
+- Add rollback for incomplete release finalization and a self-cleaning consumer `release-request/vX.Y.Z/<sha>` trigger pattern.
+
+### Changed
+
+- Require a project release source SHA to equal the current configured production-branch HEAD at preflight time, and revalidate that HEAD immediately before immutable finalization.
+- Make generated build indexes publication-aware so they report the resolved `prod/*` or `rel/<version>/*` destination instead of a hard-coded legacy branch name.
+- Use same-revision local reusable Build/Verify calls from the release workflow so nested release jobs cannot drift to a different `tool.scad-project` revision.
+
+### Fixed
+
+- Document and enforce the `actions: read` caller permission required by reusable release workflows that download Build and Verify artifacts.
+- Avoid GitHub workflow-ref permission failures caused by attempting to release an older production-branch ancestor after workflow files have advanced.
+
 ## v0.8.0
 
 ### Added
@@ -56,7 +79,7 @@ Functional changes to released `tool.scad-project` versions.
 
 ### Changed
 
-- Explicit `builds:` entries remain supported as compatibility/exception overrides instead of being required for every normal render/export entrypoint.
+- Explicit `builds:` entries remain supported for compatibility/exception overrides instead of being required for every normal render/export entrypoint.
 
 ## v0.6.1
 

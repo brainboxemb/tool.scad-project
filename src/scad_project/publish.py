@@ -24,6 +24,7 @@ class PublicationTarget:
     publish: bool
     source_ref_type: str
     source_ref: str
+    immutable: bool = False
 
 
 def _publication_config(context: ProjectContext) -> dict:
@@ -31,18 +32,58 @@ def _publication_config(context: ProjectContext) -> dict:
     return value if isinstance(value, dict) else {}
 
 
+def _validate_kind(kind: str) -> None:
+    if kind not in {"build", "verification"}:
+        raise RuntimeError(f"Unsupported publication kind: {kind}")
+
+
+def resolve_release_publication_target(
+    context: ProjectContext,
+    kind: str,
+    version: str,
+) -> PublicationTarget:
+    """Resolve one immutable versioned release publication destination."""
+
+    _validate_kind(kind)
+    publication = _publication_config(context)
+    tags = publication.get("tags", {}) or {}
+    release = publication.get("release", {}) or {}
+
+    pattern = release.get("tag_pattern", tags.get("pattern", "v*"))
+    if not version or not fnmatch(version, pattern):
+        raise RuntimeError(
+            f"Release version {version!r} does not match configured tag pattern {pattern!r}"
+        )
+
+    prefix = str(release.get("branch_prefix", "rel")).strip("/")
+    if not prefix:
+        raise RuntimeError("publication.release.branch_prefix must not be empty")
+
+    return PublicationTarget(
+        context="release",
+        branch=f"{prefix}/{version}/{kind}",
+        publish=True,
+        source_ref_type="tag",
+        source_ref=version,
+        immutable=True,
+    )
+
+
 def resolve_publication_target(
     context: ProjectContext,
     kind: str,
     environ: dict[str, str] | None = None,
 ) -> PublicationTarget:
-    """Resolve production/development/tag/PR publication from GitHub context."""
+    """Resolve production/development/release/tag/PR publication context."""
 
-    if kind not in {"build", "verification"}:
-        raise RuntimeError(f"Unsupported publication kind: {kind}")
+    _validate_kind(kind)
 
     env = environ or os.environ
     publication = _publication_config(context)
+
+    release_version = env.get("SCAD_PROJECT_RELEASE_VERSION", "").strip()
+    if release_version:
+        return resolve_release_publication_target(context, kind, release_version)
 
     production = publication.get("production", {}) or {}
     development = publication.get("development", {}) or {}
@@ -52,7 +93,7 @@ def resolve_publication_target(
         f"{kind}_branch",
         publication.get(
             f"{kind}_branch",
-            "build" if kind == "build" else "verification",
+            "prod/build" if kind == "build" else "prod/verification",
         ),
     )
     development_branch = development.get(
@@ -134,11 +175,42 @@ def _runtime_component_info() -> str | None:
     return output or None
 
 
+def _submodule_info(root: Path) -> str | None:
+    """Return deterministic path/SHA provenance for checked-out git submodules."""
+
+    command = shutil.which("git")
+    if not command:
+        return None
+
+    completed = subprocess.run(
+        [command, "-C", str(root), "submodule", "status", "--recursive"],
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    if completed.returncode != 0:
+        return f"git submodule status failed (exit {completed.returncode})"
+
+    entries: list[str] = []
+    for raw_line in completed.stdout.splitlines():
+        line = raw_line.strip()
+        if not line:
+            continue
+        if line[0] in "+-U":
+            line = line[1:].lstrip()
+        parts = line.split()
+        if len(parts) >= 2:
+            entries.append(f"{parts[1]} : {parts[0]}")
+
+    return "\n".join(sorted(entries)) or None
+
+
 def publication_info_text(
     context: ProjectContext,
     kind: str,
     environ: dict[str, str] | None = None,
     runtime_info: str | None = None,
+    submodule_info: str | None = None,
 ) -> str:
     """Return source, tooling and runtime provenance for generated output."""
 
@@ -146,7 +218,7 @@ def publication_info_text(
     target = resolve_publication_target(context, kind, env)
 
     repository = env.get("GITHUB_REPOSITORY", "unknown")
-    commit = env.get("GITHUB_SHA", "unknown")
+    commit = env.get("SCAD_PROJECT_SOURCE_SHA", env.get("GITHUB_SHA", "unknown"))
     actor = env.get("GITHUB_ACTOR", "unknown")
     server = env.get("GITHUB_SERVER_URL", "https://github.com")
     run_id = env.get("GITHUB_RUN_ID", "")
@@ -184,6 +256,14 @@ def publication_info_text(
         f"tool.scad-project   : {tool_version}",
     ]
 
+    if submodule_info:
+        lines.extend([
+            "",
+            "Git submodules",
+            "--------------",
+            submodule_info.rstrip(),
+        ])
+
     if runtime_info:
         lines.extend([
             "",
@@ -218,14 +298,36 @@ def write_publication_info(context: ProjectContext, kind: str) -> Path:
             context,
             kind,
             runtime_info=_runtime_component_info(),
+            submodule_info=_submodule_info(context.root),
         ),
         encoding="utf-8",
     )
     return output
 
 
-def _publish_snapshot(source_root: Path, branch: str, commit_message: str) -> None:
-    """Force-replace one generated branch with source_root contents."""
+def _remote_branch_exists(cwd: Path, branch: str) -> bool:
+    completed = subprocess.run(
+        ["git", "ls-remote", "--heads", "origin", f"refs/heads/{branch}"],
+        cwd=cwd,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    if completed.returncode != 0:
+        raise RuntimeError(
+            f"Could not check whether publication branch exists: {branch}"
+        )
+    return bool(completed.stdout.strip())
+
+
+def _publish_snapshot(
+    source_root: Path,
+    branch: str,
+    commit_message: str,
+    *,
+    immutable: bool = False,
+) -> None:
+    """Publish one generated branch, replacing only mutable destinations."""
 
     if not source_root.exists() or not any(source_root.iterdir()):
         raise RuntimeError(f"Generated output directory is empty: {source_root}")
@@ -263,10 +365,17 @@ def _publish_snapshot(source_root: Path, branch: str, commit_message: str) -> No
             ["git", "remote", "add", "origin", f"{server}/{repository}.git"],
             cwd=snapshot,
         )
-        run_checked(
-            ["git", "push", "--force", "origin", f"HEAD:{branch}"],
-            cwd=snapshot,
-        )
+
+        if immutable and _remote_branch_exists(snapshot, branch):
+            raise RuntimeError(
+                f"Immutable release publication branch already exists: {branch}"
+            )
+
+        push = ["git", "push"]
+        if not immutable:
+            push.append("--force")
+        push.extend(["origin", f"HEAD:{branch}"])
+        run_checked(push, cwd=snapshot)
 
 
 def _publish(context: ProjectContext, kind: str) -> None:
@@ -281,12 +390,17 @@ def _publish(context: ProjectContext, kind: str) -> None:
         print(f"Publication provenance: {info}")
         return
 
+    source_commit = os.environ.get(
+        "SCAD_PROJECT_SOURCE_SHA",
+        os.environ.get("GITHUB_SHA", "unknown"),
+    )
+
     if kind == "build":
         source_root = context.path(context.config["paths"]["build_root"])
         commit_message = (
             "Generated build snapshot "
             f"from {target.source_ref_type} {target.source_ref} "
-            f"({os.environ.get('GITHUB_SHA', 'unknown')})"
+            f"({source_commit})"
         )
     else:
         verification = context.config.get("verification", {}) or {}
@@ -299,10 +413,15 @@ def _publish(context: ProjectContext, kind: str) -> None:
         commit_message = (
             "Generated verification snapshot "
             f"from {target.source_ref_type} {target.source_ref} "
-            f"({os.environ.get('GITHUB_SHA', 'unknown')})"
+            f"({source_commit})"
         )
 
-    _publish_snapshot(source_root, target.branch, commit_message)
+    _publish_snapshot(
+        source_root,
+        target.branch,
+        commit_message,
+        immutable=target.immutable,
+    )
     print(
         f"Published generated {kind} to branch: {target.branch} "
         f"({target.context} from {target.source_ref})"
