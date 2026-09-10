@@ -1,4 +1,4 @@
-"""Create deterministic downloadable release bundles for SCAD projects."""
+"""Create downloadable bundles and finalize versioned release branches."""
 
 from __future__ import annotations
 
@@ -9,11 +9,17 @@ import re
 import zipfile
 
 from .config import ProjectContext
-from .publish import resolve_release_publication_target
+from .process import run_checked
+from .publish import (
+    _publish_snapshot,
+    _remote_branch_exists,
+    resolve_release_publication_target,
+)
 
 
 _NORMALIZED_ZIP_TIME = (1980, 1, 1, 0, 0, 0)
 _SAFE_ASSET_RE = re.compile(r"[^A-Za-z0-9._-]+")
+_SHA_RE = re.compile(r"^[0-9a-fA-F]{40}$")
 
 
 @dataclass(frozen=True)
@@ -34,6 +40,15 @@ class ReleaseArtifacts:
             values.append(self.stl_bundle)
         values.append(self.checksums)
         return tuple(values)
+
+
+@dataclass(frozen=True)
+class ReleaseBranches:
+    """Immutable browseable branches created for one project release."""
+
+    version: str
+    build_branch: str
+    verification_branch: str
 
 
 def _safe_asset_component(value: str) -> str:
@@ -114,6 +129,15 @@ def _sha256(path: Path) -> str:
     return digest.hexdigest()
 
 
+def _output_roots(context: ProjectContext) -> tuple[Path, Path]:
+    build_root = context.path(context.config["paths"]["build_root"])
+    verification = context.config.get("verification", {}) or {}
+    verification_root_value = verification.get("output_root")
+    if not verification_root_value:
+        raise RuntimeError("verification.output_root is required for release publication")
+    return build_root, context.path(verification_root_value)
+
+
 def package_release(
     context: ProjectContext,
     version: str,
@@ -122,13 +146,7 @@ def package_release(
     """Package build/verification output and write SHA256SUMS.txt."""
 
     prefix = release_asset_prefix(context, version)
-    build_root = context.path(context.config["paths"]["build_root"])
-
-    verification = context.config.get("verification", {}) or {}
-    verification_root_value = verification.get("output_root")
-    if not verification_root_value:
-        raise RuntimeError("verification.output_root is required for release packaging")
-    verification_root = context.path(verification_root_value)
+    build_root, verification_root = _output_roots(context)
 
     release_dir = (
         output_dir
@@ -179,3 +197,108 @@ def package_release(
         stl_bundle=resolved_stl,
         checksums=checksums,
     )
+
+
+def release_branches(context: ProjectContext, version: str) -> ReleaseBranches:
+    """Resolve both immutable browseable branch names for a release."""
+
+    build = resolve_release_publication_target(context, "build", version)
+    verification = resolve_release_publication_target(context, "verification", version)
+    assert build.branch is not None
+    assert verification.branch is not None
+    return ReleaseBranches(
+        version=version,
+        build_branch=build.branch,
+        verification_branch=verification.branch,
+    )
+
+
+def _require_release_provenance(
+    root: Path,
+    *,
+    version: str,
+    branch: str,
+    source_sha: str,
+) -> None:
+    info = root / "publication-info.txt"
+    if not info.is_file():
+        raise RuntimeError(f"Release artifact is missing publication provenance: {info}")
+
+    text = info.read_text(encoding="utf-8")
+    required = (
+        "Publication context : release",
+        f"Publication branch  : {branch}",
+        "Ref type            : tag",
+        f"Ref                 : {version}",
+        f"Commit              : {source_sha}",
+    )
+    missing = [line for line in required if line not in text]
+    if missing:
+        raise RuntimeError(
+            f"Release artifact provenance does not match {version} @ {source_sha}: "
+            + "; ".join(missing)
+        )
+
+
+def publish_release_branches(
+    context: ProjectContext,
+    version: str,
+    source_sha: str,
+) -> ReleaseBranches:
+    """Publish build and verification snapshots only after coordinated preflight."""
+
+    if not _SHA_RE.fullmatch(source_sha):
+        raise RuntimeError("release source SHA must be an exact 40-character commit SHA")
+
+    branches = release_branches(context, version)
+    build_root, verification_root = _output_roots(context)
+
+    for branch in (branches.build_branch, branches.verification_branch):
+        if _remote_branch_exists(context.root, branch):
+            raise RuntimeError(
+                f"Immutable release publication branch already exists: {branch}"
+            )
+
+    _require_release_provenance(
+        build_root,
+        version=version,
+        branch=branches.build_branch,
+        source_sha=source_sha,
+    )
+    _require_release_provenance(
+        verification_root,
+        version=version,
+        branch=branches.verification_branch,
+        source_sha=source_sha,
+    )
+
+    build_message = f"Generated build release {version} ({source_sha})"
+    verification_message = f"Generated verification release {version} ({source_sha})"
+
+    _publish_snapshot(
+        build_root,
+        branches.build_branch,
+        build_message,
+        immutable=True,
+    )
+    try:
+        _publish_snapshot(
+            verification_root,
+            branches.verification_branch,
+            verification_message,
+            immutable=True,
+        )
+    except Exception as exc:
+        try:
+            run_checked(
+                ["git", "push", "origin", "--delete", branches.build_branch],
+                cwd=context.root,
+            )
+        except Exception as rollback_exc:
+            raise RuntimeError(
+                f"Verification release publication failed and build-branch rollback "
+                f"also failed: {rollback_exc}"
+            ) from exc
+        raise
+
+    return branches
