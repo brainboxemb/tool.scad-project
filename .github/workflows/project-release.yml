@@ -220,7 +220,7 @@ jobs:
         run: |
           set +e
           gh release delete "${RELEASE_VERSION}" --yes >/dev/null 2>&1
-          git push origin --delete "${RELEASE_VERSION}" >/dev/null 2>&1
+          git push origin ":refs/tags/${RELEASE_VERSION}" >/dev/null 2>&1
           git push origin --delete "${BUILD_BRANCH}" >/dev/null 2>&1
           git push origin --delete "${VERIFICATION_BRANCH}" >/dev/null 2>&1
           echo "Rolled back any refs created by the incomplete release finalization."
