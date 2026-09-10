@@ -46,7 +46,7 @@ jobs:
       image: ghcr.io/brainboxemb/scad-toolchain:v0.4.1
 
     env:
-      SCAD_PROJECT_WORKFLOW_VERSION: v0.9.5
+      SCAD_PROJECT_WORKFLOW_VERSION: v0.9.6
       SCAD_TOOLCHAIN_IMAGE: ghcr.io/brainboxemb/scad-toolchain:v0.4.1
       SCAD_TOOLCHAIN_VERSION: v0.4.1
       SCAD_PROJECT_RELEASE_VERSION: ${{ inputs.release_version }}
