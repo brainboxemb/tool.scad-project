@@ -25,7 +25,7 @@ jobs:
 
       - name: Install package
         timeout-minutes: 2
-        run: python3 -m pip install --break-system-packages -e '.[test]'
+        run: python3 -m pip install --break-system-packages -e '.[test,scons]'
 
       - name: Show runtime
         timeout-minutes: 2
