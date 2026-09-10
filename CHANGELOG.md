@@ -2,6 +2,20 @@
 
 Functional changes to released `tool.scad-project` versions.
 
+## v0.9.4
+
+### Changed
+
+- Rename workflow cache steps and key prefixes around their purpose: selective build reuse versus an exact generated-design snapshot.
+- Split Build cache restore/save into explicit steps so cache matches and writes are visible instead of appearing only as automatic post-job cache actions.
+- Add a GitHub job summary that explains exact hits, fallback hits and cold-cache misses in ordinary language.
+- Report selective rebuild counts for design images and configured outputs so the practical value of the cache is visible without reading the full SCons log.
+- Align the Verify cache input hash with Build while keeping Verify restore-only, so an already-populated Build cache can be reported as an exact hit for the same source state.
+
+### Fixed
+
+- Preserve the v0.9.3 Build-writes / Verify-restores cache policy with explicit restore/save actions and regression coverage for the readable cache workflow.
+
 ## v0.9.3
 
 ### Fixed

@@ -46,7 +46,7 @@ jobs:
       image: ghcr.io/brainboxemb/scad-toolchain:v0.4.1
 
     env:
-      SCAD_PROJECT_WORKFLOW_VERSION: v0.9.3
+      SCAD_PROJECT_WORKFLOW_VERSION: v0.9.4
       SCAD_TOOLCHAIN_IMAGE: ghcr.io/brainboxemb/scad-toolchain:v0.4.1
       SCAD_TOOLCHAIN_VERSION: v0.4.1
       SCAD_PROJECT_RELEASE_VERSION: ${{ inputs.release_version }}
@@ -67,24 +67,59 @@ jobs:
           git config --global --add safe.directory "$GITHUB_WORKSPACE"
           git config --global --add safe.directory "$GITHUB_WORKSPACE/tools/tool.scad-project"
 
-      - name: Resolve SCons cache namespace
+      - name: Describe selective build cache
         id: scons-cache
         timeout-minutes: 2
         shell: bash
         run: |
           set -euo pipefail
           TOOL_SHA="$(git -C tools/tool.scad-project rev-parse HEAD)"
+          SHORT_TOOL_SHA="${TOOL_SHA:0:12}"
           echo "tool_sha=${TOOL_SHA}" >> "$GITHUB_OUTPUT"
-          echo "SCons cache namespace: toolchain=${SCAD_TOOLCHAIN_VERSION}, tool=${TOOL_SHA}"
+          echo "Selective build cache"
+          echo "  Purpose   : reuse unchanged render/export build objects during verification"
+          echo "  Repository: ${GITHUB_REPOSITORY}"
+          echo "  Toolchain : ${SCAD_TOOLCHAIN_VERSION}"
+          echo "  Tool       : ${SCAD_PROJECT_WORKFLOW_VERSION} (${SHORT_TOOL_SHA})"
+          echo "  Mode       : Verify restores only; it never writes this cache"
 
-      - name: Restore SCons build cache
+      - name: Restore selective build cache
+        id: selective-cache
         timeout-minutes: 2
         uses: actions/cache/restore@v4
         with:
           path: .cache/scad-project/scons
-          key: scad-project-scons-v1-${{ runner.os }}-${{ github.repository_id }}-${{ env.SCAD_TOOLCHAIN_VERSION }}-${{ steps.scons-cache.outputs.tool_sha }}-${{ hashFiles('project.yml', '.gitmodules', 'dsg/**/*.scad', 'dsg/**/*.py', 'dsg/**/render.yml', 'dsg/**/export.yml', 'dsg/**/*.stl', 'dsg/**/*.off', 'dsg/**/*.amf', 'dsg/**/*.3mf', 'dsg/**/*.obj', 'dsg/**/*.dxf', 'dsg/**/*.svg', 'dsg/**/*.dat', 'dsg/**/*.txt', 'dsg/**/*.png') }}
+          key: scad-selective-build-v2-${{ runner.os }}-${{ github.repository_id }}-${{ env.SCAD_TOOLCHAIN_VERSION }}-${{ steps.scons-cache.outputs.tool_sha }}-${{ hashFiles('project.yml', '.gitmodules', 'dsg/**/*.scad', 'dsg/**/*.py', 'dsg/**/render.yml', 'dsg/**/export.yml', 'dsg/**/*.stl', 'dsg/**/*.off', 'dsg/**/*.amf', 'dsg/**/*.3mf', 'dsg/**/*.obj', 'dsg/**/*.dxf', 'dsg/**/*.svg', 'dsg/**/*.dat', 'dsg/**/*.txt', 'dsg/**/*.png', 'dsg/**/design/**') }}
           restore-keys: |
-            scad-project-scons-v1-${{ runner.os }}-${{ github.repository_id }}-${{ env.SCAD_TOOLCHAIN_VERSION }}-${{ steps.scons-cache.outputs.tool_sha }}-
+            scad-selective-build-v2-${{ runner.os }}-${{ github.repository_id }}-${{ env.SCAD_TOOLCHAIN_VERSION }}-${{ steps.scons-cache.outputs.tool_sha }}-
+
+      - name: Summarise cache status
+        timeout-minutes: 2
+        shell: bash
+        env:
+          SELECTIVE_HIT: ${{ steps.selective-cache.outputs.cache-hit }}
+          SELECTIVE_MATCHED_KEY: ${{ steps.selective-cache.outputs.cache-matched-key }}
+        run: |
+          set -euo pipefail
+          if [[ "$SELECTIVE_HIT" == "true" ]]; then
+            STATUS="exact hit"
+          elif [[ -n "$SELECTIVE_MATCHED_KEY" ]]; then
+            STATUS="fallback hit - selective reuse available"
+          else
+            STATUS="miss - verification runs without reusable build objects"
+          fi
+
+          echo "Selective build cache: ${STATUS}"
+          echo "Verify cache mode: restore-only"
+          {
+            echo "## Cache status"
+            echo ""
+            echo "| Cache | What it is for | Result |"
+            echo "| --- | --- | --- |"
+            echo "| Selective build cache | Reuse unchanged render/export build objects | ${STATUS} |"
+            echo ""
+            echo "Verify is **restore-only**: it can consume this cache but never replaces the Build cache."
+          } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Show toolchain
         timeout-minutes: 2

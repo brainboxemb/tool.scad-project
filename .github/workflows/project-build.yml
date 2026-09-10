@@ -41,7 +41,7 @@ jobs:
       image: ghcr.io/brainboxemb/scad-toolchain:v0.4.1
 
     env:
-      SCAD_PROJECT_WORKFLOW_VERSION: v0.9.3
+      SCAD_PROJECT_WORKFLOW_VERSION: v0.9.4
       SCAD_TOOLCHAIN_IMAGE: ghcr.io/brainboxemb/scad-toolchain:v0.4.1
       SCAD_TOOLCHAIN_VERSION: v0.4.1
       SCAD_PROJECT_RELEASE_VERSION: ${{ inputs.release_version }}
@@ -62,24 +62,33 @@ jobs:
           git config --global --add safe.directory "$GITHUB_WORKSPACE"
           git config --global --add safe.directory "$GITHUB_WORKSPACE/tools/tool.scad-project"
 
-      - name: Resolve SCons cache namespace
+      - name: Describe build caches
         id: scons-cache
         timeout-minutes: 2
         shell: bash
         run: |
           set -euo pipefail
           TOOL_SHA="$(git -C tools/tool.scad-project rev-parse HEAD)"
+          SHORT_TOOL_SHA="${TOOL_SHA:0:12}"
           echo "tool_sha=${TOOL_SHA}" >> "$GITHUB_OUTPUT"
-          echo "SCons cache namespace: toolchain=${SCAD_TOOLCHAIN_VERSION}, tool=${TOOL_SHA}"
+          echo "Selective build cache"
+          echo "  Purpose   : reuse unchanged design images, renders and exports per dependency"
+          echo "  Repository: ${GITHUB_REPOSITORY}"
+          echo "  Toolchain : ${SCAD_TOOLCHAIN_VERSION}"
+          echo "  Tool       : ${SCAD_PROJECT_WORKFLOW_VERSION} (${SHORT_TOOL_SHA})"
+          echo "  Mode       : Build restores and writes this cache"
+          echo "Generated design snapshot"
+          echo "  Purpose   : reuse the complete bld/design tree when all design inputs are identical"
 
-      - name: Restore SCons build cache
+      - name: Restore selective build cache
+        id: selective-cache
         timeout-minutes: 2
-        uses: actions/cache@v4
+        uses: actions/cache/restore@v4
         with:
           path: .cache/scad-project/scons
-          key: scad-project-scons-v1-${{ runner.os }}-${{ github.repository_id }}-${{ env.SCAD_TOOLCHAIN_VERSION }}-${{ steps.scons-cache.outputs.tool_sha }}-${{ hashFiles('project.yml', '.gitmodules', 'dsg/**/*.scad', 'dsg/**/*.py', 'dsg/**/render.yml', 'dsg/**/export.yml', 'dsg/**/*.stl', 'dsg/**/*.off', 'dsg/**/*.amf', 'dsg/**/*.3mf', 'dsg/**/*.obj', 'dsg/**/*.dxf', 'dsg/**/*.svg', 'dsg/**/*.dat', 'dsg/**/*.txt', 'dsg/**/*.png', 'dsg/**/design/**') }}
+          key: scad-selective-build-v2-${{ runner.os }}-${{ github.repository_id }}-${{ env.SCAD_TOOLCHAIN_VERSION }}-${{ steps.scons-cache.outputs.tool_sha }}-${{ hashFiles('project.yml', '.gitmodules', 'dsg/**/*.scad', 'dsg/**/*.py', 'dsg/**/render.yml', 'dsg/**/export.yml', 'dsg/**/*.stl', 'dsg/**/*.off', 'dsg/**/*.amf', 'dsg/**/*.3mf', 'dsg/**/*.obj', 'dsg/**/*.dxf', 'dsg/**/*.svg', 'dsg/**/*.dat', 'dsg/**/*.txt', 'dsg/**/*.png', 'dsg/**/design/**') }}
           restore-keys: |
-            scad-project-scons-v1-${{ runner.os }}-${{ github.repository_id }}-${{ env.SCAD_TOOLCHAIN_VERSION }}-${{ steps.scons-cache.outputs.tool_sha }}-
+            scad-selective-build-v2-${{ runner.os }}-${{ github.repository_id }}-${{ env.SCAD_TOOLCHAIN_VERSION }}-${{ steps.scons-cache.outputs.tool_sha }}-
 
       - name: Show toolchain
         timeout-minutes: 2
@@ -105,13 +114,53 @@ jobs:
         timeout-minutes: 2
         run: bash ./tools/tool.scad-project/scad-project.sh design-lint
 
-      - name: Restore generated design documentation
+      - name: Restore exact generated design snapshot
         id: design-cache
         timeout-minutes: 2
-        uses: actions/cache@v4
+        uses: actions/cache/restore@v4
         with:
           path: bld/design
-          key: scad-project-design-v1-${{ runner.os }}-${{ github.repository_id }}-${{ env.SCAD_TOOLCHAIN_VERSION }}-${{ steps.scons-cache.outputs.tool_sha }}-${{ hashFiles('project.yml', '.gitmodules', 'dsg/**/*.scad', 'dsg/**/*.py', 'dsg/**/render.yml', 'dsg/**/export.yml', 'dsg/**/*.stl', 'dsg/**/*.off', 'dsg/**/*.amf', 'dsg/**/*.3mf', 'dsg/**/*.obj', 'dsg/**/*.dxf', 'dsg/**/*.svg', 'dsg/**/*.dat', 'dsg/**/*.txt', 'dsg/**/*.png', 'dsg/**/design/**') }}
+          key: scad-design-snapshot-v2-${{ runner.os }}-${{ github.repository_id }}-${{ env.SCAD_TOOLCHAIN_VERSION }}-${{ steps.scons-cache.outputs.tool_sha }}-${{ hashFiles('project.yml', '.gitmodules', 'dsg/**/*.scad', 'dsg/**/*.py', 'dsg/**/render.yml', 'dsg/**/export.yml', 'dsg/**/*.stl', 'dsg/**/*.off', 'dsg/**/*.amf', 'dsg/**/*.3mf', 'dsg/**/*.obj', 'dsg/**/*.dxf', 'dsg/**/*.svg', 'dsg/**/*.dat', 'dsg/**/*.txt', 'dsg/**/*.png', 'dsg/**/design/**') }}
+
+      - name: Summarise cache status
+        timeout-minutes: 2
+        shell: bash
+        env:
+          SELECTIVE_HIT: ${{ steps.selective-cache.outputs.cache-hit }}
+          SELECTIVE_MATCHED_KEY: ${{ steps.selective-cache.outputs.cache-matched-key }}
+          DESIGN_HIT: ${{ steps.design-cache.outputs.cache-hit }}
+          DESIGN_MATCHED_KEY: ${{ steps.design-cache.outputs.cache-matched-key }}
+        run: |
+          set -euo pipefail
+
+          cache_status() {
+            local hit="$1"
+            local matched="$2"
+            if [[ "$hit" == "true" ]]; then
+              echo "exact hit"
+            elif [[ -n "$matched" ]]; then
+              echo "fallback hit - selective reuse available"
+            else
+              echo "miss - cold cache"
+            fi
+          }
+
+          SELECTIVE_STATUS="$(cache_status "$SELECTIVE_HIT" "$SELECTIVE_MATCHED_KEY")"
+          DESIGN_STATUS="$(cache_status "$DESIGN_HIT" "$DESIGN_MATCHED_KEY")"
+
+          echo "Selective build cache: ${SELECTIVE_STATUS}"
+          echo "Generated design snapshot: ${DESIGN_STATUS}"
+
+          {
+            echo "## Cache status"
+            echo ""
+            echo "| Cache | What it is for | Result |"
+            echo "| --- | --- | --- |"
+            echo "| Selective build cache | Reuse unchanged design images, renders and exports per dependency | ${SELECTIVE_STATUS} |"
+            echo "| Generated design snapshot | Skip the whole design build when all design inputs are identical | ${DESIGN_STATUS} |"
+            echo ""
+            echo "**How to read this:** an exact hit means identical inputs; a fallback hit means older objects can still be reused target-by-target; a miss means a cold cache."
+          } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Generate design documentation
         if: steps.design-cache.outputs.cache-hit != 'true'
@@ -121,11 +170,78 @@ jobs:
       - name: Report restored design documentation
         if: steps.design-cache.outputs.cache-hit == 'true'
         timeout-minutes: 2
-        run: echo "Design documentation restored from cache; design-build skipped."
+        run: echo "Exact generated design snapshot restored; design-build skipped."
 
       - name: Build configured outputs
         timeout-minutes: 5
         run: bash ./tools/tool.scad-project/scad-project.sh build
+
+      - name: Summarise selective rebuild result
+        timeout-minutes: 2
+        if: always()
+        shell: bash
+        env:
+          DESIGN_CACHE_HIT: ${{ steps.design-cache.outputs.cache-hit }}
+        run: |
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          summary = Path(os.environ["GITHUB_STEP_SUMMARY"])
+          rows = []
+
+          design_report = Path(".cache/scad-project/state/last-design-build.json")
+          if os.environ.get("DESIGN_CACHE_HIT") == "true":
+              rows.append(("Design images", "0", "all - exact design snapshot"))
+          elif design_report.is_file():
+              data = json.loads(design_report.read_text(encoding="utf-8"))
+              rows.append(
+                  (
+                      "Design images",
+                      str(data.get("executed_count", "?")),
+                      str(data.get("not_executed_count", "?")),
+                  )
+              )
+          else:
+              rows.append(("Design images", "n/a", "n/a"))
+
+          build_report = Path(".cache/scad-project/state/last-build.json")
+          if build_report.is_file():
+              data = json.loads(build_report.read_text(encoding="utf-8"))
+              rows.append(
+                  (
+                      "Configured outputs",
+                      str(data.get("executed_count", "?")),
+                      str(data.get("not_executed_count", "?")),
+                  )
+              )
+          else:
+              rows.append(("Configured outputs", "n/a", "n/a"))
+
+          with summary.open("a", encoding="utf-8") as handle:
+              handle.write("\n## Selective rebuild result\n\n")
+              handle.write("| Work | Built now | Reused/current |\n")
+              handle.write("| --- | ---: | ---: |\n")
+              for work, built, reused in rows:
+                  handle.write(f"| {work} | {built} | {reused} |\n")
+          PY
+
+      - name: Save exact generated design snapshot
+        if: steps.design-cache.outputs.cache-hit != 'true'
+        timeout-minutes: 2
+        uses: actions/cache/save@v4
+        with:
+          path: bld/design
+          key: ${{ steps.design-cache.outputs.cache-primary-key }}
+
+      - name: Save selective build cache
+        if: steps.selective-cache.outputs.cache-hit != 'true'
+        timeout-minutes: 2
+        uses: actions/cache/save@v4
+        with:
+          path: .cache/scad-project/scons
+          key: ${{ steps.selective-cache.outputs.cache-primary-key }}
 
       - name: Upload SCons build report
         timeout-minutes: 2

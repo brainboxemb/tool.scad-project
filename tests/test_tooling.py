@@ -4,7 +4,7 @@ from scad_project.config import ProjectContext
 from scad_project.tooling import tooling_errors
 
 
-def context(ref="v0.9.3"):
+def context(ref="v0.9.4"):
     return ProjectContext(
         root=Path("."),
         config_file=Path("project.yml"),
@@ -89,11 +89,43 @@ def test_scons_cache_writer_policy():
     build_steps = {step["name"]: step for step in build["jobs"]["build"]["steps"]}
     verify_steps = {step["name"]: step for step in verify["jobs"]["verify"]["steps"]}
 
-    assert build_steps["Restore SCons build cache"]["uses"] == "actions/cache@v4"
     assert (
-        verify_steps["Restore SCons build cache"]["uses"]
+        build_steps["Restore selective build cache"]["uses"]
         == "actions/cache/restore@v4"
     )
+    assert build_steps["Save selective build cache"]["uses"] == "actions/cache/save@v4"
+    assert (
+        verify_steps["Restore selective build cache"]["uses"]
+        == "actions/cache/restore@v4"
+    )
+    assert "Save selective build cache" not in verify_steps
+
+
+def test_cache_workflow_is_human_readable():
+    import yaml
+
+    build = yaml.safe_load(
+        Path(".github/workflows/project-build.yml").read_text(encoding="utf-8")
+    )
+    verify = yaml.safe_load(
+        Path(".github/workflows/project-verify.yml").read_text(encoding="utf-8")
+    )
+
+    build_steps = {step["name"]: step for step in build["jobs"]["build"]["steps"]}
+    verify_steps = {step["name"]: step for step in verify["jobs"]["verify"]["steps"]}
+
+    selective_key = build_steps["Restore selective build cache"]["with"]["key"]
+    design_key = build_steps["Restore exact generated design snapshot"]["with"]["key"]
+    verify_key = verify_steps["Restore selective build cache"]["with"]["key"]
+
+    assert selective_key.startswith("scad-selective-build-v2-")
+    assert design_key.startswith("scad-design-snapshot-v2-")
+    assert verify_key.startswith("scad-selective-build-v2-")
+    assert "Describe build caches" in build_steps
+    assert "Summarise cache status" in build_steps
+    assert "Summarise selective rebuild result" in build_steps
+    assert "Describe selective build cache" in verify_steps
+    assert "Summarise cache status" in verify_steps
 
 
 def test_workflow_timeouts_are_bounded():
