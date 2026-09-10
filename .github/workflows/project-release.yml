@@ -23,11 +23,134 @@ on:
         default: vrf/out
 
 permissions:
+  actions: read
   contents: write
   packages: read
 
 jobs:
+  preflight:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      build_branch: ${{ steps.validate.outputs.build_branch }}
+      verification_branch: ${{ steps.validate.outputs.verification_branch }}
+
+    env:
+      RELEASE_VERSION: ${{ inputs.version }}
+      RELEASE_SOURCE_SHA: ${{ inputs.source_sha }}
+      SCAD_PROJECT_RELEASE_VERSION: ${{ inputs.version }}
+      SCAD_PROJECT_SOURCE_SHA: ${{ inputs.source_sha }}
+
+    steps:
+      - name: Checkout exact release source and pinned submodules
+        timeout-minutes: 2
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.source_sha }}
+          submodules: true
+          fetch-depth: 0
+
+      - name: Set up Python
+        timeout-minutes: 2
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install pinned project tooling
+        timeout-minutes: 2
+        run: python -m pip install -e ./tools/tool.scad-project
+
+      - name: Validate project configuration
+        timeout-minutes: 2
+        run: scad-project config-lint
+
+      - name: Validate release source and namespace
+        id: validate
+        timeout-minutes: 2
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+
+          if [[ ! "${RELEASE_VERSION}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "ERROR: release version must match vX.Y.Z" >&2
+            exit 1
+          fi
+          if [[ ! "${RELEASE_SOURCE_SHA}" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "ERROR: source_sha must be an exact 40-character commit SHA" >&2
+            exit 1
+          fi
+
+          ACTUAL_SHA="$(git rev-parse HEAD)"
+          if [[ "${ACTUAL_SHA}" != "${RELEASE_SOURCE_SHA}" ]]; then
+            echo "ERROR: checked-out source ${ACTUAL_SHA} != requested ${RELEASE_SOURCE_SHA}" >&2
+            exit 1
+          fi
+
+          PRODUCTION_BRANCH="$(python - <<'PY'
+          from pathlib import Path
+          from scad_project.config import load_context
+
+          ctx = load_context(Path.cwd())
+          publication = ctx.config.get("publication", {}) or {}
+          production = publication.get("production", {}) or {}
+          print(production.get("source_branch", "main"))
+          PY
+          )"
+          git check-ref-format --branch "${PRODUCTION_BRANCH}" >/dev/null
+          git fetch --no-tags origin \
+            "+refs/heads/${PRODUCTION_BRANCH}:refs/remotes/origin/${PRODUCTION_BRANCH}"
+          if ! git merge-base --is-ancestor \
+            "${RELEASE_SOURCE_SHA}" "refs/remotes/origin/${PRODUCTION_BRANCH}"; then
+            echo "ERROR: release source ${RELEASE_SOURCE_SHA} is not on production branch ${PRODUCTION_BRANCH}" >&2
+            exit 1
+          fi
+
+          git fetch --tags --force origin
+          if git rev-parse -q --verify "refs/tags/${RELEASE_VERSION}" >/dev/null; then
+            echo "ERROR: release tag already exists: ${RELEASE_VERSION}" >&2
+            exit 1
+          fi
+          if gh release view "${RELEASE_VERSION}" >/dev/null 2>&1; then
+            echo "ERROR: GitHub Release already exists: ${RELEASE_VERSION}" >&2
+            exit 1
+          fi
+
+          python - <<'PY'
+          import os
+          from pathlib import Path
+          from scad_project.config import load_context
+          from scad_project.release import release_branches
+
+          ctx = load_context(Path.cwd())
+          branches = release_branches(ctx, os.environ["RELEASE_VERSION"])
+          output = Path(os.environ["GITHUB_OUTPUT"])
+          with output.open("a", encoding="utf-8") as handle:
+              handle.write(f"build_branch={branches.build_branch}\n")
+              handle.write(f"verification_branch={branches.verification_branch}\n")
+          PY
+
+          BUILD_BRANCH="$(grep '^build_branch=' "${GITHUB_OUTPUT}" | tail -1 | cut -d= -f2-)"
+          VERIFICATION_BRANCH="$(grep '^verification_branch=' "${GITHUB_OUTPUT}" | tail -1 | cut -d= -f2-)"
+          if [[ -n "$(git ls-remote --heads origin "refs/heads/${BUILD_BRANCH}")" ]]; then
+            echo "ERROR: immutable release branch already exists: ${BUILD_BRANCH}" >&2
+            exit 1
+          fi
+          if [[ -n "$(git ls-remote --heads origin "refs/heads/${VERIFICATION_BRANCH}")" ]]; then
+            echo "ERROR: immutable release branch already exists: ${VERIFICATION_BRANCH}" >&2
+            exit 1
+          fi
+
+          scad-project release-notes \
+            --version "${RELEASE_VERSION}" \
+            --source-sha "${RELEASE_SOURCE_SHA}" \
+            --repository "${GITHUB_REPOSITORY}" \
+            --output "${RUNNER_TEMP}/release-notes-preflight.md"
+          echo "Release preflight OK: ${RELEASE_VERSION} @ ${RELEASE_SOURCE_SHA} from ${PRODUCTION_BRANCH}"
+
   build:
+    needs: preflight
     uses: brainboxemb/tool.scad-project/.github/workflows/project-build.yml@feature/versioned-project-release
     with:
       artifact_name: scad-project-release-build
@@ -37,6 +160,7 @@ jobs:
       source_sha: ${{ inputs.source_sha }}
 
   verify:
+    needs: preflight
     uses: brainboxemb/tool.scad-project/.github/workflows/project-verify.yml@feature/versioned-project-release
     with:
       artifact_name: scad-project-release-verification
@@ -47,10 +171,11 @@ jobs:
       source_sha: ${{ inputs.source_sha }}
 
   finalize:
-    needs: [build, verify]
+    needs: [preflight, build, verify]
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
+      actions: read
       contents: write
       packages: read
 
@@ -104,53 +229,21 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
-      - name: Validate release namespace
-        id: preflight
+      - name: Revalidate tag and GitHub Release namespace
         timeout-minutes: 2
-        shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-
-          if [[ ! "${RELEASE_VERSION}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-            echo "ERROR: release version must match vX.Y.Z" >&2
-            exit 1
-          fi
-          if [[ ! "${RELEASE_SOURCE_SHA}" =~ ^[0-9a-f]{40}$ ]]; then
-            echo "ERROR: source_sha must be an exact 40-character commit SHA" >&2
-            exit 1
-          fi
-
-          ACTUAL_SHA="$(git rev-parse HEAD)"
-          if [[ "${ACTUAL_SHA}" != "${RELEASE_SOURCE_SHA}" ]]; then
-            echo "ERROR: checked-out source ${ACTUAL_SHA} != requested ${RELEASE_SOURCE_SHA}" >&2
-            exit 1
-          fi
-
           git fetch --tags --force origin
           if git rev-parse -q --verify "refs/tags/${RELEASE_VERSION}" >/dev/null; then
-            echo "ERROR: release tag already exists: ${RELEASE_VERSION}" >&2
+            echo "ERROR: release tag appeared after preflight: ${RELEASE_VERSION}" >&2
             exit 1
           fi
           if gh release view "${RELEASE_VERSION}" >/dev/null 2>&1; then
-            echo "ERROR: GitHub Release already exists: ${RELEASE_VERSION}" >&2
+            echo "ERROR: GitHub Release appeared after preflight: ${RELEASE_VERSION}" >&2
             exit 1
           fi
-
-          python - <<'PY'
-          import os
-          from pathlib import Path
-          from scad_project.config import load_context
-          from scad_project.release import release_branches
-
-          ctx = load_context(Path.cwd())
-          branches = release_branches(ctx, os.environ["RELEASE_VERSION"])
-          output = Path(os.environ["GITHUB_OUTPUT"])
-          with output.open("a", encoding="utf-8") as handle:
-              handle.write(f"build_branch={branches.build_branch}\n")
-              handle.write(f"verification_branch={branches.verification_branch}\n")
-          PY
 
       - name: Package release downloads
         timeout-minutes: 3
@@ -207,8 +300,8 @@ jobs:
         timeout-minutes: 2
         env:
           GH_TOKEN: ${{ github.token }}
-          BUILD_BRANCH: ${{ steps.preflight.outputs.build_branch }}
-          VERIFICATION_BRANCH: ${{ steps.preflight.outputs.verification_branch }}
+          BUILD_BRANCH: ${{ needs.preflight.outputs.build_branch }}
+          VERIFICATION_BRANCH: ${{ needs.preflight.outputs.verification_branch }}
         run: |
           set +e
           gh release delete "${RELEASE_VERSION}" --yes >/dev/null 2>&1
