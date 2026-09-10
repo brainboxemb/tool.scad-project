@@ -329,7 +329,7 @@ foreach ($Dependency in $Ordered) {
     }
 
     if ($Dependency.Role -eq "tooling") {
-        $ToolWorkflowRef = $Resolved.WorkflowRef
+        $ToolWorkflowRef = $New
     }
 }
 
