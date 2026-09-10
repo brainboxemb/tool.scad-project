@@ -181,12 +181,18 @@ namespaces include the repository, immutable toolchain version, exact
 `tool.scad-project` gitlink and relevant project inputs.
 
 The reusable Build workflow also caches the complete generated `bld/design`
-tree. An exact design-input cache hit restores that tree and skips
-`design-build`. A changed design input currently rebuilds the whole generated
-design tree; per-document design dependency selection is intentionally deferred.
+tree as an exact-hit fast path. From v0.9.2, a design-input cache miss falls
+through to one SCons target per generated design PNG instead of re-rendering
+the whole design tree. OpenSCAD design targets track the design document,
+generated entrypoint and scanned transitive OpenSCAD dependencies. PythonSCAD
+design targets conservatively track project and configured-external Python
+sources until Python import scanning is available. Generated Markdown and index
+structure are rebuilt cheaply around the reused or newly rendered images.
 
 When SCons is active, Build uploads a small `last-build.json` report artifact
 showing which configured targets were executed and which were restored/current.
+Selective design builds additionally write `last-design-build.json` with the
+same executed-versus-restored/current split for generated design PNGs.
 
 ## Render post-processing
 
