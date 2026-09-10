@@ -2,6 +2,13 @@
 
 Functional changes to released `tool.scad-project` versions.
 
+## v0.9.5
+
+### Fixed
+
+- Run the selective rebuild summary with `python3`, matching the immutable SCAD toolchain runtime, instead of assuming a `python` alias exists.
+- Add regression coverage so the Build workflow cannot silently return to the unavailable `python` command.
+
 ## v0.9.4
 
 ### Changed

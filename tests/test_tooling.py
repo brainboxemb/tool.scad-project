@@ -4,7 +4,7 @@ from scad_project.config import ProjectContext
 from scad_project.tooling import tooling_errors
 
 
-def context(ref="v0.9.4"):
+def context(ref="v0.9.5"):
     return ProjectContext(
         root=Path("."),
         config_file=Path("project.yml"),
@@ -126,6 +126,12 @@ def test_cache_workflow_is_human_readable():
     assert "Summarise selective rebuild result" in build_steps
     assert "Describe selective build cache" in verify_steps
     assert "Summarise cache status" in verify_steps
+
+
+def test_cache_summary_uses_available_python3_runtime():
+    text = Path(".github/workflows/project-build.yml").read_text(encoding="utf-8")
+    assert "python3 - <<'PY'" in text
+    assert "\n          python - <<'PY'" not in text
 
 
 def test_workflow_timeouts_are_bounded():
