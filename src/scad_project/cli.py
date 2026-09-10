@@ -12,6 +12,7 @@ from .config import ConfigError, load_context, validate_config
 from .design_policy import build_design, lint_design
 from .docs import lint_docs
 from .publish import publish_build, publish_verification, write_publication_info
+from .release import package_release
 from .index import write_build_index
 from .tooling import tooling_errors
 from .verification import run_functional_verification
@@ -55,6 +56,15 @@ def main() -> None:
         "repo-sync", "repo-update", "repo-status",
     ):
         sub.add_parser(name)
+
+    release_package = sub.add_parser("release-package")
+    release_package.add_argument("--version", required=True)
+    release_package.add_argument(
+        "--output-dir",
+        type=Path,
+        default=None,
+        help="Directory for release ZIPs and SHA256SUMS.txt",
+    )
 
     args = p.parse_args()
     try:
@@ -160,6 +170,11 @@ def main() -> None:
             publish_build(ctx)
         elif args.command == "publish-verification":
             publish_verification(ctx)
+        elif args.command == "release-package":
+            artifacts = package_release(ctx, args.version, args.output_dir)
+            print(f"release package: {artifacts.version}")
+            for asset in artifacts.assets:
+                print(f"  {asset.relative_to(ctx.root) if asset.is_relative_to(ctx.root) else asset}")
 
     except (ConfigError, RuntimeError) as exc:
         print(f"ERROR: {exc}", file=sys.stderr)
