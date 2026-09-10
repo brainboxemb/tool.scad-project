@@ -6,7 +6,7 @@ tooling:
     type: git-submodule
     url: https://github.com/brainboxemb/tool.scad-project.git
     path: tools/tool.scad-project
-    ref: v0.8.0
+    ref: v0.9.0
 
 paths:
   design_root: dsg/openscad
@@ -29,4 +29,13 @@ openscad:
   design_image_size: [640, 480]
 
 publication:
-  build_branch: build
+  production:
+    source_branch: main
+    build_branch: prod/build
+    verification_branch: prod/verification
+  development:
+    build_branch: dev/build
+    verification_branch: dev/verification
+  releases:
+    build_branch_template: rel/{version}/build
+    verification_branch_template: rel/{version}/verification
