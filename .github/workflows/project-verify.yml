@@ -46,7 +46,7 @@ jobs:
       image: ghcr.io/brainboxemb/scad-toolchain:v0.4.1
 
     env:
-      SCAD_PROJECT_WORKFLOW_VERSION: v0.9.2
+      SCAD_PROJECT_WORKFLOW_VERSION: v0.9.3
       SCAD_TOOLCHAIN_IMAGE: ghcr.io/brainboxemb/scad-toolchain:v0.4.1
       SCAD_TOOLCHAIN_VERSION: v0.4.1
       SCAD_PROJECT_RELEASE_VERSION: ${{ inputs.release_version }}
@@ -79,7 +79,7 @@ jobs:
 
       - name: Restore SCons build cache
         timeout-minutes: 2
-        uses: actions/cache@v4
+        uses: actions/cache/restore@v4
         with:
           path: .cache/scad-project/scons
           key: scad-project-scons-v1-${{ runner.os }}-${{ github.repository_id }}-${{ env.SCAD_TOOLCHAIN_VERSION }}-${{ steps.scons-cache.outputs.tool_sha }}-${{ hashFiles('project.yml', '.gitmodules', 'dsg/**/*.scad', 'dsg/**/*.py', 'dsg/**/render.yml', 'dsg/**/export.yml', 'dsg/**/*.stl', 'dsg/**/*.off', 'dsg/**/*.amf', 'dsg/**/*.3mf', 'dsg/**/*.obj', 'dsg/**/*.dxf', 'dsg/**/*.svg', 'dsg/**/*.dat', 'dsg/**/*.txt', 'dsg/**/*.png') }}
