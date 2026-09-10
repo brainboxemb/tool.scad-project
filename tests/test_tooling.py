@@ -4,7 +4,7 @@ from scad_project.config import ProjectContext
 from scad_project.tooling import tooling_errors
 
 
-def context(ref="v0.8.0"):
+def context(ref="v0.9.0"):
     return ProjectContext(
         root=Path("."),
         config_file=Path("project.yml"),
