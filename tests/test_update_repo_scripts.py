@@ -28,3 +28,14 @@ def test_updaters_cover_all_reusable_project_workflows():
         text = root_script.read_text(encoding="utf-8")
         for workflow in REUSABLE_PROJECT_WORKFLOWS:
             assert workflow in text, f"{root_script} does not update {workflow}"
+
+
+def test_updaters_pin_workflows_to_checked_out_tool_commit():
+    bash = (ROOT / "update-repo.sh").read_text(encoding="utf-8")
+    powershell = (ROOT / "update-repo.ps1").read_text(encoding="utf-8")
+
+    assert 'tool_workflow_ref="$new"' in bash
+    assert 'tool_workflow_ref="$workflow_ref"' not in bash
+
+    assert '$ToolWorkflowRef = $New' in powershell
+    assert '$ToolWorkflowRef = $Resolved.WorkflowRef' not in powershell
