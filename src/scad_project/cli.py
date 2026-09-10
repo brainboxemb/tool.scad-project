@@ -12,7 +12,7 @@ from .config import ConfigError, load_context, validate_config
 from .design_policy import build_design, lint_design
 from .docs import lint_docs
 from .publish import publish_build, publish_verification, write_publication_info
-from .release import package_release
+from .release import package_release, publish_release_branches
 from .index import write_build_index
 from .tooling import tooling_errors
 from .verification import run_functional_verification
@@ -65,6 +65,10 @@ def main() -> None:
         default=None,
         help="Directory for release ZIPs and SHA256SUMS.txt",
     )
+
+    release_publish = sub.add_parser("release-publish-branches")
+    release_publish.add_argument("--version", required=True)
+    release_publish.add_argument("--source-sha", required=True)
 
     args = p.parse_args()
     try:
@@ -175,6 +179,10 @@ def main() -> None:
             print(f"release package: {artifacts.version}")
             for asset in artifacts.assets:
                 print(f"  {asset.relative_to(ctx.root) if asset.is_relative_to(ctx.root) else asset}")
+        elif args.command == "release-publish-branches":
+            branches = publish_release_branches(ctx, args.version, args.source_sha)
+            print(f"release build branch: {branches.build_branch}")
+            print(f"release verification branch: {branches.verification_branch}")
 
     except (ConfigError, RuntimeError) as exc:
         print(f"ERROR: {exc}", file=sys.stderr)
