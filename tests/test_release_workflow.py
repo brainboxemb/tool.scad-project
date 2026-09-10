@@ -109,11 +109,13 @@ def test_build_and_verify_support_exact_release_source_context():
         assert "ref: ${{ inputs.source_ref || github.ref }}" in text
 
 
-def test_release_workflow_uses_same_revision_local_reusable_workflows():
+def test_release_workflow_uses_self_repository_reusable_workflows():
     text = read(RELEASE)
 
-    assert "uses: ./.github/workflows/project-build.yml" in text
-    assert "uses: ./.github/workflows/project-verify.yml" in text
+    assert "uses: $/.github/workflows/project-build.yml" in text
+    assert "uses: $/.github/workflows/project-verify.yml" in text
+    assert "uses: ./.github/workflows/project-build.yml" not in text
+    assert "uses: ./.github/workflows/project-verify.yml" not in text
     assert "brainboxemb/tool.scad-project/.github/workflows/project-build.yml@" not in text
     assert "brainboxemb/tool.scad-project/.github/workflows/project-verify.yml@" not in text
     assert "@feature/versioned-project-release" not in text
