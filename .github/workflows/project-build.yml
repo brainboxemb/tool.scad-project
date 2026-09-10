@@ -38,6 +38,19 @@ jobs:
           submodules: true
           fetch-depth: 0
 
+      - name: Install experimental SCons backend
+        timeout-minutes: 2
+        run: python3 -m pip install --break-system-packages 'SCons==4.11.1'
+
+      - name: Restore SCons build cache
+        timeout-minutes: 2
+        uses: actions/cache@v4
+        with:
+          path: .cache/scad-project/scons
+          key: scad-project-scons-${{ runner.os }}-${{ github.repository_id }}-${{ hashFiles('project.yml', '.gitmodules', 'dsg/**/*.scad', 'dsg/**/*.py') }}
+          restore-keys: |
+            scad-project-scons-${{ runner.os }}-${{ github.repository_id }}-
+
       - name: Show toolchain
         timeout-minutes: 2
         run: scad-toolchain-info
