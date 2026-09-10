@@ -7,7 +7,7 @@ import sys
 
 from .build import build_project, check_libraries
 from .config import ConfigError, load_context, validate_config
-from .design_policy import build_design, lint_design
+from .design import build_design, lint_design
 from .docs import lint_docs
 from .publish import publish_build, publish_verification, write_publication_info
 from .index import write_build_index
