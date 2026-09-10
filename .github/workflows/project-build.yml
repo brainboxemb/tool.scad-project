@@ -87,6 +87,16 @@ jobs:
         timeout-minutes: 5
         run: bash ./tools/tool.scad-project/scad-project.sh build
 
+      - name: Upload SCons build report
+        timeout-minutes: 2
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ inputs.artifact_name }}-scons-report
+          path: .cache/scad-project/state/last-build.json
+          if-no-files-found: ignore
+          retention-days: 7
+
       - name: Generate build index
         timeout-minutes: 2
         run: bash ./tools/tool.scad-project/scad-project.sh build-index
