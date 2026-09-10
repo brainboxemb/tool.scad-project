@@ -192,7 +192,7 @@ for row in "${ordered[@]}"; do
   new="$(git -C "$path" rev-parse HEAD)"
   results+=("$name|$path|$ref|$workflow_ref|$old|$new")
 
-  [[ "$role" == "tooling" ]] && tool_workflow_ref="$workflow_ref"
+  [[ "$role" == "tooling" ]] && tool_workflow_ref="$new"
 done
 
 if [[ -n "$tool_workflow_ref" && -d .github/workflows ]]; then
