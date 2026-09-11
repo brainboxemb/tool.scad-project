@@ -3,7 +3,8 @@
 Checks:
 Generated design images behave as independent SCons targets: a cold build renders both
 sample images, an unchanged second build renders none, and changing the source for one
-component rerenders only that component's image.
+component rerenders only that component's image. Configured watermark post-processing
+is also applied to the final design PNG without leaving the raw intermediate behind.
 
 Testing approach:
 This is an integration test rather than a simulated unit test. It creates two tiny real
@@ -25,7 +26,10 @@ from scad_project.design_scons import build_design
 
 
 pytestmark = pytest.mark.skipif(
-    any(shutil.which(name) is None for name in ("scons", "openscad", "xvfb-run")),
+    any(
+        shutil.which(name) is None
+        for name in ("scons", "openscad", "xvfb-run", "scad-image-watermark")
+    ),
     reason="selective design integration test requires the SCAD toolchain",
 )
 
@@ -71,6 +75,11 @@ def _context(tmp_path: Path) -> ProjectContext:
             "image_size": [120, 90],
             "design_image_size": [120, 90],
         },
+        "rendering": {
+            "watermark": {
+                "text": "© design-test",
+            }
+        },
         "externals": [],
     }
     return ProjectContext(tmp_path, tmp_path / "project.yml", config)
@@ -96,6 +105,20 @@ def test_design_images_are_individual_scons_targets(tmp_path: Path):
     assert first["target_count"] == 2
     assert first["executed_count"] == 2
 
+    alpha_output = (
+        tmp_path
+        / "bld"
+        / "design"
+        / "project"
+        / "components"
+        / "alpha"
+        / "design"
+        / "img"
+        / "01-final.png"
+    )
+    assert alpha_output.is_file()
+    assert not alpha_output.with_name(".01-final.unwatermarked.png").exists()
+
     # Identical second build: SCons should execute no render target at all.
     build_design(context)
     second = _report(tmp_path)
@@ -117,17 +140,7 @@ def test_design_images_are_individual_scons_targets(tmp_path: Path):
         "components/alpha/design/img/01-final.png"
     )
 
-    assert (
-        tmp_path
-        / "bld"
-        / "design"
-        / "project"
-        / "components"
-        / "alpha"
-        / "design"
-        / "img"
-        / "01-final.png"
-    ).is_file()
+    assert alpha_output.is_file()
     assert (
         tmp_path
         / "bld"
