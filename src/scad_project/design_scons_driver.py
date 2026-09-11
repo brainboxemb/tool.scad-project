@@ -18,14 +18,35 @@ def _project_path(root: Path, value: str) -> Path:
 
 def _execute_target(spec: dict, root: Path, execution_log: Path) -> int:
     output = _project_path(root, spec["output"])
+    render_output = _project_path(root, spec.get("render_output", spec["output"]))
+    watermark_text = spec.get("watermark_text")
     cwd = _project_path(root, spec["cwd"])
     command = [str(value) for value in spec["command"]]
 
     output.parent.mkdir(parents=True, exist_ok=True)
     output.unlink(missing_ok=True)
+    if render_output != output:
+        render_output.unlink(missing_ok=True)
 
-    run_checked(command, cwd=cwd)
-    _require_output(output)
+    try:
+        run_checked(command, cwd=cwd)
+        _require_output(render_output)
+
+        if watermark_text:
+            run_checked(
+                [
+                    "scad-image-watermark",
+                    str(render_output),
+                    str(output),
+                    "--text",
+                    str(watermark_text),
+                ],
+                cwd=root,
+            )
+            _require_output(output)
+    finally:
+        if render_output != output:
+            render_output.unlink(missing_ok=True)
 
     execution_log.parent.mkdir(parents=True, exist_ok=True)
     with execution_log.open("a", encoding="utf-8") as handle:
