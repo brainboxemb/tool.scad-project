@@ -3,8 +3,9 @@
 Checks:
 The package version and reusable workflow version markers stay aligned, pinned tool
 versions are checked correctly, Build remains the only writer of the shared SCons cache,
-cache names/summaries stay understandable, workflow helper code uses the available
-`python3` command, and agreed job/step timeouts are not accidentally increased.
+cache names/summaries stay understandable, pull-request publication stays isolated and
+self-cleaning, workflow helper code uses the available `python3` command, and agreed
+job/step timeouts are not accidentally increased.
 
 Testing approach:
 Configuration-level tests call the real tooling validator with controlled environment
@@ -84,6 +85,7 @@ def test_release_version_markers_are_aligned():
     for workflow_path in (
         Path(".github/workflows/project-build.yml"),
         Path(".github/workflows/project-verify.yml"),
+        Path(".github/workflows/project-pr-cleanup.yml"),
     ):
         text = workflow_path.read_text(encoding="utf-8")
         match = re.search(
@@ -155,6 +157,29 @@ def test_cache_summary_uses_available_python3_runtime():
     assert "\n          python - <<'PY'" not in text
 
 
+def test_pull_request_publication_workflow_policy():
+    """Keep PR previews isolated and avoid write attempts from fork pull requests."""
+    build_text = Path(".github/workflows/project-build.yml").read_text(encoding="utf-8")
+    verify_text = Path(".github/workflows/project-verify.yml").read_text(encoding="utf-8")
+    cleanup_text = Path(".github/workflows/project-pr-cleanup.yml").read_text(
+        encoding="utf-8"
+    )
+
+    for text in (build_text, verify_text):
+        assert "SCAD_PROJECT_PR_NUMBER:" in text
+        assert "github.event.pull_request.number" in text
+        assert "github.event.pull_request.head.repo.full_name == github.repository" in text
+        assert "github.event_name != 'pull_request'" in text
+
+    assert "pr_branch_prefix:" in cleanup_text
+    assert "default: dev/pr" in cleanup_text
+    assert "${PREFIX}-${PR_NUMBER}/${KIND}" in cleanup_text
+    assert "git push origin --delete" in cleanup_text
+    assert "github.event.pull_request.merged == true" in cleanup_text
+    assert "tools/tool.scad-project" not in cleanup_text
+    assert "pip install" not in cleanup_text
+
+
 def test_workflow_timeouts_are_bounded():
     """Keep every reusable/tool CI job and expensive step within the agreed limits."""
     import yaml
@@ -178,6 +203,15 @@ def test_workflow_timeouts_are_bounded():
                 "Run project functional verification": 5,
                 "Upload verification evidence": 2,
                 "Publish verification branch": 2,
+            },
+        },
+        ".github/workflows/project-pr-cleanup.yml": {
+            "job": ("cleanup", 5),
+            "steps": {
+                "Checkout repository for authenticated branch cleanup": 2,
+                "Configure publication credentials": 2,
+                "Remove generated pull request publication branches": 2,
+                "Delete merged source branch": 2,
             },
         },
         ".github/workflows/test.yml": {
