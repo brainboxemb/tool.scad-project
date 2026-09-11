@@ -1,0 +1,132 @@
+name: Publish unit-test documentation
+
+on:
+  workflow_dispatch:
+  workflow_run:
+    workflows:
+      - Test
+    types:
+      - completed
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages-unit-test-documentation
+  cancel-in-progress: true
+
+jobs:
+  pages-state:
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.workflow_run.conclusion == 'success' &&
+       github.event.workflow_run.head_branch == 'main')
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      enabled: ${{ steps.pages.outputs.enabled }}
+    steps:
+      - name: Check whether GitHub Pages is enabled
+        id: pages
+        timeout-minutes: 2
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          response="$RUNNER_TEMP/pages.json"
+          status="$(curl --silent --show-error --output "$response" --write-out '%{http_code}' \
+            --header "Authorization: Bearer $GH_TOKEN" \
+            --header "Accept: application/vnd.github+json" \
+            --header "X-GitHub-Api-Version: 2022-11-28" \
+            "https://api.github.com/repos/$GITHUB_REPOSITORY/pages")"
+
+          case "$status" in
+            200)
+              echo "enabled=true" >> "$GITHUB_OUTPUT"
+              echo "GitHub Pages is enabled; publication can continue." >> "$GITHUB_STEP_SUMMARY"
+              ;;
+            404)
+              echo "enabled=false" >> "$GITHUB_OUTPUT"
+              {
+                echo "## GitHub Pages is not enabled yet"
+                echo
+                echo "The unit-test overview was not deployed."
+                echo "Enable **Settings → Pages → Build and deployment → Source: GitHub Actions**."
+                echo "After that, run this workflow once manually or wait for the next successful Test run on main."
+              } >> "$GITHUB_STEP_SUMMARY"
+              ;;
+            *)
+              echo "Unexpected GitHub Pages API response: HTTP $status" >&2
+              cat "$response" >&2
+              exit 1
+              ;;
+          esac
+
+  build:
+    needs: pages-state
+    if: needs.pages-state.outputs.enabled == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout documentation source
+        timeout-minutes: 2
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || github.event.repository.default_branch }}
+
+      - name: Configure GitHub Pages
+        timeout-minutes: 2
+        uses: actions/configure-pages@v5
+
+      - name: Build Pages content
+        timeout-minutes: 2
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p bld/pages/tests
+          python3 scripts/generate_test_reference.py --output bld/pages/tests/index.html
+          cat > bld/pages/index.html <<'HTML'
+          <!doctype html>
+          <html lang="en">
+          <head>
+            <meta charset="utf-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1">
+            <title>tool.scad-project documentation</title>
+            <style>
+              body { font-family: system-ui, sans-serif; max-width: 760px; margin: 4rem auto; padding: 0 1.25rem; color: #1f2328; }
+              h1 { margin-bottom: .4rem; }
+              a { color: #0969da; }
+            </style>
+          </head>
+          <body>
+            <h1>tool.scad-project documentation</h1>
+            <p>Generated project documentation published from the current main branch.</p>
+            <p><a href="./tests/">Unit-test overview</a></p>
+          </body>
+          </html>
+          HTML
+
+      - name: Upload GitHub Pages artifact
+        timeout-minutes: 2
+        uses: actions/upload-pages-artifact@v4
+        with:
+          path: bld/pages
+
+  deploy:
+    needs:
+      - pages-state
+      - build
+    if: needs.pages-state.outputs.enabled == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy GitHub Pages
+        id: deployment
+        timeout-minutes: 2
+        uses: actions/deploy-pages@v4
