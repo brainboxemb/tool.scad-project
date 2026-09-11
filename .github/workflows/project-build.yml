@@ -86,7 +86,7 @@ jobs:
         uses: actions/cache/restore@v4
         with:
           path: .cache/scad-project/scons
-          key: scad-selective-build-v2-${{ runner.os }}-${{ github.repository_id }}-${{ env.SCAD_TOOLCHAIN_VERSION }}-${{ steps.scons-cache.outputs.tool_sha }}-${{ hashFiles('project.yml', '.gitmodules', 'dsg/**/*.scad', 'dsg/**/*.py', 'dsg/**/render.yml', 'dsg/**/export.yml', 'dsg/**/*.stl', 'dsg/**/*.off', 'dsg/**/*.amf', 'dsg/**/*.3mf', 'dsg/**/*.obj', 'dsg/**/*.dxf', 'dsg/**/*.svg', 'dsg/**/*.dat', 'dsg/**/*.txt', 'dsg/**/*.png', 'dsg/**/design/**') }}
+          key: scad-selective-build-v2-${{ runner.os }}-${{ github.repository_id }}-${{ env.SCAD_TOOLCHAIN_VERSION }}-${{ steps.scons-cache.outputs.tool_sha }}-${{ hashFiles('project.yml', '.gitmodules', '**/*.scad', '**/*.py', '**/render.yml', '**/export.yml', '**/*.stl', '**/*.off', '**/*.amf', '**/*.3mf', '**/*.obj', '**/*.dxf', '**/*.svg', '**/*.dat', '**/*.txt', '**/*.png', '**/design/**') }}
           restore-keys: |
             scad-selective-build-v2-${{ runner.os }}-${{ github.repository_id }}-${{ env.SCAD_TOOLCHAIN_VERSION }}-${{ steps.scons-cache.outputs.tool_sha }}-
 
@@ -120,7 +120,7 @@ jobs:
         uses: actions/cache/restore@v4
         with:
           path: bld/design
-          key: scad-design-snapshot-v2-${{ runner.os }}-${{ github.repository_id }}-${{ env.SCAD_TOOLCHAIN_VERSION }}-${{ steps.scons-cache.outputs.tool_sha }}-${{ hashFiles('project.yml', '.gitmodules', 'dsg/**/*.scad', 'dsg/**/*.py', 'dsg/**/render.yml', 'dsg/**/export.yml', 'dsg/**/*.stl', 'dsg/**/*.off', 'dsg/**/*.amf', 'dsg/**/*.3mf', 'dsg/**/*.obj', 'dsg/**/*.dxf', 'dsg/**/*.svg', 'dsg/**/*.dat', 'dsg/**/*.txt', 'dsg/**/*.png', 'dsg/**/design/**') }}
+          key: scad-design-snapshot-v2-${{ runner.os }}-${{ github.repository_id }}-${{ env.SCAD_TOOLCHAIN_VERSION }}-${{ steps.scons-cache.outputs.tool_sha }}-${{ hashFiles('project.yml', '.gitmodules', '**/*.scad', '**/*.py', '**/render.yml', '**/export.yml', '**/*.stl', '**/*.off', '**/*.amf', '**/*.3mf', '**/*.obj', '**/*.dxf', '**/*.svg', '**/*.dat', '**/*.txt', '**/*.png', '**/design/**') }}
 
       - name: Summarise cache status
         timeout-minutes: 2
