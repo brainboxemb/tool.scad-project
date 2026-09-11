@@ -2,6 +2,14 @@
 
 Functional changes to released `tool.scad-project` versions.
 
+## v0.9.10
+
+### Fixed
+
+- Make Build and Verify cache-input hashing independent of the consumer repository layout instead of assuming CAD/design sources live under `dsg/`.
+- Track repository-wide OpenSCAD, Python, render/export profile, design metadata and common imported-asset inputs so layouts such as `lib.scad.hub75` invalidate stale generated-design snapshots correctly.
+- Add regression coverage that rejects a return to hard-coded `dsg/**` cache patterns.
+
 ## v0.9.9
 
 ### Fixed
