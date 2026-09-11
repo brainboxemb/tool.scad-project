@@ -177,15 +177,17 @@ design.md                 design intent / visual construction
 The generic PNG operation belongs in `docker.scad-toolchain`; this repository
 owns when it is applied according to consumer configuration.
 
-For configured build PNGs:
+For configured PNG output:
 
 1. render an unwatermarked temporary PNG;
 2. invoke public `scad-image-watermark`;
 3. verify final output;
 4. remove the temporary file.
 
-Do not import Pillow or duplicate watermark drawing here. Do not watermark STL
-or generated design-document images unless policy explicitly changes.
+Do not import Pillow or duplicate watermark drawing here. Do not watermark STL.
+Generated design PNGs use the same configured watermark policy as normal build
+PNGs; project-specific verification commands should call the same public
+watermark command rather than implement their own image processing.
 
 ## Dependency policy and commands
 
@@ -244,6 +246,54 @@ lint/design/build/publication sequence into local YAML or shell blocks.
 `SCAD_PROJECT_WORKFLOW_VERSION`/tooling checks must detect mismatches between
 consumer configuration, local tool checkout and reusable workflow release.
 
+## Pull-request-first change workflow
+
+Normal tool and consumer development should start as a draft pull request, not
+as an untracked feature branch and not as a direct commit to `main`.
+
+When GitHub supports issue-to-PR conversion, reserve the final pull-request
+number before implementation so one identifier is used consistently by the
+source branch, pull request and generated preview branches:
+
+```text
+issue / draft PR        #N
+source branch           feature/pr-N-<short-slug>
+preview build           dev/pr-N/build
+preview verification    dev/pr-N/verification
+```
+
+Canonical sequence:
+
+1. create a temporary issue whose only purpose is to reserve number `N` and
+   describe the intended change;
+2. create `feature/pr-N-<short-slug>` from the current target branch;
+3. make the smallest initial commit required to give the branch a diff;
+4. convert **that exact issue `#N`** into a draft pull request using the numbered
+   feature branch as its head; do not open a separate pull request, because that
+   would consume a different number;
+5. continue all implementation as commits on that same branch while the draft PR
+   is open, so Build/Verify and review evidence stay attached to the change;
+6. mark the PR ready only when the implementation and its generated evidence are
+   ready for review;
+7. merge only after the required checks and review are complete; PR cleanup owns
+   removal of `dev/pr-N/*` and, for same-repository merged PRs, the source branch.
+
+The number in `feature/pr-N-*` is valid only when the reserved issue will be
+converted into the same PR. Never guess a future PR number and never use an
+unrelated issue number as though it were the PR number.
+
+If issue-to-PR conversion is unavailable or fails, fall back to a descriptive
+feature branch plus a normal draft PR. In that fallback, the actual PR number
+remains authoritative for `dev/pr-N/*`; do not rename history or fabricate
+number alignment merely for aesthetics.
+
+Release-request branches and emergency repository-repair operations are special
+workflow mechanisms and are not normal feature development.
+
+This policy is generic to `tool.scad-project` consumers. A consumer root
+`AGENTS.md` may add project-specific development or CAD rules, but should defer
+to this section for branch/PR/publication workflow and must not contradict it.
+
 ## Publication lifecycle
 
 Publication behavior is resolved centrally from source context and consumer
@@ -251,9 +301,14 @@ configuration.
 
 General policy:
 
-- production branch -> mutable production build/verification snapshots;
-- development branches -> mutable shared development snapshots;
-- pull requests -> artifacts only;
+- `main` / configured production branch -> mutable `prod/build` and
+  `prod/verification` snapshots;
+- open pull request `#N` -> isolated mutable `dev/pr-N/build` and
+  `dev/pr-N/verification` previews;
+- ordinary feature-branch pushes without a pull request -> no shared development
+  publication under the standard PR-first caller model;
+- closing/merging PR `#N` -> remove its `dev/pr-N/*` preview branches and, when
+  configured and safe, its same-repository source branch;
 - coordinated releases -> immutable release snapshots/tags/bundles according to
   configured release policy.
 
