@@ -2,6 +2,21 @@
 
 Functional changes to released `tool.scad-project` versions.
 
+## v0.9.11
+
+### Added
+
+- Publish pull-request build and verification previews to isolated `dev/pr-<number>/build` and `dev/pr-<number>/verification` branches instead of one shared development destination.
+- Add `publication.development.pr_branch_prefix` for configuring the pull-request preview namespace while keeping `dev/pr` as the default.
+- Add `scad-project publication-cleanup-pr --pr-number N` and a reusable PR-cleanup workflow that removes generated preview branches when a pull request closes.
+- Allow the cleanup workflow to delete the merged same-repository source branch so feature branches do not accumulate after merge.
+
+### Changed
+
+- Treat ordinary non-production branch pushes as artifact-only by default; development publication now belongs to the pull request where the PR number provides a collision-free namespace.
+- Keep legacy shared development-branch publication available only as an explicit `publication.development.publish_branch_pushes: true` migration opt-in.
+- Let reusable Build and Verify workflows publish same-repository pull-request previews while preserving artifact-only behaviour for fork pull requests.
+
 ## v0.9.10
 
 ### Fixed
@@ -167,7 +182,7 @@ Functional changes to released `tool.scad-project` versions.
 
 - Directory-based OpenSCAD build discovery through configured `render_root` and `export_root` paths.
 - Optional `render.yml` and `export.yml` build profiles beside entrypoints.
-- Multi-size profile expansion using `sizes`, passed to OpenSCAD as `-D size="..."`.
+- Multi-size profile expansion using `sizes`, passed to OpenSCAD as `-D size=\"...\"`.
 - Profile-level PNG `image_size` overrides with directory defaults and project-level fallback.
 
 ### Changed
