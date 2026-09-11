@@ -68,7 +68,7 @@ jobs:
           git config --global --add safe.directory "$GITHUB_WORKSPACE"
           git config --global --add safe.directory "$GITHUB_WORKSPACE/tools/tool.scad-project"
 
-      - name: Describe selective caches
+      - name: Describe selective build cache
         id: scons-cache
         timeout-minutes: 2
         shell: bash
