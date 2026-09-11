@@ -11,7 +11,12 @@ from .build_engine_config import validate_build_engine_config
 from .config import ConfigError, load_context, validate_config
 from .design_policy import build_design, lint_design
 from .docs import lint_docs
-from .publish import publish_build, publish_verification, write_publication_info
+from .publish import (
+    cleanup_pull_request_publication,
+    publish_build,
+    publish_verification,
+    write_publication_info,
+)
 from .release import package_release, publish_release_branches
 from .release_config import validate_release_config
 from .release_notes import write_release_notes
@@ -58,6 +63,9 @@ def main() -> None:
         "repo-sync", "repo-update", "repo-status",
     ):
         sub.add_parser(name)
+
+    publication_cleanup = sub.add_parser("publication-cleanup-pr")
+    publication_cleanup.add_argument("--pr-number", type=int, required=True)
 
     release_package = sub.add_parser("release-package")
     release_package.add_argument("--version", required=True)
@@ -186,6 +194,13 @@ def main() -> None:
             publish_build(ctx)
         elif args.command == "publish-verification":
             publish_verification(ctx)
+        elif args.command == "publication-cleanup-pr":
+            removed = cleanup_pull_request_publication(ctx, args.pr_number)
+            if removed:
+                for branch in removed:
+                    print(f"Removed pull-request publication branch: {branch}")
+            else:
+                print(f"No pull-request publication branches found for PR #{args.pr_number}")
         elif args.command == "release-package":
             artifacts = package_release(ctx, args.version, args.output_dir)
             print(f"release package: {artifacts.version}")
