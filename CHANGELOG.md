@@ -2,6 +2,19 @@
 
 Functional changes to released `tool.scad-project` versions.
 
+## v0.9.13
+
+### Added
+
+- Add dependency-aware verification-only OpenSCAD render/export targets through `verification.render_root` and `verification.export_root`, with their own `verification.output_root` and optional `verification.image_size`.
+- Add verification profile `output_pattern` support so size-expanded verification targets can keep stable project-specific filenames.
+- Add a separate persistent `verification-scons` cache and `last-verification-build.json` report so unchanged verification evidence can be restored target-by-target.
+
+### Changed
+
+- Keep the normal build SCons cache restore-only in Verify while verification-only targets use a separate restore/write cache.
+- Build declared verification targets before project-specific `verification.commands`, allowing cheap README/index generation after reused or rebuilt geometry without forcing unrelated OpenSCAD renders.
+
 ## v0.9.12
 
 ### Changed
@@ -177,7 +190,6 @@ Functional changes to released `tool.scad-project` versions.
 - Bound the tool test workflow to 15 minutes and the release workflow to 10 minutes.
 - Add regression coverage for the workflow timeout policy.
 
-
 ## v0.7.1
 
 ### Fixed
@@ -205,20 +217,17 @@ Functional changes to released `tool.scad-project` versions.
 - Unified `publication-info.txt` provenance for generated build and verification output.
 - Immutable SCAD toolchain image/version recorded by reusable workflows.
 - `tool.scad-project` release recorded with generated output.
-- Runtime component inventory from `scad-toolchain-info`, including the actual
-  OpenSCAD, PythonSCAD, BOSL2, pybosl2, Shapely, docsgen and Pillow versions.
+- Runtime component inventory from `scad-toolchain-info`, including the actual OpenSCAD, PythonSCAD, BOSL2, pybosl2, Shapely, docsgen and Pillow versions.
 
 ### Changed
 
-- `publication-info.txt` is the current-generation replacement for the classic
-  `openscad-build.txt` metadata concept.
+- `publication-info.txt` is the current-generation replacement for the classic `openscad-build.txt` metadata concept.
 
 ## v0.6.0
 
 ### Added
 
 - SCAD toolchain v0.4.0 runtime baseline.
-- Project-controlled PNG watermark orchestration through
-  `rendering.watermark.text`.
+- Project-controlled PNG watermark orchestration through `rendering.watermark.text`.
 - Public `scad-image-watermark` runtime integration.
 - Permanent release workflow for immutable tool releases.
