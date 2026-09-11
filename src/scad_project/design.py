@@ -26,6 +26,7 @@ from typing import Any
 
 import yaml
 
+from .build import _raw_png_path, _require_output, _watermark_text
 from .config import ProjectContext
 from .externals import configured_externals
 from .process import run_checked
@@ -610,6 +611,7 @@ def build_design(context: ProjectContext) -> None:
         "design_image_size",
         openscad_cfg.get("image_size", [640, 480]),
     )
+    watermark_text = _watermark_text(context)
 
     build_root = context.path(context.config["paths"]["build_root"])
     generated_root = build_root / "design"
@@ -652,7 +654,19 @@ def build_design(context: ProjectContext) -> None:
 
                 size = render.size or default_size
                 output = image_dir / render.image
-                args = _render_args(context, render, entry, output, size)
+                render_output = _raw_png_path(output) if watermark_text else output
+                if render_output.exists():
+                    render_output.unlink()
+                if watermark_text and output.exists():
+                    output.unlink()
+
+                args = _render_args(
+                    context,
+                    render,
+                    entry,
+                    render_output,
+                    size,
+                )
 
                 # Run from the Python source directory for PythonSCAD so local
                 # sibling imports behave exactly as they do in hand-written
@@ -662,10 +676,26 @@ def build_design(context: ProjectContext) -> None:
                     if render.engine == "pythonscad" and render.source is not None
                     else context.root
                 )
-                run_checked(args, cwd=cwd)
 
-                if not output.is_file() or output.stat().st_size == 0:
-                    raise RuntimeError(f"Missing or empty design render: {output}")
+                try:
+                    run_checked(args, cwd=cwd)
+                    _require_output(render_output)
+
+                    if watermark_text:
+                        run_checked(
+                            [
+                                "scad-image-watermark",
+                                str(render_output),
+                                str(output),
+                                "--text",
+                                watermark_text,
+                            ],
+                            cwd=context.root,
+                        )
+                        _require_output(output)
+                finally:
+                    if render_output != output:
+                        render_output.unlink(missing_ok=True)
 
             source_text = document.source_file.read_text(encoding="utf-8")
             generated = _generate_markdown(source_text, doc_renders)
