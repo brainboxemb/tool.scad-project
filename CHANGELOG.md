@@ -2,6 +2,15 @@
 
 Functional changes to released `tool.scad-project` versions.
 
+## v0.9.12
+
+### Changed
+
+- Define the canonical PR-first agent workflow centrally in `AGENTS.md`: reserve the final pull-request number with a temporary issue, create `feature/pr-<number>-<slug>`, convert that exact issue into the same-number draft PR, and keep subsequent work attached to that PR.
+- Clarify that the actual PR number is authoritative for `dev/pr-<number>/build` and `dev/pr-<number>/verification`; never guess a future PR number or reuse an unrelated issue number.
+- Align the central publication guidance with the v0.9.11 PR-scoped model and make consumer root `AGENTS.md` files defer to the pinned tool policy for branch/PR/publication workflow.
+- Clarify the central watermark policy so configured build/design PNGs and project verification commands use the shared `scad-image-watermark` runtime command instead of duplicating image-processing logic.
+
 ## v0.9.11
 
 ### Added
