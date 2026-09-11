@@ -2,6 +2,14 @@
 
 Functional changes to released `tool.scad-project` versions.
 
+## v0.9.9
+
+### Fixed
+
+- Apply the configured `rendering.watermark.text` post-processing to generated design PNGs, matching normal render outputs.
+- Apply design-image watermarking through both the direct design builder and the dependency-selective SCons design backend.
+- Keep the unwatermarked intermediate PNG private to the build step so cached/published design output contains only the final watermarked image.
+
 ## v0.9.8
 
 ### Fixed
