@@ -27,7 +27,7 @@ jobs:
     timeout-minutes: 5
 
     env:
-      SCAD_PROJECT_WORKFLOW_VERSION: v0.9.12
+      SCAD_PROJECT_WORKFLOW_VERSION: v0.9.13
 
     steps:
       - name: Checkout repository for authenticated branch cleanup
