@@ -1,0 +1,92 @@
+name: Reusable SCAD project PR cleanup
+
+on:
+  workflow_call:
+    inputs:
+      pr_number:
+        description: Pull request number whose generated preview branches must be removed
+        required: true
+        type: number
+      pr_branch_prefix:
+        description: Prefix used for generated pull request preview branches
+        required: false
+        type: string
+        default: dev/pr
+      delete_source_branch:
+        description: Delete the merged same-repository pull request source branch
+        required: false
+        type: boolean
+        default: true
+
+permissions:
+  contents: write
+
+jobs:
+  cleanup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    env:
+      SCAD_PROJECT_WORKFLOW_VERSION: v0.9.11
+
+    steps:
+      - name: Checkout repository for authenticated branch cleanup
+        timeout-minutes: 2
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Configure publication credentials
+        timeout-minutes: 2
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          git config --global credential.helper store
+          printf "https://x-access-token:%s@github.com\n" "$GITHUB_TOKEN" > ~/.git-credentials
+
+      - name: Remove generated pull request publication branches
+        timeout-minutes: 2
+        env:
+          PR_NUMBER: ${{ inputs.pr_number }}
+          PR_BRANCH_PREFIX: ${{ inputs.pr_branch_prefix }}
+        run: |
+          set -euo pipefail
+          PREFIX="${PR_BRANCH_PREFIX#/}"
+          PREFIX="${PREFIX%/}"
+          if [[ -z "${PREFIX}" ]]; then
+            echo "ERROR: pr_branch_prefix must not be empty" >&2
+            exit 1
+          fi
+          if [[ ! "${PR_NUMBER}" =~ ^[1-9][0-9]*$ ]]; then
+            echo "ERROR: pr_number must be a positive integer" >&2
+            exit 1
+          fi
+
+          for KIND in build verification; do
+            BRANCH="${PREFIX}-${PR_NUMBER}/${KIND}"
+            if git ls-remote --exit-code --heads origin "refs/heads/${BRANCH}" >/dev/null 2>&1; then
+              git push origin --delete "${BRANCH}"
+              echo "Removed pull-request publication branch: ${BRANCH}"
+            else
+              echo "Preview branch already absent: ${BRANCH}"
+            fi
+          done
+
+      - name: Delete merged source branch
+        timeout-minutes: 2
+        if: >-
+          inputs.delete_source_branch &&
+          github.event_name == 'pull_request' &&
+          github.event.action == 'closed' &&
+          github.event.pull_request.merged == true &&
+          github.event.pull_request.head.repo.full_name == github.repository &&
+          github.event.pull_request.head.ref != github.event.pull_request.base.ref
+        env:
+          SOURCE_BRANCH: ${{ github.event.pull_request.head.ref }}
+        run: |
+          set -euo pipefail
+          if git ls-remote --exit-code --heads origin "refs/heads/${SOURCE_BRANCH}" >/dev/null 2>&1; then
+            git push origin --delete "${SOURCE_BRANCH}"
+          else
+            echo "Source branch already absent: ${SOURCE_BRANCH}"
+          fi

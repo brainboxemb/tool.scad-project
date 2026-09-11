@@ -6,7 +6,7 @@ tooling:
     type: git-submodule
     url: https://github.com/brainboxemb/tool.scad-project.git
     path: tools/tool.scad-project
-    ref: v0.9.9
+    ref: v0.9.11
 
 paths:
   design_root: dsg/openscad
@@ -38,8 +38,9 @@ publication:
     verification_branch: prod/verification
 
   development:
-    build_branch: dev/build
-    verification_branch: dev/verification
+    # An open PR #42 publishes to dev/pr-42/build and dev/pr-42/verification.
+    # Ordinary feature-branch pushes are artifact-only by default.
+    pr_branch_prefix: dev/pr
 
   tags:
     pattern: "v*"

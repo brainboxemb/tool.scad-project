@@ -1,10 +1,11 @@
 """Publication routing and snapshot safety
 
 Checks:
-Builds and verification results go to the correct production, development, pull-request,
-tag or release destination. Publication metadata must record the real source commit.
-Immutable release branches must refuse an existing branch and must never force-push,
-while mutable production/development snapshots may replace their target branch.
+Builds and verification results go to the correct production, pull-request, tag or
+release destination. Ordinary feature-branch pushes are artifact-only by default so
+parallel changes cannot overwrite one shared development snapshot. Pull requests publish
+into their own mutable dev/pr-N branches, and closing a pull request can remove those
+branches. Publication metadata must record the real source commit.
 
 Testing approach:
 Most tests supply a small dictionary that represents the GitHub event environment and
@@ -22,7 +23,9 @@ import pytest
 from scad_project.config import ProjectContext
 import scad_project.publish as publish_module
 from scad_project.publish import (
+    cleanup_pull_request_publication,
     publication_info_text,
+    pull_request_publication_branches,
     resolve_publication_target,
     resolve_release_publication_target,
     write_publication_info,
@@ -39,10 +42,7 @@ def context(tmp_path: Path) -> ProjectContext:
             "verification": {"output_root": "vrf/out"},
             "publication": {
                 "production": {"source_branch": "main"},
-                "development": {
-                    "build_branch": "dev/build",
-                    "verification_branch": "dev/verification",
-                },
+                "development": {"pr_branch_prefix": "dev/pr"},
                 "release": {
                     "branch_prefix": "rel",
                     "tag_pattern": "v*",
@@ -84,8 +84,28 @@ def test_explicit_production_branch_configuration_still_works(tmp_path: Path):
     assert resolve_publication_target(ctx, "verification", env).branch == "verification"
 
 
-def test_feature_branch_uses_shared_development_branches(tmp_path: Path):
+def test_feature_branch_is_artifact_only_by_default(tmp_path: Path):
     ctx = context(tmp_path)
+    env = {
+        "GITHUB_EVENT_NAME": "push",
+        "GITHUB_REF_TYPE": "branch",
+        "GITHUB_REF_NAME": "feature/example",
+    }
+    target = resolve_publication_target(ctx, "build", env)
+    assert target.context == "development"
+    assert target.publish is False
+    assert target.branch is None
+    assert target.immutable is False
+
+
+def test_feature_branch_can_opt_into_legacy_shared_development_branch(tmp_path: Path):
+    ctx = context(tmp_path)
+    ctx.config["publication"]["development"].update(
+        {
+            "publish_branch_pushes": True,
+            "build_branch": "dev/build",
+        }
+    )
     env = {
         "GITHUB_EVENT_NAME": "push",
         "GITHUB_REF_TYPE": "branch",
@@ -95,10 +115,27 @@ def test_feature_branch_uses_shared_development_branches(tmp_path: Path):
     assert target.context == "development"
     assert target.publish is True
     assert target.branch == "dev/build"
-    assert target.immutable is False
 
 
-def test_pull_request_is_artifact_only(tmp_path: Path):
+def test_pull_request_publishes_to_pr_scoped_branches(tmp_path: Path):
+    ctx = context(tmp_path)
+    env = {
+        "GITHUB_EVENT_NAME": "pull_request",
+        "GITHUB_REF_TYPE": "branch",
+        "GITHUB_REF_NAME": "42/merge",
+        "GITHUB_HEAD_REF": "feature/example",
+        "SCAD_PROJECT_PR_NUMBER": "42",
+    }
+    build = resolve_publication_target(ctx, "build", env)
+    verification = resolve_publication_target(ctx, "verification", env)
+    assert build.context == "pull_request"
+    assert build.publish is True
+    assert build.branch == "dev/pr-42/build"
+    assert build.source_ref == "feature/example"
+    assert verification.branch == "dev/pr-42/verification"
+
+
+def test_pull_request_number_falls_back_to_merge_ref(tmp_path: Path):
     ctx = context(tmp_path)
     env = {
         "GITHUB_EVENT_NAME": "pull_request",
@@ -106,11 +143,41 @@ def test_pull_request_is_artifact_only(tmp_path: Path):
         "GITHUB_REF_NAME": "42/merge",
         "GITHUB_HEAD_REF": "feature/example",
     }
+    assert resolve_publication_target(ctx, "build", env).branch == "dev/pr-42/build"
+
+
+def test_pull_request_without_number_remains_artifact_only(tmp_path: Path):
+    ctx = context(tmp_path)
+    env = {
+        "GITHUB_EVENT_NAME": "pull_request",
+        "GITHUB_REF_TYPE": "branch",
+        "GITHUB_REF_NAME": "pull-request",
+        "GITHUB_HEAD_REF": "feature/example",
+    }
     target = resolve_publication_target(ctx, "build", env)
     assert target.context == "pull_request"
     assert target.publish is False
     assert target.branch is None
-    assert target.source_ref == "feature/example"
+
+
+def test_pr_branch_prefix_is_configurable(tmp_path: Path):
+    ctx = context(tmp_path)
+    ctx.config["publication"]["development"]["pr_branch_prefix"] = "preview/pr"
+    assert pull_request_publication_branches(ctx, 7) == (
+        "preview/pr-7/build",
+        "preview/pr-7/verification",
+    )
+
+
+def test_invalid_explicit_pr_number_is_rejected(tmp_path: Path):
+    ctx = context(tmp_path)
+    env = {
+        "GITHUB_EVENT_NAME": "pull_request",
+        "GITHUB_REF_NAME": "42/merge",
+        "SCAD_PROJECT_PR_NUMBER": "not-a-number",
+    }
+    with pytest.raises(RuntimeError, match="positive integer"):
+        resolve_publication_target(ctx, "build", env)
 
 
 def test_ordinary_version_tag_remains_artifact_only(tmp_path: Path):
@@ -179,23 +246,23 @@ def test_legacy_flat_branch_configuration_still_works(tmp_path: Path):
     assert resolve_publication_target(ctx, "build", env).branch == "legacy-build"
 
 
-def test_publication_info_contains_source_provenance(tmp_path: Path):
+def test_publication_info_contains_pr_source_provenance(tmp_path: Path):
     ctx = context(tmp_path)
     env = {
-        "GITHUB_EVENT_NAME": "push",
+        "GITHUB_EVENT_NAME": "pull_request",
         "GITHUB_REF_TYPE": "branch",
-        "GITHUB_REF_NAME": "feature/example",
+        "GITHUB_REF_NAME": "42/merge",
+        "GITHUB_HEAD_REF": "feature/example",
+        "SCAD_PROJECT_PR_NUMBER": "42",
         "GITHUB_REPOSITORY": "brainboxemb/demo",
         "GITHUB_SHA": "abc123",
         "GITHUB_ACTOR": "tester",
         "GITHUB_SERVER_URL": "https://github.com",
         "GITHUB_RUN_ID": "99",
-    }
-    env.update({
         "SCAD_TOOLCHAIN_IMAGE": "ghcr.io/brainboxemb/scad-toolchain:v0.4.1",
         "SCAD_TOOLCHAIN_VERSION": "v0.4.1",
-        "SCAD_PROJECT_WORKFLOW_VERSION": "v0.8.0",
-    })
+        "SCAD_PROJECT_WORKFLOW_VERSION": "v0.9.11",
+    }
     info = publication_info_text(
         ctx,
         "build",
@@ -203,14 +270,14 @@ def test_publication_info_contains_source_provenance(tmp_path: Path):
         runtime_info="OpenSCAD   : OpenSCAD version test",
         submodule_info="dsg/ext/lib.demo : deadbeef",
     )
-    assert "Publication context : development" in info
-    assert "Publication branch  : dev/build" in info
+    assert "Publication context : pull_request" in info
+    assert "Publication branch  : dev/pr-42/build" in info
     assert "Ref                 : feature/example" in info
     assert "Commit              : abc123" in info
     assert "Workflow run        : https://github.com/brainboxemb/demo/actions/runs/99" in info
     assert "SCAD toolchain image: ghcr.io/brainboxemb/scad-toolchain:v0.4.1" in info
     assert "SCAD toolchain ver. : v0.4.1" in info
-    assert "tool.scad-project   : v0.8.0" in info
+    assert "tool.scad-project   : v0.9.11" in info
     assert "Git submodules" in info
     assert "dsg/ext/lib.demo : deadbeef" in info
     assert "Runtime components" in info
@@ -263,6 +330,44 @@ def test_publication_info_uses_package_version_outside_reusable_workflow(
     info = publication_info_text(ctx, "build", env)
     from scad_project import __version__
     assert f"tool.scad-project   : v{__version__}" in info
+
+
+def test_cleanup_removes_existing_pr_publication_branches(tmp_path: Path, monkeypatch):
+    ctx = context(tmp_path)
+    commands: list[list[str]] = []
+    existing = {"dev/pr-42/build", "dev/pr-42/verification"}
+    monkeypatch.setattr(
+        publish_module,
+        "_remote_branch_exists",
+        lambda _cwd, branch: branch in existing,
+    )
+    monkeypatch.setattr(
+        publish_module,
+        "run_checked",
+        lambda command, **kwargs: commands.append(command),
+    )
+
+    removed = cleanup_pull_request_publication(ctx, 42)
+
+    assert removed == ("dev/pr-42/build", "dev/pr-42/verification")
+    assert [command[-2:] for command in commands] == [
+        ["--delete", "dev/pr-42/build"],
+        ["--delete", "dev/pr-42/verification"],
+    ]
+
+
+def test_cleanup_ignores_missing_pr_publication_branches(tmp_path: Path, monkeypatch):
+    ctx = context(tmp_path)
+    commands: list[list[str]] = []
+    monkeypatch.setattr(publish_module, "_remote_branch_exists", lambda *args: False)
+    monkeypatch.setattr(
+        publish_module,
+        "run_checked",
+        lambda command, **kwargs: commands.append(command),
+    )
+
+    assert cleanup_pull_request_publication(ctx, 42) == ()
+    assert commands == []
 
 
 def test_immutable_snapshot_refuses_existing_release_branch(
