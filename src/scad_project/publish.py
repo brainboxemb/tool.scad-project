@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from fnmatch import fnmatch
 import os
 from pathlib import Path
+import re
 import shutil
 import subprocess
 import tempfile
@@ -35,6 +36,51 @@ def _publication_config(context: ProjectContext) -> dict:
 def _validate_kind(kind: str) -> None:
     if kind not in {"build", "verification"}:
         raise RuntimeError(f"Unsupported publication kind: {kind}")
+
+
+def _pull_request_number(environ: dict[str, str]) -> int | None:
+    """Return the pull-request number exposed by CI, when available."""
+
+    explicit = environ.get("SCAD_PROJECT_PR_NUMBER", "").strip()
+    if explicit:
+        if not explicit.isdigit() or int(explicit) < 1:
+            raise RuntimeError(
+                "SCAD_PROJECT_PR_NUMBER must be a positive integer when set"
+            )
+        return int(explicit)
+
+    ref_name = environ.get("GITHUB_REF_NAME", "").strip()
+    match = re.fullmatch(r"([1-9][0-9]*)/merge", ref_name)
+    if match:
+        return int(match.group(1))
+
+    return None
+
+
+def _pull_request_branch(context: ProjectContext, kind: str, pr_number: int) -> str:
+    """Return the mutable generated branch for one pull request and output kind."""
+
+    _validate_kind(kind)
+    publication = _publication_config(context)
+    development = publication.get("development", {}) or {}
+    prefix = str(development.get("pr_branch_prefix", "dev/pr")).strip("/")
+    if not prefix:
+        raise RuntimeError("publication.development.pr_branch_prefix must not be empty")
+    if pr_number < 1:
+        raise RuntimeError("pull-request number must be a positive integer")
+    return f"{prefix}-{pr_number}/{kind}"
+
+
+def pull_request_publication_branches(
+    context: ProjectContext,
+    pr_number: int,
+) -> tuple[str, str]:
+    """Return build and verification publication branches for one pull request."""
+
+    return (
+        _pull_request_branch(context, "build", pr_number),
+        _pull_request_branch(context, "verification", pr_number),
+    )
 
 
 def resolve_release_publication_target(
@@ -108,10 +154,19 @@ def resolve_publication_target(
 
     if event_name == "pull_request":
         source_ref = env.get("GITHUB_HEAD_REF") or ref_name or "pull-request"
+        pr_number = _pull_request_number(env)
+        if pr_number is None:
+            return PublicationTarget(
+                context="pull_request",
+                branch=None,
+                publish=False,
+                source_ref_type="pull_request",
+                source_ref=source_ref,
+            )
         return PublicationTarget(
             context="pull_request",
-            branch=None,
-            publish=False,
+            branch=_pull_request_branch(context, kind, pr_number),
+            publish=True,
             source_ref_type="pull_request",
             source_ref=source_ref,
         )
@@ -138,10 +193,22 @@ def resolve_publication_target(
                 source_ref_type="branch",
                 source_ref=source_ref,
             )
+
+        # Development publication belongs to the pull request so parallel work cannot
+        # race on one shared dev/build or dev/verification branch. Projects can opt in
+        # to the legacy shared branch while migrating.
+        if bool(development.get("publish_branch_pushes", False)):
+            return PublicationTarget(
+                context="development",
+                branch=str(development_branch),
+                publish=True,
+                source_ref_type="branch",
+                source_ref=source_ref,
+            )
         return PublicationTarget(
             context="development",
-            branch=str(development_branch),
-            publish=True,
+            branch=None,
+            publish=False,
             source_ref_type="branch",
             source_ref=source_ref,
         )
@@ -318,6 +385,25 @@ def _remote_branch_exists(cwd: Path, branch: str) -> bool:
             f"Could not check whether publication branch exists: {branch}"
         )
     return bool(completed.stdout.strip())
+
+
+def cleanup_pull_request_publication(
+    context: ProjectContext,
+    pr_number: int,
+) -> tuple[str, ...]:
+    """Delete mutable generated publication branches for one closed pull request."""
+
+    branches = pull_request_publication_branches(context, pr_number)
+    removed: list[str] = []
+    for branch in branches:
+        if not _remote_branch_exists(context.root, branch):
+            continue
+        run_checked(
+            ["git", "push", "origin", "--delete", branch],
+            cwd=context.root,
+        )
+        removed.append(branch)
+    return tuple(removed)
 
 
 def _publish_snapshot(
