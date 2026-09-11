@@ -63,6 +63,7 @@ openscad:
   render_flags:
     - --render
   image_size: [1600, 1000]
+  design_image_size: [640, 480]
 
 rendering:
   watermark:
@@ -207,7 +208,8 @@ rendering:
 
 When configured, `scad-project build` first renders the normal PNG and then
 calls the public `scad-image-watermark` command supplied by
-`docker.scad-toolchain`.
+`docker.scad-toolchain`. The same post-processing is applied to generated
+design-documentation PNGs in both the direct and SCons design-build paths.
 
 The responsibility split is intentional:
 
@@ -222,8 +224,8 @@ consumer project
     -> watermark text/policy
 ```
 
-The setting applies only to configured PNG build outputs. STL builds and
-generated design-documentation images are unchanged.
+The setting therefore applies to configured PNG build outputs and generated
+design-documentation PNGs. STL outputs are unchanged.
 
 ## Design documentation
 
@@ -240,7 +242,7 @@ component/
 ### Source view — preferred
 
 ```markdown
-<!-- scad-design
+<!-- scad-render
 type: source-view
 module: tube_design
 view: bore
@@ -256,7 +258,7 @@ Markdown.
 Small documentation-only illustrations are also supported:
 
 ````markdown
-<!-- scad-design
+<!-- scad-render
 type: inline
 image: wall-thickness.png
 -->
@@ -273,8 +275,9 @@ Inline OpenSCAD is for explanation, not for duplicating reusable project
 geometry.
 
 Presentation metadata such as `vpr`, `vpt`, `vpd` and `size` can live in the
-render declaration.
-
+render declaration. `size` controls the PNG canvas dimensions and aspect ratio;
+it does not zoom into the model. Use camera metadata or a dedicated detail view
+when the geometry itself needs tighter framing.
 
 ## Design render engines
 
@@ -582,6 +585,10 @@ scad-render size
 scad-render-defaults size
     ↓
 project.yml openscad.design_image_size
+    ↓
+project.yml openscad.image_size
+    ↓
+built-in fallback [640, 480]
 ```
 
 The recommended project default is:
@@ -591,7 +598,17 @@ openscad:
   design_image_size: [640, 480]
 ```
 
-Normal project renders can keep a larger `openscad.image_size`.
+A single image can override only its canvas dimensions when needed:
+
+```markdown
+<!-- scad-render
+view: detail
+size: [480, 360]
+-->
+```
+
+This changes the output resolution/aspect ratio, not the model framing. Normal
+project renders can keep a larger `openscad.image_size`.
 
 Run:
 
@@ -725,13 +742,17 @@ scad-project publish-verification
 
 ### Camera and image handling
 
-A declaration may use `size: [width, height]`. A declaration containing only
-`vpr` uses that orientation together with OpenSCAD auto-centering/view-all.
-Use `vpr`, `vpt` and `vpd` together only when an exact camera is required.
+A declaration may use `size: [width, height]`. This changes the PNG canvas and
+aspect ratio only. It does not zoom into the model.
+
+A declaration containing only `vpr` uses that orientation together with
+OpenSCAD auto-centering/view-all. Use `vpr`, `vpt` and `vpd` together when an
+exact camera or tighter framing is required. A purpose-built detail view is
+preferred when unrelated geometry should be omitted entirely.
 
 Generation also copies static files that already live next to a source
 `design.md`. This keeps older external libraries readable while they migrate to
-`scad-design` declarations. Missing legacy images in an external produce a
+`scad-render` declarations. Missing legacy images in an external produce a
 warning; missing project-owned images fail the build.
 
 ## Direct dependency checkout
