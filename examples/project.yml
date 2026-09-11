@@ -6,7 +6,7 @@ tooling:
     type: git-submodule
     url: https://github.com/brainboxemb/tool.scad-project.git
     path: tools/tool.scad-project
-    ref: v0.9.0
+    ref: v0.9.9
 
 paths:
   design_root: dsg/openscad
@@ -26,6 +26,9 @@ openscad:
   render_flags:
     - --render
   image_size: [1600, 1000]
+  # Default for generated design-documentation images. A document can override
+  # this with scad-render-defaults `size`, and an individual scad-render can
+  # override both with its own `size: [width, height]`.
   design_image_size: [640, 480]
 
 publication:
