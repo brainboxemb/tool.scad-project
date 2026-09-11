@@ -68,7 +68,7 @@ jobs:
           git config --global --add safe.directory "$GITHUB_WORKSPACE"
           git config --global --add safe.directory "$GITHUB_WORKSPACE/tools/tool.scad-project"
 
-      - name: Describe selective build cache
+      - name: Describe selective caches
         id: scons-cache
         timeout-minutes: 2
         shell: bash
@@ -78,11 +78,14 @@ jobs:
           SHORT_TOOL_SHA="${TOOL_SHA:0:12}"
           echo "tool_sha=${TOOL_SHA}" >> "$GITHUB_OUTPUT"
           echo "Selective build cache"
-          echo "  Purpose   : reuse unchanged render/export build objects during verification"
+          echo "  Purpose   : reuse unchanged normal render/export build objects during verification"
           echo "  Repository: ${GITHUB_REPOSITORY}"
           echo "  Toolchain : ${SCAD_TOOLCHAIN_VERSION}"
           echo "  Tool       : ${SCAD_PROJECT_WORKFLOW_VERSION} (${SHORT_TOOL_SHA})"
           echo "  Mode       : Verify restores only; it never writes this cache"
+          echo "Selective verification cache"
+          echo "  Purpose   : reuse unchanged verification-only render/export objects per dependency"
+          echo "  Mode       : Verify restores and writes this separate cache"
 
       - name: Restore selective build cache
         id: selective-cache
@@ -94,32 +97,54 @@ jobs:
           restore-keys: |
             scad-selective-build-v2-${{ runner.os }}-${{ github.repository_id }}-${{ env.SCAD_TOOLCHAIN_VERSION }}-${{ steps.scons-cache.outputs.tool_sha }}-
 
+      - name: Restore selective verification cache
+        id: verification-cache
+        timeout-minutes: 2
+        uses: actions/cache/restore@v4
+        with:
+          path: .cache/scad-project/verification-scons
+          key: scad-verification-v1-${{ runner.os }}-${{ github.repository_id }}-${{ env.SCAD_TOOLCHAIN_VERSION }}-${{ steps.scons-cache.outputs.tool_sha }}-${{ hashFiles('project.yml', '.gitmodules', '**/*.scad', '**/*.py', '**/render.yml', '**/export.yml', '**/*.stl', '**/*.off', '**/*.amf', '**/*.3mf', '**/*.obj', '**/*.dxf', '**/*.svg', '**/*.dat', '**/*.txt', '**/*.png') }}
+          restore-keys: |
+            scad-verification-v1-${{ runner.os }}-${{ github.repository_id }}-${{ env.SCAD_TOOLCHAIN_VERSION }}-${{ steps.scons-cache.outputs.tool_sha }}-
+
       - name: Summarise cache status
         timeout-minutes: 2
         shell: bash
         env:
           SELECTIVE_HIT: ${{ steps.selective-cache.outputs.cache-hit }}
           SELECTIVE_MATCHED_KEY: ${{ steps.selective-cache.outputs.cache-matched-key }}
+          VERIFICATION_HIT: ${{ steps.verification-cache.outputs.cache-hit }}
+          VERIFICATION_MATCHED_KEY: ${{ steps.verification-cache.outputs.cache-matched-key }}
         run: |
           set -euo pipefail
-          if [[ "$SELECTIVE_HIT" == "true" ]]; then
-            STATUS="exact hit"
-          elif [[ -n "$SELECTIVE_MATCHED_KEY" ]]; then
-            STATUS="fallback hit - selective reuse available"
-          else
-            STATUS="miss - verification runs without reusable build objects"
-          fi
 
-          echo "Selective build cache: ${STATUS}"
+          cache_status() {
+            local hit="$1"
+            local matched="$2"
+            if [[ "$hit" == "true" ]]; then
+              echo "exact hit"
+            elif [[ -n "$matched" ]]; then
+              echo "fallback hit - selective reuse available"
+            else
+              echo "miss - cold cache"
+            fi
+          }
+
+          SELECTIVE_STATUS="$(cache_status "$SELECTIVE_HIT" "$SELECTIVE_MATCHED_KEY")"
+          VERIFICATION_STATUS="$(cache_status "$VERIFICATION_HIT" "$VERIFICATION_MATCHED_KEY")"
+
+          echo "Selective build cache: ${SELECTIVE_STATUS}"
           echo "Verify cache mode: restore-only"
+          echo "Selective verification cache: ${VERIFICATION_STATUS}"
           {
             echo "## Cache status"
             echo ""
             echo "| Cache | What it is for | Result |"
             echo "| --- | --- | --- |"
-            echo "| Selective build cache | Reuse unchanged render/export build objects | ${STATUS} |"
+            echo "| Selective build cache | Reuse unchanged normal render/export build objects | ${SELECTIVE_STATUS} |"
+            echo "| Selective verification cache | Reuse unchanged verification-only objects per dependency | ${VERIFICATION_STATUS} |"
             echo ""
-            echo "Verify is **restore-only**: it can consume this cache but never replaces the Build cache."
+            echo "The normal build cache is **restore-only** in Verify. Verification targets use a separate restore/write cache."
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Show toolchain
@@ -137,6 +162,51 @@ jobs:
       - name: Run project functional verification
         timeout-minutes: 5
         run: bash ./tools/tool.scad-project/scad-project.sh functional-verify
+
+      - name: Summarise selective verification result
+        timeout-minutes: 2
+        if: always()
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          report = Path(".cache/scad-project/verification-state/last-verification-build.json")
+          if not report.is_file():
+              raise SystemExit(0)
+
+          data = json.loads(report.read_text(encoding="utf-8"))
+          summary = Path(os.environ["GITHUB_STEP_SUMMARY"])
+          with summary.open("a", encoding="utf-8") as handle:
+              handle.write("\n## Verification target rebuild result\n\n")
+              handle.write("| Work | Built now | Reused/current |\n")
+              handle.write("| --- | ---: | ---: |\n")
+              handle.write(
+                  "| Verification targets | "
+                  f"{data.get('executed_count', '?')} | "
+                  f"{data.get('not_executed_count', '?')} |\n"
+              )
+          PY
+
+      - name: Save selective verification cache
+        if: steps.verification-cache.outputs.cache-hit != 'true' && hashFiles('.cache/scad-project/verification-scons/**') != ''
+        timeout-minutes: 2
+        uses: actions/cache/save@v4
+        with:
+          path: .cache/scad-project/verification-scons
+          key: ${{ steps.verification-cache.outputs.cache-primary-key }}
+
+      - name: Upload SCons verification report
+        timeout-minutes: 2
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ inputs.artifact_name }}-scons-report
+          path: .cache/scad-project/verification-state/last-verification-build.json
+          if-no-files-found: ignore
+          retention-days: 7
 
       - name: Record publication provenance
         timeout-minutes: 2
