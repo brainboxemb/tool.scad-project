@@ -10,7 +10,7 @@ import shutil
 from typing import Any
 
 from . import design as _design
-from .build import _require_output
+from .build import _raw_png_path, _require_output, _watermark_text
 from .build_engine import (
     SCONS_CACHE_ROOT,
     SCONS_STATE_ROOT,
@@ -222,6 +222,7 @@ def build_design(context: ProjectContext) -> None:
         "design_image_size",
         openscad_cfg.get("image_size", [640, 480]),
     )
+    watermark_text = _watermark_text(context)
 
     build_root = context.path(context.config["paths"]["build_root"])
     generated_root = build_root / "design"
@@ -252,7 +253,10 @@ def build_design(context: ProjectContext) -> None:
         doc_renders = by_document.get(document.source_file, [])
         for render in doc_renders:
             output = image_dir / render.image
+            render_output = _raw_png_path(output) if watermark_text else output
             output.unlink(missing_ok=True)
+            if render_output != output:
+                render_output.unlink(missing_ok=True)
 
             entry: Path | None = None
             if render.engine == "openscad":
@@ -268,7 +272,13 @@ def build_design(context: ProjectContext) -> None:
                 )
 
             size = render.size or default_size
-            command = _design._render_args(context, render, entry, output, size)
+            command = _design._render_args(
+                context,
+                render,
+                entry,
+                render_output,
+                size,
+            )
             cwd = (
                 render.source.parent
                 if render.engine == "pythonscad" and render.source is not None
@@ -277,6 +287,8 @@ def build_design(context: ProjectContext) -> None:
             targets.append(
                 {
                     "output": _relative_or_absolute(context.root, output),
+                    "render_output": _relative_or_absolute(context.root, render_output),
+                    "watermark_text": watermark_text,
                     "command": [str(value) for value in command],
                     "cwd": _relative_or_absolute(context.root, cwd),
                     "dependencies": _render_dependencies(
