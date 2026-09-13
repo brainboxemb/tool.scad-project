@@ -83,7 +83,12 @@ for spec in manifest["targets"]:
         str(_project_path(project_root, value))
         for value in spec.get("dependencies", [])
     ]
-    spec_json = json.dumps(spec, sort_keys=True, separators=(",", ":"))
+    action_spec = {
+        key: value
+        for key, value in spec.items()
+        if key != "existed_before"
+    }
+    spec_json = json.dumps(action_spec, sort_keys=True, separators=(",", ":"))
 
     target_node = Command(
         str(_project_path(project_root, spec["output"])),
