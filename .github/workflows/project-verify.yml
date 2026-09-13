@@ -93,7 +93,7 @@ jobs:
         uses: actions/cache/restore@v4
         with:
           path: .cache/scad-project/scons
-          key: scad-selective-build-v2-${{ runner.os }}-${{ github.repository_id }}-${{ env.SCAD_TOOLCHAIN_VERSION }}-${{ steps.scons-cache.outputs.tool_sha }}-${{ hashFiles('project.yml', '.gitmodules', '**/*.scad', '**/*.py', '**/render.yml', '**/export.yml', '**/*.stl', '**/*.off', '**/*.amf', '**/*.3mf', '**/*.obj', '**/*.dxf', '**/*.svg', '**/*.dat', '**/*.txt', '**/*.png', '**/design/**') }}
+          key: scad-selective-build-v2-${{ runner.os }}-${{ github.repository_id }}-${{ env.SCAD_TOOLCHAIN_VERSION }}-${{ steps.scons-cache.outputs.tool_sha }}-${{ hashFiles('project.yml', 'project.scad.yml', '.gitmodules', '**/*.scad', '**/*.py', '**/render.yml', '**/export.yml', '**/*.stl', '**/*.off', '**/*.amf', '**/*.3mf', '**/*.obj', '**/*.dxf', '**/*.svg', '**/*.dat', '**/*.txt', '**/*.png', '**/design/**') }}
           restore-keys: |
             scad-selective-build-v2-${{ runner.os }}-${{ github.repository_id }}-${{ env.SCAD_TOOLCHAIN_VERSION }}-${{ steps.scons-cache.outputs.tool_sha }}-
 
@@ -103,7 +103,7 @@ jobs:
         uses: actions/cache/restore@v4
         with:
           path: .cache/scad-project/verification-scons
-          key: scad-verification-v1-${{ runner.os }}-${{ github.repository_id }}-${{ env.SCAD_TOOLCHAIN_VERSION }}-${{ steps.scons-cache.outputs.tool_sha }}-${{ hashFiles('project.yml', '.gitmodules', '**/*.scad', '**/*.py', '**/render.yml', '**/export.yml', '**/*.stl', '**/*.off', '**/*.amf', '**/*.3mf', '**/*.obj', '**/*.dxf', '**/*.svg', '**/*.dat', '**/*.txt', '**/*.png') }}
+          key: scad-verification-v1-${{ runner.os }}-${{ github.repository_id }}-${{ env.SCAD_TOOLCHAIN_VERSION }}-${{ steps.scons-cache.outputs.tool_sha }}-${{ hashFiles('project.yml', 'project.scad.yml', '.gitmodules', '**/*.scad', '**/*.py', '**/render.yml', '**/export.yml', '**/*.stl', '**/*.off', '**/*.amf', '**/*.3mf', '**/*.obj', '**/*.dxf', '**/*.svg', '**/*.dat', '**/*.txt', '**/*.png') }}
           restore-keys: |
             scad-verification-v1-${{ runner.os }}-${{ github.repository_id }}-${{ env.SCAD_TOOLCHAIN_VERSION }}-${{ steps.scons-cache.outputs.tool_sha }}-
 
