@@ -1,11 +1,12 @@
-"""Tooling and workflow consistency
+"""Tooling and workflow consistency.
 
 Checks:
 The package version and reusable workflow version markers stay aligned, pinned tool
-versions are checked correctly, Build remains the only writer of the shared SCons cache,
-cache names/summaries stay understandable, pull-request publication stays isolated and
-self-cleaning, workflow helper code uses the available `python3` command, and agreed
-job/step timeouts are not accidentally increased.
+versions are checked correctly, Build remains the only writer of the normal SCons cache,
+Verify owns only its separate verification cache, cache names/summaries stay
+understandable, pull-request publication stays isolated and self-cleaning, workflow
+helper code uses the available `python3` command, and agreed job/step timeouts are not
+accidentally increased.
 
 Testing approach:
 Configuration-level tests call the real tooling validator with controlled environment
@@ -97,7 +98,7 @@ def test_release_version_markers_are_aligned():
 
 
 def test_scons_cache_writer_policy():
-    """Keep Build as the only shared SCons cache writer; Verify is restore-only."""
+    """Build owns normal cache writes; Verify owns only verification cache state."""
     import yaml
 
     build = yaml.safe_load(
@@ -115,11 +116,16 @@ def test_scons_cache_writer_policy():
         == "actions/cache/restore@v4"
     )
     assert build_steps["Save selective build cache"]["uses"] == "actions/cache/save@v4"
+    assert "Restore selective build cache" not in verify_steps
+    assert "Save selective build cache" not in verify_steps
     assert (
-        verify_steps["Restore selective build cache"]["uses"]
+        verify_steps["Restore selective verification cache"]["uses"]
         == "actions/cache/restore@v4"
     )
-    assert "Save selective build cache" not in verify_steps
+    assert (
+        verify_steps["Save selective verification cache"]["uses"]
+        == "actions/cache/save@v4"
+    )
 
 
 def test_cache_workflow_is_human_readable():
@@ -138,16 +144,16 @@ def test_cache_workflow_is_human_readable():
 
     selective_key = build_steps["Restore selective build cache"]["with"]["key"]
     design_key = build_steps["Restore exact generated design snapshot"]["with"]["key"]
-    verify_key = verify_steps["Restore selective build cache"]["with"]["key"]
+    verify_key = verify_steps["Restore selective verification cache"]["with"]["key"]
 
     assert selective_key.startswith("scad-selective-build-v2-")
     assert design_key.startswith("scad-design-snapshot-v2-")
-    assert verify_key.startswith("scad-selective-build-v2-")
+    assert verify_key.startswith("scad-verification-v1-")
     assert "Describe build caches" in build_steps
     assert "Summarise cache status" in build_steps
     assert "Summarise selective rebuild result" in build_steps
-    assert "Describe selective build cache" in verify_steps
-    assert "Summarise cache status" in verify_steps
+    assert "Describe verification cache" in verify_steps
+    assert "Summarise verification cache status" in verify_steps
 
 
 def test_cache_summary_uses_available_python3_runtime():
@@ -199,8 +205,7 @@ def test_workflow_timeouts_are_bounded():
             "job": ("verify", 15),
             "steps": {
                 "Checkout project and pinned submodules": 2,
-                "Verify project source and configured builds": 5,
-                "Run project functional verification": 5,
+                "Verify project": 5,
                 "Upload verification evidence": 2,
                 "Publish verification branch": 2,
             },

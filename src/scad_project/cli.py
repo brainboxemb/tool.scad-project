@@ -58,7 +58,7 @@ def main() -> None:
         "externals-init", "externals-sync", "externals-deinit",
         "libraries-check", "docs-lint", "design-lint",
         "design-build", "design-render", "build", "verify",
-        "functional-verify", "build-index", "tooling-check",
+        "build-index", "tooling-check",
         "publication-info-build", "publication-info-verification",
         "publish-build", "publish-verification",
         "repo-sync", "repo-update", "repo-status", "workflow-sync",
@@ -163,9 +163,6 @@ def main() -> None:
                 raise RuntimeError("\n".join(errors))
             build_project(ctx)
             print("build: OK")
-        elif args.command == "functional-verify":
-            run_functional_verification(ctx)
-            print("functional verification: OK")
         elif args.command == "build-index":
             output = write_build_index(ctx)
             print(f"build index: {output.relative_to(ctx.root)}")
@@ -179,7 +176,7 @@ def main() -> None:
             errors += design_errors
             if errors:
                 raise RuntimeError("\n".join(errors))
-            build_project(ctx)
+            run_functional_verification(ctx)
             print("verify: OK")
         elif args.command == "publication-info-build":
             output = write_publication_info(ctx, "build")
