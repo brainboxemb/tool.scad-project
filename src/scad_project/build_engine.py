@@ -10,7 +10,9 @@ import shutil
 from typing import Any
 
 from . import build as direct_build
+from . import build_decisions
 from .config import ProjectContext
+from .openscad_deps import scan_openscad_dependencies
 from .process import run_checked
 
 
@@ -75,6 +77,7 @@ def _backend_signature() -> str:
         "openscad_deps.py",
         "process.py",
         "build.py",
+        "build_decisions.py",
     ):
         path = package_root / name
         digest.update(name.encode("utf-8"))
@@ -106,6 +109,33 @@ def _target_spec(
     }
 
 
+def _target_sources(
+    context: ProjectContext,
+    spec: dict[str, Any],
+    *,
+    search_paths: list[str],
+) -> list[str]:
+    """Resolve the OpenSCAD source/dependency set recorded in telemetry."""
+
+    source = Path(str(spec["source"]))
+    if not source.is_absolute():
+        source = context.root / source
+    source = source.resolve()
+    dependencies = scan_openscad_dependencies(
+        source,
+        search_paths=[Path(value).resolve() for value in search_paths],
+    )
+    ordered = [source, *dependencies]
+    result: list[str] = []
+    seen: set[str] = set()
+    for path in ordered:
+        value = _relative_or_absolute(context.root, path)
+        if value not in seen:
+            seen.add(value)
+            result.append(value)
+    return result
+
+
 def _write_manifest(
     context: ProjectContext,
     targets: list[dict[str, Any]],
@@ -119,23 +149,34 @@ def _write_manifest(
     manifest = state_root / "build-manifest.json"
 
     backend_signature = _backend_signature()
+    search_paths = _search_paths(context)
+    target_specs = [
+        _target_spec(
+            context,
+            target,
+            common=common,
+            render_flags=render_flags,
+            watermark_text=watermark_text,
+            backend_signature=backend_signature,
+        )
+        for target in targets
+    ]
+    for spec in target_specs:
+        spec["sources"] = _target_sources(
+            context,
+            spec,
+            search_paths=search_paths,
+        )
+    build_decisions.capture_output_state(context.root, target_specs)
+
     payload = {
+        "schema_version": build_decisions.MANIFEST_SCHEMA_VERSION,
         "project_root": str(context.root.resolve()),
         "cache_root": str(context.path(SCONS_CACHE_ROOT)),
         "sconsign": str(state_root / ".sconsign.dblite"),
         "execution_log": str(state_root / "executed-targets.txt"),
-        "search_paths": _search_paths(context),
-        "targets": [
-            _target_spec(
-                context,
-                target,
-                common=common,
-                render_flags=render_flags,
-                watermark_text=watermark_text,
-                backend_signature=backend_signature,
-            )
-            for target in targets
-        ],
+        "search_paths": search_paths,
+        "targets": target_specs,
     }
     manifest.write_text(
         json.dumps(payload, indent=2, sort_keys=True) + "\n",
@@ -144,41 +185,22 @@ def _write_manifest(
     return manifest
 
 
-def _write_report(context: ProjectContext, manifest: Path) -> None:
+def _write_report(context: ProjectContext, manifest: Path) -> dict[str, Any]:
     payload = json.loads(manifest.read_text(encoding="utf-8"))
-    execution_log = Path(payload["execution_log"])
-    executed = (
-        execution_log.read_text(encoding="utf-8").splitlines()
-        if execution_log.is_file()
-        else []
+    backend_signature = (
+        payload["targets"][0].get("backend_signature")
+        if payload.get("targets")
+        else None
     )
-    outputs = [spec["output"] for spec in payload["targets"]]
-    executed_set = set(executed)
-    not_executed = [output for output in outputs if output not in executed_set]
-
-    report = {
-        "engine": "scons",
-        "target_count": len(outputs),
-        "executed_count": len(executed),
-        "not_executed_count": len(not_executed),
-        "executed": executed,
-        "not_executed": not_executed,
-    }
-    report_path = context.path(SCONS_STATE_ROOT) / "last-build.json"
-    report_path.write_text(
-        json.dumps(report, indent=2, sort_keys=True) + "\n",
-        encoding="utf-8",
+    report = build_decisions.write_decision_report(
+        project_root=context.root,
+        manifest=manifest,
+        report_path=context.path(SCONS_STATE_ROOT) / "last-build.json",
+        report_kind="build",
+        backend_signature=backend_signature,
     )
-
-    print(
-        "SCons summary: "
-        f"targets={len(outputs)} executed={len(executed)} "
-        f"not-executed={len(not_executed)}"
-    )
-    for output in executed:
-        print(f"  built: {output}")
-    for output in not_executed:
-        print(f"  cache/current: {output}")
+    build_decisions.print_decision_summary("SCons summary", report)
+    return report
 
 
 def _build_with_scons(context: ProjectContext) -> None:
@@ -216,17 +238,19 @@ def _build_with_scons(context: ProjectContext) -> None:
         f"SCons build engine: {len(targets)} target(s), "
         f"cache={context.path(SCONS_CACHE_ROOT)}"
     )
-    run_checked(
-        [
-            "scons",
-            "-Q",
-            "-f",
-            str(driver),
-            f"SCAD_PROJECT_MANIFEST={manifest}",
-        ],
-        cwd=context.root,
-    )
-    _write_report(context, manifest)
+    try:
+        run_checked(
+            [
+                "scons",
+                "-Q",
+                "-f",
+                str(driver),
+                f"SCAD_PROJECT_MANIFEST={manifest}",
+            ],
+            cwd=context.root,
+        )
+    finally:
+        _write_report(context, manifest)
 
 
 def build_project(context: ProjectContext) -> None:
