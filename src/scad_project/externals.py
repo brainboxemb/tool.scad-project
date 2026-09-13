@@ -1,15 +1,18 @@
-"""Manage Git-submodule externals declared by project.yml."""
+"""Interpret and verify SCAD external dependencies.
+
+Generic registration, initialization, ref resolution and update are owned by
+`tool.git-project`.  This module keeps only the SCAD-facing view needed for
+build/search-path checks and compatibility status output.
+"""
 
 from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
 import configparser
-import shutil
 import subprocess
 
 from .config import ProjectContext
-from .process import run_checked
 
 
 @dataclass(frozen=True)
@@ -100,6 +103,8 @@ def validate_externals_config(context: ProjectContext) -> list[str]:
 
 
 def external_status(context: ProjectContext) -> list[dict[str, str]]:
+    """Return SCAD-oriented status without changing generic dependencies."""
+
     modules = _gitmodules(context)
     rows: list[dict[str, str]] = []
 
@@ -140,87 +145,28 @@ def external_status(context: ProjectContext) -> list[dict[str, str]]:
 
 
 def init_externals(context: ProjectContext) -> None:
-    errors = validate_externals_config(context)
-    if errors:
-        raise RuntimeError("\n".join(errors))
+    """Compatibility alias for generic dependency bootstrap."""
 
-    modules = _gitmodules(context)
+    from .repository import repo_sync
 
-    for external in configured_externals(context):
-        path = external.path.replace("\\", "/").rstrip("/")
-
-        if path not in modules:
-            target = external.root(context)
-            if target.exists() and any(target.iterdir()):
-                raise RuntimeError(
-                    f"Cannot add external {external.name}: path already contains "
-                    f"files: {path}"
-                )
-            if target.exists():
-                target.rmdir()
-
-            run_checked(
-                ["git", "submodule", "add", external.url, path],
-                cwd=context.root,
-            )
-            modules = _gitmodules(context)
-
-    # Restore only direct externals declared by this project. Nested submodules
-    # belong to the dependency when that repository is used standalone.
-    paths = [
-        external.path.replace("\\", "/").rstrip("/")
-        for external in configured_externals(context)
-    ]
-    run_checked(
-        ["git", "submodule", "sync"],
-        cwd=context.root,
-    )
-    if paths:
-        run_checked(
-            ["git", "submodule", "update", "--init", "--", *paths],
-            cwd=context.root,
-        )
+    repo_sync(context)
 
 
 def sync_externals(context: ProjectContext) -> None:
-    errors = validate_externals_config(context)
-    if errors:
-        raise RuntimeError("\n".join(errors))
+    """Compatibility alias for generic dependency bootstrap."""
 
-    paths = [
-        external.path.replace("\\", "/").rstrip("/")
-        for external in configured_externals(context)
-    ]
-    run_checked(
-        ["git", "submodule", "sync"],
-        cwd=context.root,
-    )
-    if paths:
-        run_checked(
-            ["git", "submodule", "update", "--init", "--", *paths],
-            cwd=context.root,
-        )
+    from .repository import repo_sync
+
+    repo_sync(context)
 
 
 def deinit_externals(context: ProjectContext) -> None:
-    """Deinitialize configured externals without deleting repository metadata.
+    """Reject generic Git mutation that no longer belongs to the SCAD layer."""
 
-    The parent repository keeps .gitmodules and the gitlink. A later
-    externals-init/sync restores the exact pinned commit.
-    """
-
-    modules = _gitmodules(context)
-
-    for external in configured_externals(context):
-        path = external.path.replace("\\", "/").rstrip("/")
-        if path not in modules:
-            print(f"Skipping unregistered external: {external.name}")
-            continue
-
-        run_checked(
-            ["git", "submodule", "deinit", "-f", "--", path],
-            cwd=context.root,
-        )
+    raise RuntimeError(
+        "externals-deinit is no longer a tool.scad-project-owned operation; "
+        "managed Git dependencies are owned by tool.git-project"
+    )
 
 
 def check_externals(context: ProjectContext) -> list[str]:

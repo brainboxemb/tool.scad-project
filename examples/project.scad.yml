@@ -1,0 +1,41 @@
+paths:
+  design_root: dsg/openscad
+  build_root: bld
+
+design:
+  # Set false in consumers that should publish only project-owned design docs.
+  include_externals: true
+
+build_engine:
+  # Omit this section to keep the backwards-compatible direct build engine.
+  engine: scons
+
+openscad:
+  common_flags:
+    - --enable=object-function
+  render_flags:
+    - --render
+  image_size: [1600, 1000]
+  # Default for generated design-documentation images. A document can override
+  # this with scad-render-defaults `size`, and an individual scad-render can
+  # override both with its own `size: [width, height]`.
+  design_image_size: [640, 480]
+
+publication:
+  production:
+    source_branch: main
+    build_branch: prod/build
+    verification_branch: prod/verification
+
+  development:
+    # An open PR #42 publishes to dev/pr-42/build and dev/pr-42/verification.
+    # Ordinary feature-branch pushes are artifact-only by default.
+    pr_branch_prefix: dev/pr
+
+  tags:
+    pattern: "v*"
+
+  release:
+    branch_prefix: rel
+    tag_pattern: "v*"
+    changelog: CHANGELOG.md

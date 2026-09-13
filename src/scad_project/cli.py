@@ -1,4 +1,4 @@
-"""Command-line dispatcher for project bootstrap, lint, build and publication."""
+"""Command-line dispatcher for SCAD project lint, build and publication."""
 
 from __future__ import annotations
 import argparse
@@ -23,11 +23,12 @@ from .release_notes import write_release_notes
 from .index import write_build_index
 from .tooling import tooling_errors
 from .verification import run_functional_verification
-from .dependencies import (
-    dependency_status,
+from .repository import (
+    repo_status,
     repo_sync,
     repo_update,
-    validate_dependency_config,
+    repository_validate,
+    sync_workflow_refs,
 )
 from .externals import (
     check_externals,
@@ -60,7 +61,7 @@ def main() -> None:
         "functional-verify", "build-index", "tooling-check",
         "publication-info-build", "publication-info-verification",
         "publish-build", "publish-verification",
-        "repo-sync", "repo-update", "repo-status",
+        "repo-sync", "repo-update", "repo-status", "workflow-sync",
     ):
         sub.add_parser(name)
 
@@ -98,7 +99,8 @@ def main() -> None:
             raise RuntimeError("\n".join(errors))
 
         if args.command == "config-lint":
-            print("project.yml: OK")
+            repository_validate(ctx)
+            print(f"{ctx.config_file.name}: OK")
         elif args.command == "tooling-check":
             errors = tooling_errors(ctx)
             if errors:
@@ -132,19 +134,14 @@ def main() -> None:
             print("externals deinitialized")
         elif args.command == "repo-sync":
             repo_sync(ctx)
-            print("repository dependencies: synchronized")
+            print("repository dependencies: synchronized by tool.git-project")
         elif args.command == "repo-update":
             repo_update(ctx)
             print("repository dependencies: update complete")
         elif args.command == "repo-status":
-            errors = validate_dependency_config(ctx)
-            if errors:
-                raise RuntimeError("\n".join(errors))
-            for row in dependency_status(ctx):
-                print(
-                    f"{row['role']}: {row['name']} "
-                    f"ref={row['ref']} commit={row['commit']} path={row['path']}"
-                )
+            repo_status(ctx)
+        elif args.command == "workflow-sync":
+            sync_workflow_refs(ctx)
         elif args.command == "docs-lint":
             errors = lint_docs(ctx)
             if errors:

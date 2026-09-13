@@ -1,16 +1,15 @@
-"""Repository updater scripts
+"""SCAD consumer update wrappers
 
 Checks:
-The root and bootstrap copies of the Bash and PowerShell updater stay identical, an
-update changes Build, Verify and Release workflow references together, and reusable
-workflow calls are pinned to the exact checked-out `tool.scad-project` commit rather
-than an annotated version tag.
+Consumer update launchers stay thin: they invoke the SCAD `repo-update` command and do
+not contain their own YAML parser, ref resolver or Git-submodule update implementation.
+The SCAD repository bridge remains responsible only for invoking `tool.git-project` and
+for exact-SHA alignment of Build, Verify and Release reusable workflow callers.
 
 Testing approach:
-The tests read the updater scripts as files. They compare duplicate script bytes
-directly and inspect the script text for the required workflow names and exact-SHA
-assignment rules; the updater is not allowed to modify a real consumer repository during
-these unit tests.
+The tests inspect the launcher and bridge source files as text. This is a policy-level
+boundary test: generic Git implementation keywords are rejected from the consumer
+wrappers while the three SCAD reusable workflow names must remain covered by the bridge.
 """
 
 from pathlib import Path
@@ -18,9 +17,9 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 
-UPDATER_PAIRS = (
-    (ROOT / "update-repo.ps1", ROOT / "bootstrap" / "update-repo.ps1"),
-    (ROOT / "update-repo.sh", ROOT / "bootstrap" / "update-repo.sh"),
+CONSUMER_UPDATERS = (
+    ROOT / "consumer" / "update-repo.ps1",
+    ROOT / "consumer" / "update-repo.sh",
 )
 
 REUSABLE_PROJECT_WORKFLOWS = (
@@ -30,29 +29,38 @@ REUSABLE_PROJECT_WORKFLOWS = (
 )
 
 
-def test_root_updaters_match_bootstrap_copies():
-    for root_script, bootstrap_script in UPDATER_PAIRS:
-        assert root_script.read_bytes() == bootstrap_script.read_bytes(), (
-            root_script,
-            bootstrap_script,
-        )
+def test_consumer_updaters_are_thin_scad_wrappers():
+    for script in CONSUMER_UPDATERS:
+        text = script.read_text(encoding="utf-8")
+        assert "repo-update" in text
+        assert "tool.scad-project" in text
+        assert "submodule add" not in text
+        assert "submodule update" not in text
+        assert "resolve_ref" not in text
+        assert "latest_tag" not in text
+        assert "externals:" not in text
 
 
-def test_updaters_cover_all_reusable_project_workflows():
-    """Prevent Release from lagging behind when Build and Verify are upgraded."""
-    for root_script, _bootstrap_script in UPDATER_PAIRS:
-        text = root_script.read_text(encoding="utf-8")
-        for workflow in REUSABLE_PROJECT_WORKFLOWS:
-            assert workflow in text, f"{root_script} does not update {workflow}"
+def test_repository_bridge_delegates_to_tool_git_project():
+    text = (ROOT / "src" / "scad_project" / "repository.py").read_text(
+        encoding="utf-8"
+    )
+    assert "tools/tool.git-project" in text
+    assert 'run_generic_repository_command(context, "update")' in text
+    assert 'run_generic_repository_command(context, "bootstrap")' in text
 
 
-def test_updaters_pin_workflows_to_checked_out_tool_commit():
-    """Keep external reusable workflows on an exact SHA while project.yml stays semantic."""
-    bash = (ROOT / "update-repo.sh").read_text(encoding="utf-8")
-    powershell = (ROOT / "update-repo.ps1").read_text(encoding="utf-8")
+def test_workflow_sync_covers_all_reusable_project_workflows():
+    text = (ROOT / "src" / "scad_project" / "repository.py").read_text(
+        encoding="utf-8"
+    )
+    for workflow in REUSABLE_PROJECT_WORKFLOWS:
+        assert workflow in text
 
-    assert 'tool_workflow_ref="$new"' in bash
-    assert 'tool_workflow_ref="$workflow_ref"' not in bash
 
-    assert '$ToolWorkflowRef = $New' in powershell
-    assert '$ToolWorkflowRef = $Resolved.WorkflowRef' not in powershell
+def test_workflow_sync_uses_checked_out_tool_commit():
+    text = (ROOT / "src" / "scad_project" / "repository.py").read_text(
+        encoding="utf-8"
+    )
+    assert '"rev-parse", "HEAD"' in text
+    assert "tool_sha" in text
