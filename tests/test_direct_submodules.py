@@ -1,28 +1,26 @@
-"""Non-recursive submodule checkout
+"""Non-recursive consumer checkout
 
 Checks:
-Normal bootstrap, repository update, dependency setup and reusable Build/Verify
-workflows must initialize only the submodules they explicitly manage. Recursive
-submodule checkout is forbidden because it can unexpectedly pull nested repositories
-that are not part of the declared project dependency policy.
+SCAD-owned consumer helpers and reusable Build/Verify workflows must never introduce a
+recursive submodule checkout. Generic dependency registration and update belong to
+`tool.git-project`, so this repository no longer tests or implements those Git details.
 
 Testing approach:
-The test reads the relevant scripts, Python modules and workflow files and searches for
-the known recursive-submodule command-line flags. It fails if any of those flags are
-introduced.
+The test reads only the files still owned by the SCAD project layer and rejects the known
+recursive-submodule command-line flags. Generic Git-tool behaviour is tested in its own
+repository.
 """
 
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 
-def test_normal_repository_scripts_do_not_use_recursive_submodules():
+
+def test_scad_owned_scripts_do_not_use_recursive_submodules():
     files = [
-        ROOT / "bootstrap" / "bootstrap.ps1",
-        ROOT / "bootstrap" / "bootstrap.sh",
-        ROOT / "update-repo.ps1",
-        ROOT / "update-repo.sh",
-        ROOT / "src" / "scad_project" / "dependencies.py",
+        ROOT / "consumer" / "update-repo.ps1",
+        ROOT / "consumer" / "update-repo.sh",
+        ROOT / "src" / "scad_project" / "repository.py",
         ROOT / "src" / "scad_project" / "externals.py",
         ROOT / ".github" / "workflows" / "project-build.yml",
         ROOT / ".github" / "workflows" / "project-verify.yml",
