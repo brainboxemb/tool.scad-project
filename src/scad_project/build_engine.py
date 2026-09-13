@@ -77,7 +77,6 @@ def _backend_signature() -> str:
         "openscad_deps.py",
         "process.py",
         "build.py",
-        "build_decisions.py",
     ):
         path = package_root / name
         digest.update(name.encode("utf-8"))
