@@ -12,7 +12,9 @@ from typing import Any
 from . import __version__
 
 
+REPORT_SCHEMA = "scad-project.build-decisions"
 REPORT_SCHEMA_VERSION = 1
+MANIFEST_SCHEMA_VERSION = 1
 OUTCOMES = ("BUILT", "CACHE_RESTORED", "CURRENT", "ERROR")
 
 
@@ -34,7 +36,9 @@ def capture_output_state(project_root: Path, targets: list[dict[str, Any]]) -> N
         spec["existed_before"] = output.exists()
 
 
-def _classify(*, executed: bool, existed_before: bool, exists_after: bool) -> str:
+def classify_outcome(*, executed: bool, existed_before: bool, exists_after: bool) -> str:
+    """Classify one target from action execution and pre/post output state."""
+
     if executed and exists_after:
         return "BUILT"
     if not executed and not existed_before and exists_after:
@@ -42,6 +46,12 @@ def _classify(*, executed: bool, existed_before: bool, exists_after: bool) -> st
     if not executed and existed_before and exists_after:
         return "CURRENT"
     return "ERROR"
+
+
+def _optional_bool(value: str | None) -> bool | None:
+    if value is None or value == "":
+        return None
+    return value.strip().lower() == "true"
 
 
 def _environment_provenance() -> dict[str, Any]:
@@ -54,17 +64,11 @@ def _environment_provenance() -> dict[str, Any]:
         "workflow_version": os.environ.get("SCAD_PROJECT_WORKFLOW_VERSION"),
         "cache": {
             "namespace": os.environ.get("SCAD_PROJECT_CACHE_NAMESPACE"),
-            "primary_key": os.environ.get("SCAD_PROJECT_CACHE_KEY"),
+            "primary_key": os.environ.get("SCAD_PROJECT_CACHE_PRIMARY_KEY"),
             "matched_key": os.environ.get("SCAD_PROJECT_CACHE_MATCHED_KEY"),
             "exact_hit": _optional_bool(os.environ.get("SCAD_PROJECT_CACHE_HIT")),
         },
     }
-
-
-def _optional_bool(value: str | None) -> bool | None:
-    if value is None or value == "":
-        return None
-    return value.strip().lower() == "true"
 
 
 def write_decision_report(
@@ -75,7 +79,7 @@ def write_decision_report(
     report_kind: str,
     backend_signature: str | None = None,
 ) -> dict[str, Any]:
-    """Write a compatible per-target outcome report from one SCons manifest."""
+    """Write one compatible per-target outcome report from an SCons manifest."""
 
     payload = json.loads(manifest.read_text(encoding="utf-8"))
     execution_log = Path(payload["execution_log"])
@@ -96,7 +100,7 @@ def write_decision_report(
         exists_after = output_path.exists()
         existed_before = bool(spec.get("existed_before", False))
         was_executed = output_value in executed_set
-        outcome = _classify(
+        outcome = classify_outcome(
             executed=was_executed,
             existed_before=existed_before,
             exists_after=exists_after,
@@ -108,7 +112,7 @@ def write_decision_report(
         digest_source = {
             key: value
             for key, value in spec.items()
-            if key not in {"existed_before", "sources", "dependencies"}
+            if key != "existed_before"
         }
         target_reports.append(
             {
@@ -124,8 +128,9 @@ def write_decision_report(
 
     counts = Counter(target["outcome"] for target in target_reports)
     report = {
-        "schema": "scad-project.build-decisions",
+        "schema": REPORT_SCHEMA,
         "schema_version": REPORT_SCHEMA_VERSION,
+        "manifest_schema_version": payload.get("schema_version"),
         "kind": report_kind,
         "engine": "scons",
         "backend_signature": backend_signature,
@@ -137,3 +142,16 @@ def write_decision_report(
     report_path.parent.mkdir(parents=True, exist_ok=True)
     report_path.write_text(json.dumps(report, indent=2, sort_keys=True) + "\n", encoding="utf-8")
     return report
+
+
+def print_decision_summary(label: str, report: dict[str, Any]) -> None:
+    """Print a concise human summary using the same structured outcome vocabulary."""
+
+    counts = report["outcome_counts"]
+    print(
+        f"{label}: targets={report['target_count']} "
+        f"built={counts['BUILT']} cache-restored={counts['CACHE_RESTORED']} "
+        f"current={counts['CURRENT']} error={counts['ERROR']}"
+    )
+    for target in report["targets"]:
+        print(f"  {target['outcome'].lower()}: {target['output']}")
