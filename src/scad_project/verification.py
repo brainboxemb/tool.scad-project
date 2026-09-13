@@ -8,6 +8,7 @@ import shutil
 from typing import Any
 
 from . import build as direct_build
+from . import build_decisions
 from . import build_engine
 from .config import ProjectContext
 from .process import run_checked
@@ -192,24 +193,34 @@ def _write_verification_manifest(
     render_flags = [str(value) for value in osc.get("render_flags", ["--render"])]
     watermark_text = direct_build._watermark_text(context)
     backend_signature = build_engine._backend_signature()
+    search_paths = build_engine._search_paths(context)
+    target_specs = [
+        build_engine._target_spec(
+            context,
+            target,
+            common=common,
+            render_flags=render_flags,
+            watermark_text=watermark_text,
+            backend_signature=backend_signature,
+        )
+        for target in targets
+    ]
+    for spec in target_specs:
+        spec["sources"] = build_engine._target_sources(
+            context,
+            spec,
+            search_paths=search_paths,
+        )
+    build_decisions.capture_output_state(context.root, target_specs)
 
     payload = {
+        "schema_version": build_decisions.MANIFEST_SCHEMA_VERSION,
         "project_root": str(context.root.resolve()),
         "cache_root": str(context.path(VERIFICATION_SCONS_CACHE_ROOT)),
         "sconsign": str(state_root / ".sconsign.dblite"),
         "execution_log": str(state_root / "executed-targets.txt"),
-        "search_paths": build_engine._search_paths(context),
-        "targets": [
-            build_engine._target_spec(
-                context,
-                target,
-                common=common,
-                render_flags=render_flags,
-                watermark_text=watermark_text,
-                backend_signature=backend_signature,
-            )
-            for target in targets
-        ],
+        "search_paths": search_paths,
+        "targets": target_specs,
     }
     manifest.write_text(
         json.dumps(payload, indent=2, sort_keys=True) + "\n",
@@ -218,42 +229,26 @@ def _write_verification_manifest(
     return manifest
 
 
-def _write_verification_report(context: ProjectContext, manifest: Path) -> None:
+def _write_verification_report(
+    context: ProjectContext,
+    manifest: Path,
+) -> dict[str, Any]:
     payload = json.loads(manifest.read_text(encoding="utf-8"))
-    execution_log = Path(payload["execution_log"])
-    executed = (
-        execution_log.read_text(encoding="utf-8").splitlines()
-        if execution_log.is_file()
-        else []
+    backend_signature = (
+        payload["targets"][0].get("backend_signature")
+        if payload.get("targets")
+        else None
     )
-    outputs = [spec["output"] for spec in payload["targets"]]
-    executed_set = set(executed)
-    not_executed = [output for output in outputs if output not in executed_set]
-
-    report = {
-        "engine": "scons",
-        "target_count": len(outputs),
-        "executed_count": len(executed),
-        "not_executed_count": len(not_executed),
-        "executed": executed,
-        "not_executed": not_executed,
-    }
-    state_root = context.path(VERIFICATION_SCONS_STATE_ROOT)
-    report_path = state_root / "last-verification-build.json"
-    report_path.write_text(
-        json.dumps(report, indent=2, sort_keys=True) + "\n",
-        encoding="utf-8",
+    report = build_decisions.write_decision_report(
+        project_root=context.root,
+        manifest=manifest,
+        report_path=context.path(VERIFICATION_SCONS_STATE_ROOT)
+        / "last-verification-build.json",
+        report_kind="verification",
+        backend_signature=backend_signature,
     )
-
-    print(
-        "Verification SCons summary: "
-        f"targets={len(outputs)} executed={len(executed)} "
-        f"not-executed={len(not_executed)}"
-    )
-    for output in executed:
-        print(f"  built: {output}")
-    for output in not_executed:
-        print(f"  cache/current: {output}")
+    build_decisions.print_decision_summary("Verification SCons summary", report)
+    return report
 
 
 def build_verification_targets(context: ProjectContext) -> None:
@@ -281,17 +276,19 @@ def build_verification_targets(context: ProjectContext) -> None:
         f"Verification SCons engine: {len(targets)} target(s), "
         f"cache={context.path(VERIFICATION_SCONS_CACHE_ROOT)}"
     )
-    run_checked(
-        [
-            "scons",
-            "-Q",
-            "-f",
-            str(driver),
-            f"SCAD_PROJECT_MANIFEST={manifest}",
-        ],
-        cwd=context.root,
-    )
-    _write_verification_report(context, manifest)
+    try:
+        run_checked(
+            [
+                "scons",
+                "-Q",
+                "-f",
+                str(driver),
+                f"SCAD_PROJECT_MANIFEST={manifest}",
+            ],
+            cwd=context.root,
+        )
+    finally:
+        _write_verification_report(context, manifest)
 
 
 def run_functional_verification(context: ProjectContext) -> None:
