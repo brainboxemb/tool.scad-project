@@ -111,7 +111,7 @@ def _compose_scad_config(
                     "https://github.com/brainboxemb/tool.scad-project.git",
                 ),
                 "path": tool.get("path", "tools/tool.scad-project"),
-                "ref": tool.get("ref", ""),
+                "ref": str(tool.get("ref", "")).strip(),
             }
         }
 
@@ -149,7 +149,7 @@ def _compose_scad_config(
                     "type": dependency.get("type", "git-submodule"),
                     "url": dependency.get("url", ""),
                     "path": dependency.get("path", ""),
-                    "ref": dependency.get("ref", ""),
+                    "ref": str(dependency.get("ref", "")).strip(),
                 }
             )
             externals.append(item)
