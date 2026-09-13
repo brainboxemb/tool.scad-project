@@ -77,6 +77,7 @@ jobs:
           TOOL_SHA="$(git -C tools/tool.scad-project rev-parse HEAD)"
           SHORT_TOOL_SHA="${TOOL_SHA:0:12}"
           echo "tool_sha=${TOOL_SHA}" >> "$GITHUB_OUTPUT"
+          echo "SCAD_PROJECT_TOOL_SHA=${TOOL_SHA}" >> "$GITHUB_ENV"
           echo "Selective build cache"
           echo "  Purpose   : reuse unchanged normal render/export build objects during verification"
           echo "  Repository: ${GITHUB_REPOSITORY}"
@@ -112,6 +113,7 @@ jobs:
         shell: bash
         env:
           SELECTIVE_HIT: ${{ steps.selective-cache.outputs.cache-hit }}
+          SELECTIVE_PRIMARY_KEY: ${{ steps.selective-cache.outputs.cache-primary-key }}
           SELECTIVE_MATCHED_KEY: ${{ steps.selective-cache.outputs.cache-matched-key }}
           VERIFICATION_HIT: ${{ steps.verification-cache.outputs.cache-hit }}
           VERIFICATION_MATCHED_KEY: ${{ steps.verification-cache.outputs.cache-matched-key }}
@@ -132,6 +134,11 @@ jobs:
 
           SELECTIVE_STATUS="$(cache_status "$SELECTIVE_HIT" "$SELECTIVE_MATCHED_KEY")"
           VERIFICATION_STATUS="$(cache_status "$VERIFICATION_HIT" "$VERIFICATION_MATCHED_KEY")"
+
+          echo "SCAD_PROJECT_CACHE_NAMESPACE=scad-selective-build-v2" >> "$GITHUB_ENV"
+          echo "SCAD_PROJECT_CACHE_PRIMARY_KEY=${SELECTIVE_PRIMARY_KEY}" >> "$GITHUB_ENV"
+          echo "SCAD_PROJECT_CACHE_MATCHED_KEY=${SELECTIVE_MATCHED_KEY}" >> "$GITHUB_ENV"
+          echo "SCAD_PROJECT_CACHE_HIT=${SELECTIVE_HIT}" >> "$GITHUB_ENV"
 
           echo "Selective build cache: ${SELECTIVE_STATUS}"
           echo "Verify cache mode: restore-only"
@@ -159,6 +166,19 @@ jobs:
         timeout-minutes: 5
         run: bash ./tools/tool.scad-project/scad-project.sh verify
 
+      - name: Expose verification cache context
+        timeout-minutes: 2
+        shell: bash
+        env:
+          VERIFICATION_HIT: ${{ steps.verification-cache.outputs.cache-hit }}
+          VERIFICATION_PRIMARY_KEY: ${{ steps.verification-cache.outputs.cache-primary-key }}
+          VERIFICATION_MATCHED_KEY: ${{ steps.verification-cache.outputs.cache-matched-key }}
+        run: |
+          echo "SCAD_PROJECT_CACHE_NAMESPACE=scad-verification-v1" >> "$GITHUB_ENV"
+          echo "SCAD_PROJECT_CACHE_PRIMARY_KEY=${VERIFICATION_PRIMARY_KEY}" >> "$GITHUB_ENV"
+          echo "SCAD_PROJECT_CACHE_MATCHED_KEY=${VERIFICATION_MATCHED_KEY}" >> "$GITHUB_ENV"
+          echo "SCAD_PROJECT_CACHE_HIT=${VERIFICATION_HIT}" >> "$GITHUB_ENV"
+
       - name: Run project functional verification
         timeout-minutes: 5
         run: bash ./tools/tool.scad-project/scad-project.sh functional-verify
@@ -178,15 +198,18 @@ jobs:
               raise SystemExit(0)
 
           data = json.loads(report.read_text(encoding="utf-8"))
+          counts = data.get("outcome_counts", {})
           summary = Path(os.environ["GITHUB_STEP_SUMMARY"])
           with summary.open("a", encoding="utf-8") as handle:
-              handle.write("\n## Verification target rebuild result\n\n")
-              handle.write("| Work | Built now | Reused/current |\n")
-              handle.write("| --- | ---: | ---: |\n")
+              handle.write("\n## Verification target outcomes\n\n")
+              handle.write("| Work | BUILT | CACHE_RESTORED | CURRENT | ERROR |\n")
+              handle.write("| --- | ---: | ---: | ---: | ---: |\n")
               handle.write(
                   "| Verification targets | "
-                  f"{data.get('executed_count', '?')} | "
-                  f"{data.get('not_executed_count', '?')} |\n"
+                  f"{counts.get('BUILT', 0)} | "
+                  f"{counts.get('CACHE_RESTORED', 0)} | "
+                  f"{counts.get('CURRENT', 0)} | "
+                  f"{counts.get('ERROR', 0)} |\n"
               )
           PY
 
@@ -198,13 +221,15 @@ jobs:
           path: .cache/scad-project/verification-scons
           key: ${{ steps.verification-cache.outputs.cache-primary-key }}
 
-      - name: Upload SCons verification report
+      - name: Upload SCons verification reports
         timeout-minutes: 2
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: ${{ inputs.artifact_name }}-scons-report
-          path: .cache/scad-project/verification-state/last-verification-build.json
+          path: |
+            .cache/scad-project/state/last-build.json
+            .cache/scad-project/verification-state/last-verification-build.json
           if-no-files-found: ignore
           retention-days: 7
 
