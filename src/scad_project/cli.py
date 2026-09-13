@@ -11,6 +11,7 @@ from .build_engine_config import validate_build_engine_config
 from .config import ConfigError, load_context, validate_config
 from .design_policy import build_design, lint_design
 from .docs import lint_docs
+from .producer import produce_build, produce_verification
 from .publish import (
     cleanup_pull_request_publication,
     publish_build,
@@ -58,6 +59,7 @@ def main() -> None:
         "externals-init", "externals-sync", "externals-deinit",
         "libraries-check", "docs-lint", "design-lint",
         "design-build", "design-render", "build", "verify",
+        "produce-build", "produce-verification",
         "build-index", "tooling-check",
         "publication-info-build", "publication-info-verification",
         "publish-build", "publish-verification",
@@ -163,6 +165,9 @@ def main() -> None:
                 raise RuntimeError("\n".join(errors))
             build_project(ctx)
             print("build: OK")
+        elif args.command == "produce-build":
+            produce_build(ctx)
+            print("build producer: OK")
         elif args.command == "build-index":
             output = write_build_index(ctx)
             print(f"build index: {output.relative_to(ctx.root)}")
@@ -178,6 +183,9 @@ def main() -> None:
                 raise RuntimeError("\n".join(errors))
             run_functional_verification(ctx)
             print("verify: OK")
+        elif args.command == "produce-verification":
+            produce_verification(ctx)
+            print("verification producer: OK")
         elif args.command == "publication-info-build":
             output = write_publication_info(ctx, "build")
             print(f"publication info: {output.relative_to(ctx.root)}")
