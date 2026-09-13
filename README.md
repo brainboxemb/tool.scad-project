@@ -97,8 +97,9 @@ Dependency URL/path/ref/type come from generic `project.yml`. SCAD-only external
 metadata such as `required_file` is matched by dependency name from the profile.
 The loader composes both files into one internal SCAD configuration.
 
-The older combined `project.yml` remains readable during the Step 0.5 migration;
-new current-generation migrations should use the split form.
+The older combined `project.yml` remains a compatibility input. Current-generation
+consumers use the split model; removing the compatibility path is a later cleanup
+and release decision.
 
 See [`examples/project.yml`](examples/project.yml) and
 [`examples/project.scad.yml`](examples/project.scad.yml).
@@ -138,7 +139,7 @@ The generic tool moves dependency gitlinks. The final `workflow-sync` step is
 SCAD-specific: consumer Build, Verify and Release reusable-workflow calls are
 rewritten to the exact checked-out `tool.scad-project` commit SHA.
 
-Compatibility commands remain available during migration:
+Compatibility commands remain available:
 
 ```text
 scad-project repo-sync      delegate generic bootstrap, then workflow-sync
@@ -213,9 +214,15 @@ Normal build and verification maintain separate selective cache/state scopes.
 Generated design documentation uses dependency-aware per-image SCons targets
 when the exact whole-design snapshot is unavailable.
 
-The build-decision reporting model is being improved separately under the
-`meta.scad-projects` roadmap. Structured telemetry work remains paused until the
-Git/bootstrap migration prerequisite is complete across the selected consumers.
+SCons build decisions are written as structured per-target telemetry with the
+shared outcomes `BUILT`, `CACHE_RESTORED`, `CURRENT` and `ERROR`. Normal build,
+generated-design and verification reports use the same schema, include output
+existence before/after execution, source/dependency inputs, a stable target-spec
+digest and available run/cache provenance. GitHub Actions Step Summaries use the
+same vocabulary instead of the older ambiguous `cache/current` label.
+
+See [`docs/build-decision-telemetry.md`](docs/build-decision-telemetry.md) for the
+machine-readable report contract and classification rules.
 
 ## Design documentation
 
