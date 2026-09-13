@@ -2,11 +2,11 @@
 
 Checks:
 GitHub Actions cache keys include every project input that can change generated CAD
-output: OpenSCAD and Python source, render/export profiles, design metadata, and
-commonly imported asset formats. Cache hashing must work for any configured project
-layout rather than assuming that design source always lives under ``dsg/``. Verify
-restores the normal build cache read-only and owns a separate writable cache for
-verification-only targets.
+output: generic and SCAD profile configuration, OpenSCAD and Python source,
+render/export profiles, design metadata, and commonly imported asset formats. Cache
+hashing must work for any configured project layout rather than assuming that design
+source always lives under ``dsg/``. Verify restores the normal build cache read-only
+and owns a separate writable cache for verification-only targets.
 
 Testing approach:
 These tests read the reusable Build and Verify workflow YAML as text and check for the
@@ -43,6 +43,16 @@ def test_cache_globs_are_layout_independent():
         text = workflow.read_text(encoding="utf-8")
         assert "dsg/**" not in text, f"{workflow} hard-codes the dsg source layout"
         assert "'**/*.scad'" in text
+
+
+def test_cache_keys_track_generic_and_scad_profile_config():
+    for workflow in (
+        Path(".github/workflows/project-build.yml"),
+        Path(".github/workflows/project-verify.yml"),
+    ):
+        text = workflow.read_text(encoding="utf-8")
+        assert "'project.yml'" in text
+        assert "'project.scad.yml'" in text
 
 
 def test_scons_cache_keys_track_profiles_and_common_import_assets():
