@@ -73,7 +73,7 @@ externals:
     ]
 
 
-def test_split_config_rejects_scad_metadata_for_unmanaged_external(tmp_path: Path):
+def test_split_config_rejects_metadata_for_unmanaged_external(tmp_path: Path):
     (tmp_path / "project.yml").write_text(
         """schema_version: 1
 project:
@@ -81,6 +81,13 @@ project:
 profiles:
   - type: scad
     config: project.scad.yml
+dependencies:
+  - name: managed
+    role: external
+    type: git-submodule
+    url: https://example.invalid/managed.git
+    path: dsg/ext/managed
+    ref: 2222222222222222222222222222222222222222
 """,
         encoding="utf-8",
     )
@@ -95,11 +102,8 @@ externals:
         encoding="utf-8",
     )
 
-    # Without generic external dependencies, the profile is still interpreted
-    # as the legacy SCAD external form. This compatibility disappears only in a
-    # later cleanup step after all supported consumers have migrated.
-    context = load_context(tmp_path)
-    assert context.config["externals"][0]["name"] == "unmanaged"
+    with pytest.raises(ConfigError, match="no matching generic dependency: unmanaged"):
+        load_context(tmp_path)
 
 
 def test_generic_project_requires_scad_profile(tmp_path: Path):
