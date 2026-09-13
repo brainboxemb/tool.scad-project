@@ -1,19 +1,18 @@
-"""Build/verification cache inputs and telemetry context
+"""Build/verification cache inputs and telemetry context.
 
 Checks:
 GitHub Actions cache keys include every project input that can change generated CAD
 output: generic and SCAD profile configuration, OpenSCAD and Python source,
 render/export profiles, design metadata, and commonly imported asset formats. Cache
 hashing must work for any configured project layout rather than assuming that design
-source always lives under ``dsg/``. Verify restores the normal build cache read-only
-and owns a separate writable cache for verification-only targets. Reusable workflows
-also expose exact tool/cache context and summarize the four structured target outcomes.
+source always lives under ``dsg/``. Verify owns only the separate writable cache for
+verification-only targets; it must not restore or report normal Build state.
 
 Testing approach:
 These tests read the reusable Build and Verify workflow YAML as text and check for the
 required repository-wide file patterns, cache namespaces, provenance environment
 variables and structured outcome vocabulary. GitHub Actions itself is not started;
-Actions-level exact/fallback/miss qualification remains Step 5.
+Actions-level exact/fallback/miss qualification remains a later integration concern.
 """
 
 from pathlib import Path
@@ -93,16 +92,24 @@ def test_design_cache_tracks_design_tree_and_common_render_assets():
         assert f"'{pattern}'" in text
 
 
-def test_verify_uses_separate_writable_verification_cache():
+def test_verify_uses_only_separate_writable_verification_cache():
     text = Path(".github/workflows/project-verify.yml").read_text(encoding="utf-8")
 
-    assert "path: .cache/scad-project/scons" in text
-    assert "Verify cache mode: restore-only" in text
+    assert "path: .cache/scad-project/scons" not in text
+    assert "scad-selective-build-v2-" not in text
     assert "path: .cache/scad-project/verification-scons" in text
     assert "scad-verification-v1-" in text
     assert "- name: Save selective verification cache" in text
     assert "uses: actions/cache/save@v4" in text
     assert ".cache/scad-project/verification-state/last-verification-build.json" in text
+
+
+def test_verify_calls_one_verification_domain_action():
+    text = Path(".github/workflows/project-verify.yml").read_text(encoding="utf-8")
+
+    command = "bash ./tools/tool.scad-project/scad-project.sh verify"
+    assert text.count(command) == 1
+    assert "functional-verify" not in text
 
 
 def test_reusable_workflows_expose_structured_telemetry_context():
@@ -123,9 +130,10 @@ def test_build_uploads_normal_and_design_decision_reports():
     assert ".cache/scad-project/state/last-design-build.json" in text
 
 
-def test_verify_switches_cache_context_and_uploads_both_decision_reports():
+def test_verify_exposes_only_verification_cache_context_and_report():
     text = Path(".github/workflows/project-verify.yml").read_text(encoding="utf-8")
-    assert "SCAD_PROJECT_CACHE_NAMESPACE=scad-selective-build-v2" in text
+
+    assert "SCAD_PROJECT_CACHE_NAMESPACE=scad-selective-build-v2" not in text
     assert "SCAD_PROJECT_CACHE_NAMESPACE=scad-verification-v1" in text
-    assert ".cache/scad-project/state/last-build.json" in text
+    assert ".cache/scad-project/state/last-build.json" not in text
     assert ".cache/scad-project/verification-state/last-verification-build.json" in text
