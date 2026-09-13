@@ -2,6 +2,18 @@
 
 Functional changes to released `tool.scad-project` versions.
 
+## v0.10.0
+
+### Changed
+
+- Make `scad-project verify` the single verification-domain action: it validates verification-relevant project state, builds declared verification-only targets, and then runs configured verification commands without invoking the normal `build` domain.
+- Keep normal Build output and `.cache/scad-project/scons` outside the reusable Verify workflow; Verify now restores/writes only `.cache/scad-project/verification-scons` and reports only `last-verification-build.json`.
+- Treat the Build/Verify separation as an intentional breaking release boundary so consumers adopt the new contract only when they explicitly upgrade to v0.10.0.
+
+### Removed
+
+- Remove the separate public `scad-project functional-verify` command; its verification-target and command behavior is now part of `scad-project verify`.
+
 ## v0.9.13
 
 ### Added
