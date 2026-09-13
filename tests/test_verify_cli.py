@@ -1,4 +1,16 @@
-"""Public verification-domain CLI contract for the v0.10 boundary."""
+"""Public verification-domain CLI contract for the v0.10 boundary.
+
+Checks:
+The public ``verify`` command runs verification without invoking the normal Build
+domain or materializing normal ``bld/`` output. The old public ``functional-verify``
+command is absent at the intentional v0.10 breaking boundary.
+
+Testing approach:
+Tests run the real argparse dispatcher against a temporary ``ProjectContext`` while
+monkeypatching validation and execution dependencies. Any normal ``build_project`` call
+fails the test immediately, and argparse is exercised directly to prove the removed
+command is no longer accepted.
+"""
 
 from pathlib import Path
 import sys
