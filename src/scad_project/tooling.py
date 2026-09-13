@@ -1,20 +1,30 @@
-"""Validate project tooling expectations for the running CLI/workflow."""
+"""Validate SCAD tooling expectations for the running CLI/workflow."""
 
 from __future__ import annotations
 
 import os
+from pathlib import Path
 import re
+import subprocess
 
 from . import __version__
 from .config import ProjectContext
+from .repository import WORKFLOW_USE_RE
 
 
 SEMVER_TAG_RE = re.compile(r"^v?(\d+)\.(\d+)\.(\d+)$")
+FULL_SHA_RE = re.compile(r"^[0-9a-fA-F]{40}$")
 
 
 def _tag(version: str) -> str:
     value = str(version).strip()
     return value if value.startswith("v") else f"v{value}"
+
+
+def _tooling_entry(context: ProjectContext) -> dict | None:
+    tooling = context.config.get("tooling", {}) or {}
+    modern = tooling.get("tool_scad_project")
+    return modern if isinstance(modern, dict) else None
 
 
 def configured_tool_ref(context: ProjectContext) -> str | None:
@@ -28,14 +38,47 @@ def configured_tool_ref(context: ProjectContext) -> str | None:
     return str(legacy).strip() if legacy else None
 
 
-def tooling_errors(context: ProjectContext) -> list[str]:
-    """Check what can be proven from the running tool.
+def _checked_out_tool_sha(context: ProjectContext) -> str | None:
+    entry = _tooling_entry(context)
+    path = str(entry.get("path", "tools/tool.scad-project")) if entry else "tools/tool.scad-project"
+    root = context.path(path)
+    if not root.exists():
+        return None
 
-    Exact semantic-version tags must match the package version. Floating
-    policies (``latest`` or a branch such as ``main``) are resolved by
-    ``repo-update`` and locked by the parent gitlink, so a package-version
-    equality check would be misleading for unreleased branch commits.
-    """
+    result = subprocess.run(
+        ["git", "-C", str(root), "rev-parse", "HEAD"],
+        cwd=context.root,
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+    )
+    if result.returncode != 0:
+        return None
+    value = result.stdout.strip()
+    return value if FULL_SHA_RE.fullmatch(value) else None
+
+
+def _workflow_ref_errors(context: ProjectContext, tool_sha: str) -> list[str]:
+    workflow_dir = context.root / ".github" / "workflows"
+    if not workflow_dir.is_dir():
+        return []
+
+    errors: list[str] = []
+    for path in sorted([*workflow_dir.glob("*.yml"), *workflow_dir.glob("*.yaml")]):
+        text = path.read_text(encoding="utf-8")
+        for match in WORKFLOW_USE_RE.finditer(text):
+            ref = match.group(2)
+            if ref != tool_sha:
+                errors.append(
+                    "reusable workflow ref mismatch: "
+                    f"{path.relative_to(context.root)} uses {ref}, "
+                    f"checked-out tool is {tool_sha}"
+                )
+    return errors
+
+
+def tooling_errors(context: ProjectContext) -> list[str]:
+    """Check the configured tool policy, checked-out gitlink and workflow callers."""
 
     errors: list[str] = []
     expected = configured_tool_ref(context)
@@ -43,6 +86,19 @@ def tooling_errors(context: ProjectContext) -> list[str]:
         errors.append("Missing tooling tool.scad-project ref")
         return errors
 
+    tool_sha = _checked_out_tool_sha(context)
+    if FULL_SHA_RE.fullmatch(expected) and tool_sha and expected.lower() != tool_sha.lower():
+        errors.append(
+            "tool.scad-project gitlink mismatch: "
+            f"project.yml expects {expected}, checked out {tool_sha}"
+        )
+
+    if tool_sha:
+        errors.extend(_workflow_ref_errors(context, tool_sha))
+
+    # Release tags still provide a useful package/workflow-version invariant.
+    # Full-SHA and branch policies are locked/proven by tool.git-project plus
+    # the checked-out gitlink/workflow checks above.
     if SEMVER_TAG_RE.fullmatch(expected):
         expected_tag = _tag(expected)
         running_tag = _tag(__version__)
