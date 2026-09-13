@@ -132,7 +132,16 @@ for spec in manifest["targets"]:
         search_paths=search_paths,
     )
     source_nodes = [str(source_path), *[str(path) for path in dependencies]]
-    spec_json = json.dumps(spec, sort_keys=True, separators=(",", ":"))
+
+    # Telemetry-only runtime fields must not participate in SCons' target
+    # signature. Otherwise the transition from an absent output to an existing
+    # output would itself invalidate an unchanged target on the next run.
+    action_spec = {
+        key: value
+        for key, value in spec.items()
+        if key != "existed_before"
+    }
+    spec_json = json.dumps(action_spec, sort_keys=True, separators=(",", ":"))
 
     target_node = Command(
         str(_project_path(project_root, spec["output"])),
