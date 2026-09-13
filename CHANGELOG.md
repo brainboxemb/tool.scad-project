@@ -2,6 +2,18 @@
 
 Functional changes to released `tool.scad-project` versions.
 
+## v0.10.1
+
+### Added
+
+- Add `scad-project produce-build` as the stable complete normal-build producer action for repository-level orchestrators. It owns SCAD validation, generated design documentation, configured build output, build indexing and producer provenance while preserving SCons as the fine-grained target/cache authority.
+- Add `scad-project produce-verification` as the corresponding complete verification producer action. It owns verification-relevant validation, verification-only targets/project checks and producer provenance without invoking normal Build, generated design output or the normal build index.
+- Resolve producer source/tool revisions from the actual Git checkout when available while preserving explicit CI provenance overrides, so cached producer evidence remains tied to the execution that created it.
+
+### Changed
+
+- Keep Moon/GitHub cache restore, current materialization evidence and generated-branch publication outside the SCAD producer actions; those remain repository-orchestration/lifecycle concerns rather than SCAD target semantics.
+
 ## v0.10.0
 
 ### Changed
