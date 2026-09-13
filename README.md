@@ -163,7 +163,6 @@ scad-project docs-lint
 scad-project design-lint
 scad-project design-build
 scad-project build
-scad-project functional-verify
 scad-project verify
 scad-project build-index
 ```
@@ -171,6 +170,11 @@ scad-project build-index
 `config-lint` validates the generic `project.yml` through the pinned
 `tool.git-project` when the split configuration model is active, then validates
 SCAD-specific configuration locally.
+
+`build` owns normal configured render/export output. `verify` is the separate
+verification-domain action: it validates verification-relevant project source,
+builds declared verification-only targets and then runs configured verification
+commands. It does not materialize normal Build output as a side effect.
 
 ## Directory-based builds
 
@@ -300,6 +304,11 @@ verification:
     - [bash, scripts/run-project-checks.sh]
 ```
 
+`scad-project verify` first performs the source/configuration checks required for
+verification, then builds declared verification targets through the dedicated
+verification SCons cache/state path, and finally runs project-specific commands.
+Normal `bld/` output and the normal Build cache are outside this action.
+
 Declared evidence is dependency-aware and uses a verification-specific SCons
 cache. Project-specific commands run after declared verification targets and
 should inspect/assert behavior rather than become a second target-orchestration
@@ -347,7 +356,9 @@ moving branch and not an annotated tag. `workflow-sync` maintains these literal
 SHAs after dependency updates.
 
 The reusable workflows provide the common lint/design/build/cache/publication
-sequence and run on the pinned `docker.scad-toolchain` image.
+sequence and run on the pinned `docker.scad-toolchain` image. Build and Verify
+remain separate domain workflows: Verify owns only verification targets, commands,
+evidence and its verification cache.
 
 ## Direct dependency rule
 
