@@ -152,10 +152,22 @@ Key rules:
   `CACHE_RESTORED`, `CURRENT` and `ERROR` for normal, design and verification
   targets.
 
-Meta Step 0.5 is complete. Issue/PR #38 is the active Step 1 implementation for
-structured decision telemetry. Do not fold the Step 2 deterministic SCons matrix,
-Step 3 audit policy or later roadmap work into Step 1 merely because the report
-schema now makes those later steps possible.
+Meta Steps 0.5 and 1 are complete. Step 2 — Deterministic SCons decision suite —
+is the active roadmap work in issue #40 / branch
+`feature/pr-40-scons-decision-conformance`.
+
+Before implementing a roadmap step, re-read and critically reassess the current
+`meta.scad-projects` plan against this repository's actual implementation. Being
+listed as the next step is not permission to execute stale assumptions
+mechanically. If the goal, ownership, prerequisites, scenario matrix or evidence
+can be improved, correct the meta plan first and then implement the reassessed
+step.
+
+For Step 2 specifically, keep the work at deterministic SCons decision
+conformance. Do not fold Step 3 audit policy, the future independent test
+repository, GitHub Actions cache-adapter qualification or consumer rollout into
+this step. `CACHE_RESTORED` is a build-decision outcome; do not silently treat it
+as proof of cached artifact-content integrity.
 
 ## Generated design documentation
 
