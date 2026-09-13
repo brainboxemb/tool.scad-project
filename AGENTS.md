@@ -56,7 +56,7 @@ pinned `tool.git-project`; they must not reimplement it.
 
 ## Configuration split
 
-The target current-generation consumer model is:
+The current-generation consumer model is:
 
 ```text
 tools/tool.git-project       bootstrap engine, pinned directly by Git
@@ -69,9 +69,9 @@ tools/tool.scad-project      managed dependency
 loader composes the generic project name/tool dependency/external dependency
 locations with SCAD-only profile data.
 
-During the Step 0.5 migration, the legacy combined `project.yml` remains a
-compatibility input. New current-generation migrations should use the split
-model. Removing the compatibility path is a later cleanup/release decision.
+The legacy combined `project.yml` remains a compatibility input. New and migrated
+current-generation consumers use the split model. Removing the compatibility
+path is a later cleanup/release decision.
 
 SCAD-only metadata for an external (for example `required_file`) may live in the
 SCAD profile keyed by dependency name. URL/path/ref/type remain generic
@@ -148,12 +148,14 @@ Key rules:
 - configured external-library roots remain dependency search roots;
 - cache signatures include target specification plus relevant tooling/runtime
   and render-policy inputs;
-- reports must eventually distinguish BUILT, CACHE_RESTORED, CURRENT and ERROR
-  according to the meta roadmap.
+- structured SCons reports use the shared target outcomes `BUILT`,
+  `CACHE_RESTORED`, `CURRENT` and `ERROR` for normal, design and verification
+  targets.
 
-Do not start the structured decision-telemetry work while meta Step 0.5 is
-incomplete. Issue #38 remains paused until this ownership migration and selected
-consumer rollout are finished.
+Meta Step 0.5 is complete. Issue/PR #38 is the active Step 1 implementation for
+structured decision telemetry. Do not fold the Step 2 deterministic SCons matrix,
+Step 3 audit policy or later roadmap work into Step 1 merely because the report
+schema now makes those later steps possible.
 
 ## Generated design documentation
 
