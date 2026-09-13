@@ -1,16 +1,17 @@
-"""Selective design rendering with SCons
+"""Selective design rendering with SCons and structured outcomes
 
 Checks:
-Generated design images behave as independent SCons targets: a cold build renders both
-sample images, an unchanged second build renders none, and changing the source for one
-component rerenders only that component's image. Configured watermark post-processing
-is also applied to the final design PNG without leaving the raw intermediate behind.
+Generated design images behave as independent SCons targets: a cold build reports both
+sample images as BUILT, an unchanged second build restores both into the deliberately
+fresh design staging tree as CACHE_RESTORED, and changing one component rebuilds only
+that image while the other is restored. Configured watermark post-processing is also
+applied to the final design PNG without leaving the raw intermediate behind.
 
 Testing approach:
 This is an integration test rather than a simulated unit test. It creates two tiny real
 OpenSCAD components and runs the actual SCons/OpenSCAD design build three times, then
-reads the generated build report and checks the output files. The test is skipped when
-the required SCAD toolchain programs are not installed.
+reads the generated structured decision report and checks the output files. The test is
+skipped when the required SCAD toolchain programs are not installed.
 """
 
 from __future__ import annotations
@@ -96,14 +97,26 @@ def _report(tmp_path: Path) -> dict:
     return json.loads(path.read_text(encoding="utf-8"))
 
 
+def _outcomes(report: dict) -> dict[str, str]:
+    return {
+        Path(target["output"]).name: target["outcome"]
+        for target in report["targets"]
+    }
+
+
 def test_design_images_are_individual_scons_targets(tmp_path: Path):
     context = _context(tmp_path)
 
-    # Cold build: both independent image targets must execute and populate cache.
+    # Cold build: both independent image targets execute and populate CacheDir.
     build_design(context)
     first = _report(tmp_path)
     assert first["target_count"] == 2
-    assert first["executed_count"] == 2
+    assert first["outcome_counts"] == {
+        "BUILT": 2,
+        "CACHE_RESTORED": 0,
+        "CURRENT": 0,
+        "ERROR": 0,
+    }
 
     alpha_output = (
         tmp_path
@@ -119,11 +132,16 @@ def test_design_images_are_individual_scons_targets(tmp_path: Path):
     assert alpha_output.is_file()
     assert not alpha_output.with_name(".01-final.unwatermarked.png").exists()
 
-    # Identical second build: SCons should execute no render target at all.
+    # The design stage is intentionally recreated for every build. An unchanged
+    # second run therefore materializes both targets from SCons CacheDir.
     build_design(context)
     second = _report(tmp_path)
-    assert second["target_count"] == 2
-    assert second["executed_count"] == 0
+    assert second["outcome_counts"] == {
+        "BUILT": 0,
+        "CACHE_RESTORED": 2,
+        "CURRENT": 0,
+        "ERROR": 0,
+    }
 
     alpha = tmp_path / "dsg" / "components" / "alpha" / "alpha.scad"
     alpha.write_text(
@@ -131,14 +149,27 @@ def test_design_images_are_individual_scons_targets(tmp_path: Path):
         encoding="utf-8",
     )
 
-    # Change only alpha: alpha rerenders while beta remains a reusable target.
+    # Change only alpha: alpha rerenders while beta is restored from CacheDir.
     build_design(context)
     third = _report(tmp_path)
-    assert third["target_count"] == 2
-    assert third["executed_count"] == 1
-    assert third["executed"][0].endswith(
-        "components/alpha/design/img/01-final.png"
-    )
+    assert third["outcome_counts"] == {
+        "BUILT": 1,
+        "CACHE_RESTORED": 1,
+        "CURRENT": 0,
+        "ERROR": 0,
+    }
+    outcomes = _outcomes(third)
+    assert outcomes["01-final.png"] in {"BUILT", "CACHE_RESTORED"}
+    alpha_targets = [
+        target for target in third["targets"]
+        if "components/alpha/" in target["output"]
+    ]
+    beta_targets = [
+        target for target in third["targets"]
+        if "components/beta/" in target["output"]
+    ]
+    assert [target["outcome"] for target in alpha_targets] == ["BUILT"]
+    assert [target["outcome"] for target in beta_targets] == ["CACHE_RESTORED"]
 
     assert alpha_output.is_file()
     assert (

@@ -72,6 +72,7 @@ jobs:
           TOOL_SHA="$(git -C tools/tool.scad-project rev-parse HEAD)"
           SHORT_TOOL_SHA="${TOOL_SHA:0:12}"
           echo "tool_sha=${TOOL_SHA}" >> "$GITHUB_OUTPUT"
+          echo "SCAD_PROJECT_TOOL_SHA=${TOOL_SHA}" >> "$GITHUB_ENV"
           echo "Selective build cache"
           echo "  Purpose   : reuse unchanged design images, renders and exports per dependency"
           echo "  Repository: ${GITHUB_REPOSITORY}"
@@ -128,6 +129,7 @@ jobs:
         shell: bash
         env:
           SELECTIVE_HIT: ${{ steps.selective-cache.outputs.cache-hit }}
+          SELECTIVE_PRIMARY_KEY: ${{ steps.selective-cache.outputs.cache-primary-key }}
           SELECTIVE_MATCHED_KEY: ${{ steps.selective-cache.outputs.cache-matched-key }}
           DESIGN_HIT: ${{ steps.design-cache.outputs.cache-hit }}
           DESIGN_MATCHED_KEY: ${{ steps.design-cache.outputs.cache-matched-key }}
@@ -148,6 +150,11 @@ jobs:
 
           SELECTIVE_STATUS="$(cache_status "$SELECTIVE_HIT" "$SELECTIVE_MATCHED_KEY")"
           DESIGN_STATUS="$(cache_status "$DESIGN_HIT" "$DESIGN_MATCHED_KEY")"
+
+          echo "SCAD_PROJECT_CACHE_NAMESPACE=scad-selective-build-v2" >> "$GITHUB_ENV"
+          echo "SCAD_PROJECT_CACHE_PRIMARY_KEY=${SELECTIVE_PRIMARY_KEY}" >> "$GITHUB_ENV"
+          echo "SCAD_PROJECT_CACHE_MATCHED_KEY=${SELECTIVE_MATCHED_KEY}" >> "$GITHUB_ENV"
+          echo "SCAD_PROJECT_CACHE_HIT=${SELECTIVE_HIT}" >> "$GITHUB_ENV"
 
           echo "Selective build cache: ${SELECTIVE_STATUS}"
           echo "Generated design snapshot: ${DESIGN_STATUS}"
@@ -192,40 +199,31 @@ jobs:
           summary = Path(os.environ["GITHUB_STEP_SUMMARY"])
           rows = []
 
+          def outcomes(path):
+              data = json.loads(path.read_text(encoding="utf-8"))
+              counts = data.get("outcome_counts", {})
+              return [str(counts.get(name, 0)) for name in ("BUILT", "CACHE_RESTORED", "CURRENT", "ERROR")]
+
           design_report = Path(".cache/scad-project/state/last-design-build.json")
           if os.environ.get("DESIGN_CACHE_HIT") == "true":
-              rows.append(("Design images", "0", "all - exact design snapshot"))
+              rows.append(("Design images", "0", "0", "0", "0", "exact design snapshot restored; design SCons skipped"))
           elif design_report.is_file():
-              data = json.loads(design_report.read_text(encoding="utf-8"))
-              rows.append(
-                  (
-                      "Design images",
-                      str(data.get("executed_count", "?")),
-                      str(data.get("not_executed_count", "?")),
-                  )
-              )
+              rows.append(("Design images", *outcomes(design_report), ""))
           else:
-              rows.append(("Design images", "n/a", "n/a"))
+              rows.append(("Design images", "n/a", "n/a", "n/a", "n/a", "no report"))
 
           build_report = Path(".cache/scad-project/state/last-build.json")
           if build_report.is_file():
-              data = json.loads(build_report.read_text(encoding="utf-8"))
-              rows.append(
-                  (
-                      "Configured outputs",
-                      str(data.get("executed_count", "?")),
-                      str(data.get("not_executed_count", "?")),
-                  )
-              )
+              rows.append(("Configured outputs", *outcomes(build_report), ""))
           else:
-              rows.append(("Configured outputs", "n/a", "n/a"))
+              rows.append(("Configured outputs", "n/a", "n/a", "n/a", "n/a", "no report"))
 
           with summary.open("a", encoding="utf-8") as handle:
-              handle.write("\n## Selective rebuild result\n\n")
-              handle.write("| Work | Built now | Reused/current |\n")
-              handle.write("| --- | ---: | ---: |\n")
-              for work, built, reused in rows:
-                  handle.write(f"| {work} | {built} | {reused} |\n")
+              handle.write("\n## Build decision outcomes\n\n")
+              handle.write("| Work | BUILT | CACHE_RESTORED | CURRENT | ERROR | Note |\n")
+              handle.write("| --- | ---: | ---: | ---: | ---: | --- |\n")
+              for row in rows:
+                  handle.write("| " + " | ".join(row) + " |\n")
           PY
 
       - name: Save exact generated design snapshot
@@ -244,13 +242,15 @@ jobs:
           path: .cache/scad-project/scons
           key: ${{ steps.selective-cache.outputs.cache-primary-key }}
 
-      - name: Upload SCons build report
+      - name: Upload SCons build reports
         timeout-minutes: 2
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: ${{ inputs.artifact_name }}-scons-report
-          path: .cache/scad-project/state/last-build.json
+          path: |
+            .cache/scad-project/state/last-build.json
+            .cache/scad-project/state/last-design-build.json
           if-no-files-found: ignore
           retention-days: 7
 

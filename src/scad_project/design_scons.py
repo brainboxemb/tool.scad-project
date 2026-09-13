@@ -9,6 +9,7 @@ from pathlib import Path
 import shutil
 from typing import Any
 
+from . import build_decisions
 from . import design as _design
 from .build import _raw_png_path, _require_output, _watermark_text
 from .build_engine import (
@@ -111,7 +112,9 @@ def _write_manifest(
     state_root.mkdir(parents=True, exist_ok=True)
     manifest = state_root / "design-manifest.json"
 
+    build_decisions.capture_output_state(context.root, targets)
     payload = {
+        "schema_version": build_decisions.MANIFEST_SCHEMA_VERSION,
         "project_root": str(context.root.resolve()),
         "cache_root": str(context.path(SCONS_CACHE_ROOT)),
         "sconsign": str(state_root / ".design.sconsign.dblite"),
@@ -125,41 +128,22 @@ def _write_manifest(
     return manifest
 
 
-def _write_report(context: ProjectContext, manifest: Path) -> None:
+def _write_report(context: ProjectContext, manifest: Path) -> dict[str, Any]:
     payload = json.loads(manifest.read_text(encoding="utf-8"))
-    execution_log = Path(payload["execution_log"])
-    executed = (
-        execution_log.read_text(encoding="utf-8").splitlines()
-        if execution_log.is_file()
-        else []
+    backend_signature = (
+        payload["targets"][0].get("backend_signature")
+        if payload.get("targets")
+        else None
     )
-    outputs = [spec["output"] for spec in payload["targets"]]
-    executed_set = set(executed)
-    not_executed = [output for output in outputs if output not in executed_set]
-
-    report = {
-        "engine": "scons",
-        "target_count": len(outputs),
-        "executed_count": len(executed),
-        "not_executed_count": len(not_executed),
-        "executed": executed,
-        "not_executed": not_executed,
-    }
-    report_path = context.path(SCONS_STATE_ROOT) / "last-design-build.json"
-    report_path.write_text(
-        json.dumps(report, indent=2, sort_keys=True) + "\n",
-        encoding="utf-8",
+    report = build_decisions.write_decision_report(
+        project_root=context.root,
+        manifest=manifest,
+        report_path=context.path(SCONS_STATE_ROOT) / "last-design-build.json",
+        report_kind="design",
+        backend_signature=backend_signature,
     )
-
-    print(
-        "SCons design summary: "
-        f"targets={len(outputs)} executed={len(executed)} "
-        f"not-executed={len(not_executed)}"
-    )
-    for output in executed:
-        print(f"  built: {output}")
-    for output in not_executed:
-        print(f"  cache/current: {output}")
+    build_decisions.print_decision_summary("SCons design summary", report)
+    return report
 
 
 def _write_index(stage: Path, documents: list[_design.DesignDocument]) -> None:
@@ -324,18 +308,21 @@ def build_design(context: ProjectContext) -> None:
             f"SCons design engine: {len(targets)} target(s), "
             f"cache={context.path(SCONS_CACHE_ROOT)}"
         )
-        run_checked(
-            [
-                "scons",
-                "-Q",
-                "-f",
-                str(driver),
-                f"SCAD_PROJECT_MANIFEST={manifest}",
-            ],
-            cwd=context.root,
-        )
-
-    _write_report(context, manifest)
+        try:
+            run_checked(
+                [
+                    "scons",
+                    "-Q",
+                    "-f",
+                    str(driver),
+                    f"SCAD_PROJECT_MANIFEST={manifest}",
+                ],
+                cwd=context.root,
+            )
+        finally:
+            _write_report(context, manifest)
+    else:
+        _write_report(context, manifest)
 
     for document in documents:
         out_doc = _document_output(stage, document)

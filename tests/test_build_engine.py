@@ -1,10 +1,11 @@
-"""Build engine selection
+"""Build engine selection and structured normal-build reporting
 
 Checks:
 The direct build engine remains the default, `scons` can be selected explicitly, invalid
 engine names are rejected, and selecting SCons without SCons installed gives a clear
 error. The SCons handoff must contain the same target details as the normal build path,
-and its report must distinguish outputs built now from outputs reused from cache.
+plus pre-build/source telemetry, and its report must use the shared explicit outcome
+schema rather than the old executed/not-executed split.
 
 Testing approach:
 The tests build a minimal in-memory project configuration and inspect the generated
@@ -81,7 +82,7 @@ def test_scons_engine_requires_scons(tmp_path, monkeypatch):
         build_engine.build_project(_context(tmp_path, engine="scons"))
 
 
-def test_manifest_reuses_existing_target_model(tmp_path, monkeypatch):
+def test_manifest_reuses_existing_target_model_and_adds_telemetry(tmp_path, monkeypatch):
     context = _context(tmp_path, engine="scons")
     monkeypatch.setattr(build_engine, "_backend_signature", lambda: "backend-test")
 
@@ -98,6 +99,7 @@ def test_manifest_reuses_existing_target_model(tmp_path, monkeypatch):
     )
     payload = json.loads(manifest.read_text(encoding="utf-8"))
 
+    assert payload["schema_version"] == 1
     assert payload["cache_root"] == str(
         tmp_path / ".cache" / "scad-project" / "scons"
     )
@@ -111,34 +113,62 @@ def test_manifest_reuses_existing_target_model(tmp_path, monkeypatch):
             "render_flags": ["--render"],
             "watermark_text": None,
             "backend_signature": "backend-test",
+            "sources": ["dsg/render/part.scad"],
+            "existed_before": False,
         }
     ]
 
 
-def test_report_distinguishes_executed_and_not_executed_targets(tmp_path):
+def test_report_uses_structured_outcomes(tmp_path):
     context = _context(tmp_path, engine="scons")
     state = tmp_path / ".cache" / "scad-project" / "state"
     state.mkdir(parents=True)
     execution_log = state / "executed-targets.txt"
     execution_log.write_text("bld/png/a.png\n", encoding="utf-8")
+
+    for relative in ("bld/png/a.png", "bld/png/b.png"):
+        path = tmp_path / relative
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text("output", encoding="utf-8")
+
     manifest = state / "build-manifest.json"
     manifest.write_text(
         json.dumps(
             {
+                "schema_version": 1,
                 "execution_log": str(execution_log),
                 "targets": [
-                    {"output": "bld/png/a.png"},
-                    {"output": "bld/png/b.png"},
+                    {
+                        "output": "bld/png/a.png",
+                        "source": "dsg/a.scad",
+                        "sources": ["dsg/a.scad"],
+                        "backend_signature": "backend-test",
+                        "existed_before": False,
+                    },
+                    {
+                        "output": "bld/png/b.png",
+                        "source": "dsg/b.scad",
+                        "sources": ["dsg/b.scad"],
+                        "backend_signature": "backend-test",
+                        "existed_before": True,
+                    },
                 ],
             }
         ),
         encoding="utf-8",
     )
 
-    build_engine._write_report(context, manifest)
+    report = build_engine._write_report(context, manifest)
 
-    report = json.loads((state / "last-build.json").read_text(encoding="utf-8"))
-    assert report["executed"] == ["bld/png/a.png"]
-    assert report["not_executed"] == ["bld/png/b.png"]
-    assert report["executed_count"] == 1
-    assert report["not_executed_count"] == 1
+    assert report["schema"] == "scad-project.build-decisions"
+    assert report["kind"] == "build"
+    assert report["outcome_counts"] == {
+        "BUILT": 1,
+        "CACHE_RESTORED": 0,
+        "CURRENT": 1,
+        "ERROR": 0,
+    }
+    assert [target["outcome"] for target in report["targets"]] == [
+        "BUILT",
+        "CURRENT",
+    ]

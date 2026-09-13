@@ -1,4 +1,4 @@
-"""Project verification targets and commands
+"""Project verification targets, commands and structured reporting
 
 Checks:
 Verification commands in `project.yml` must be explicit argument lists such as
@@ -6,16 +6,18 @@ Verification commands in `project.yml` must be explicit argument lists such as
 execution does not depend on shell parsing, quoting or command injection behavior.
 Verification-only OpenSCAD targets use their own source/output roots and image size,
 remain separate from normal `bld/` outputs, and are built before project-specific
-verification commands run.
+verification commands run. Their SCons manifest/report use the same explicit decision
+schema as normal and design builds.
 
 Testing approach:
 The tests create minimal project configurations containing supported and rejected
 command forms, plus a small verification render directory with a normal `render.yml`
-profile. They inspect the resolved target model without invoking OpenSCAD. For execution
-ordering, pytest's `monkeypatch` fixture temporarily replaces the target builder and
-process runner with lightweight recorders.
+profile. They inspect the resolved target/manifest/report models without invoking
+OpenSCAD. For execution ordering, pytest's `monkeypatch` fixture temporarily replaces
+the target builder and process runner with lightweight recorders.
 """
 
+import json
 from pathlib import Path
 import pytest
 
@@ -92,6 +94,58 @@ def test_verification_targets_use_separate_output_root_and_image_size(tmp_path: 
         target["output"].is_relative_to(tmp_path / "bld")
         for target in targets
     )
+
+
+def test_verification_manifest_and_report_use_shared_outcomes(tmp_path: Path, monkeypatch):
+    source = tmp_path / "vrf" / "openscad" / "fit.scad"
+    source.parent.mkdir(parents=True)
+    source.write_text("cube(1);\n", encoding="utf-8")
+    output = tmp_path / "vrf" / "out" / "png" / "fit.png"
+
+    ctx = ProjectContext(
+        root=tmp_path,
+        config_file=tmp_path / "project.yml",
+        config={
+            "project": {"name": "demo"},
+            "paths": {"design_root": "dsg", "build_root": "bld"},
+            "openscad": {"image_size": [100, 80]},
+            "verification": {"output_root": "vrf/out"},
+        },
+    )
+    monkeypatch.setattr(
+        verification.build_engine,
+        "_backend_signature",
+        lambda: "backend-test",
+    )
+
+    manifest = verification._write_verification_manifest(
+        ctx,
+        [
+            {
+                "source": source,
+                "output": output,
+                "image_size": (100, 80),
+                "definitions": [],
+            }
+        ],
+    )
+    payload = json.loads(manifest.read_text(encoding="utf-8"))
+    assert payload["schema_version"] == 1
+    assert payload["targets"][0]["sources"] == ["vrf/openscad/fit.scad"]
+    assert payload["targets"][0]["existed_before"] is False
+
+    output.parent.mkdir(parents=True, exist_ok=True)
+    output.write_text("restored", encoding="utf-8")
+    report = verification._write_verification_report(ctx, manifest)
+
+    assert report["kind"] == "verification"
+    assert report["outcome_counts"] == {
+        "BUILT": 0,
+        "CACHE_RESTORED": 1,
+        "CURRENT": 0,
+        "ERROR": 0,
+    }
+    assert report["targets"][0]["outcome"] == "CACHE_RESTORED"
 
 
 def test_functional_verification_builds_targets_before_commands(tmp_path: Path, monkeypatch):
