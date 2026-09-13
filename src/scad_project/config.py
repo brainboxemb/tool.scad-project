@@ -17,6 +17,7 @@ class ProjectContext:
     root: Path
     config_file: Path
     config: dict[str, Any]
+    repository_config: dict[str, Any] | None = None
 
     def path(self, value: str) -> Path:
         return (self.root / value).resolve()
@@ -30,16 +31,153 @@ def find_project_root(start: Path | None = None) -> Path:
     raise ConfigError("No project.yml found in current directory or its parents.")
 
 
+def _load_mapping(path: Path) -> dict[str, Any]:
+    try:
+        data = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+    except yaml.YAMLError as exc:
+        raise ConfigError(f"Invalid YAML in {path}: {exc}") from exc
+    if not isinstance(data, dict):
+        raise ConfigError(f"{path.name} must contain a YAML mapping at the root.")
+    return data
+
+
+def _scad_profile_file(root: Path, repository: dict[str, Any]) -> Path | None:
+    """Return the configured SCAD profile, or None for legacy combined config."""
+
+    if "profiles" not in repository:
+        return None
+
+    profiles = repository.get("profiles")
+    if not isinstance(profiles, list):
+        raise ConfigError("project.yml profiles must be a list.")
+
+    matches = [
+        item for item in profiles
+        if isinstance(item, dict) and str(item.get("type", "")).strip() == "scad"
+    ]
+    if not matches:
+        raise ConfigError("project.yml does not declare a SCAD profile (type: scad).")
+    if len(matches) != 1:
+        raise ConfigError("project.yml must declare exactly one SCAD profile.")
+
+    value = matches[0].get("config")
+    if not isinstance(value, str) or not value.strip():
+        raise ConfigError("The SCAD profile requires a non-empty config path.")
+
+    profile = (root / value).resolve()
+    try:
+        profile.relative_to(root.resolve())
+    except ValueError as exc:
+        raise ConfigError("The SCAD profile config path must stay inside the project.") from exc
+    if not profile.is_file():
+        raise ConfigError(f"SCAD profile config does not exist: {value}")
+    return profile
+
+
+def _repository_dependencies(repository: dict[str, Any]) -> list[dict[str, Any]]:
+    raw = repository.get("dependencies", []) or []
+    if not isinstance(raw, list):
+        return []
+    return [item for item in raw if isinstance(item, dict)]
+
+
+def _compose_scad_config(
+    repository: dict[str, Any],
+    profile: dict[str, Any],
+) -> dict[str, Any]:
+    """Adapt generic repository declarations to the existing SCAD runtime model.
+
+    `tool.git-project` owns dependency policy.  The SCAD layer consumes only the
+    fields it needs: the project name, the checked-out SCAD tool expectation and
+    external CAD locations.  SCAD-only external metadata such as `required_file`
+    may stay in the profile and is merged by dependency name.
+    """
+
+    result = dict(profile)
+    if "project" in repository:
+        result["project"] = repository["project"]
+
+    dependencies = _repository_dependencies(repository)
+    tool = next(
+        (item for item in dependencies if item.get("name") == "tool.scad-project"),
+        None,
+    )
+    if tool is not None:
+        result["tooling"] = {
+            "tool_scad_project": {
+                "type": tool.get("type", "git-submodule"),
+                "url": tool.get(
+                    "url",
+                    "https://github.com/brainboxemb/tool.scad-project.git",
+                ),
+                "path": tool.get("path", "tools/tool.scad-project"),
+                "ref": tool.get("ref", ""),
+            }
+        }
+
+    generic_externals = [
+        item for item in dependencies if str(item.get("role", "")).strip() == "external"
+    ]
+    if generic_externals:
+        profile_externals = profile.get("externals", []) or []
+        if not isinstance(profile_externals, list):
+            raise ConfigError("project.scad.yml externals must be a list when present.")
+
+        metadata: dict[str, dict[str, Any]] = {}
+        for item in profile_externals:
+            if not isinstance(item, dict) or not item.get("name"):
+                raise ConfigError(
+                    "project.scad.yml externals entries require a dependency name."
+                )
+            metadata[str(item["name"])] = dict(item)
+
+        generic_names = {str(item.get("name", "")) for item in generic_externals}
+        unknown = sorted(set(metadata) - generic_names)
+        if unknown:
+            raise ConfigError(
+                "SCAD external metadata has no matching generic dependency: "
+                + ", ".join(unknown)
+            )
+
+        externals: list[dict[str, Any]] = []
+        for dependency in generic_externals:
+            name = str(dependency.get("name", ""))
+            item = dict(metadata.get(name, {}))
+            item.update(
+                {
+                    "name": name,
+                    "type": dependency.get("type", "git-submodule"),
+                    "url": dependency.get("url", ""),
+                    "path": dependency.get("path", ""),
+                    "ref": dependency.get("ref", ""),
+                }
+            )
+            externals.append(item)
+        result["externals"] = externals
+
+    return result
+
+
 def load_context(start: Path | None = None) -> ProjectContext:
     root = find_project_root(start)
-    config_file = root / "project.yml"
-    try:
-        data = yaml.safe_load(config_file.read_text(encoding="utf-8")) or {}
-    except yaml.YAMLError as exc:
-        raise ConfigError(f"Invalid YAML in {config_file}: {exc}") from exc
-    if not isinstance(data, dict):
-        raise ConfigError("project.yml must contain a YAML mapping at the root.")
-    return ProjectContext(root, config_file, data)
+    project_file = root / "project.yml"
+    repository = _load_mapping(project_file)
+    profile_file = _scad_profile_file(root, repository)
+
+    # Compatibility path for current consumers while Step 0.5 rolls out.  Once
+    # no supported consumer uses the combined schema this can be removed in a
+    # later cleanup/release step.
+    if profile_file is None:
+        return ProjectContext(root, project_file, repository)
+
+    profile = _load_mapping(profile_file)
+    config = _compose_scad_config(repository, profile)
+    return ProjectContext(
+        root,
+        profile_file,
+        config,
+        repository_config=repository,
+    )
 
 
 def validate_config(context: ProjectContext) -> list[str]:
