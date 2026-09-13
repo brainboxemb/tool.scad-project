@@ -164,6 +164,8 @@ scad-project design-lint
 scad-project design-build
 scad-project build
 scad-project verify
+scad-project produce-build
+scad-project produce-verification
 scad-project build-index
 ```
 
@@ -175,6 +177,15 @@ SCAD-specific configuration locally.
 verification-domain action: it validates verification-relevant project source,
 builds declared verification-only targets and then runs configured verification
 commands. It does not materialize normal Build output as a side effect.
+
+`produce-build` and `produce-verification` are stable composite producer actions
+for repository-level orchestrators. `produce-build` owns SCAD validation,
+generated design documentation, normal configured output, build indexing and
+producer provenance as one logical producer result. `produce-verification` owns
+verification validation, verification-only targets/project checks and producer
+provenance; it never invokes normal Build. GitHub/Moon cache restore, current
+materialization evidence and generated-branch publication remain outside these
+domain actions.
 
 ## Directory-based builds
 
@@ -359,6 +370,11 @@ The reusable workflows provide the common lint/design/build/cache/publication
 sequence and run on the pinned `docker.scad-toolchain` image. Build and Verify
 remain separate domain workflows: Verify owns only verification targets, commands,
 evidence and its verification cache.
+
+Repository-level orchestrators may instead bind their coarse tasks to
+`produce-build` and `produce-verification`. Those commands provide the complete
+SCAD producer boundary while SCons remains authoritative for fine-grained target
+decisions whenever a producer task actually executes.
 
 ## Direct dependency rule
 
