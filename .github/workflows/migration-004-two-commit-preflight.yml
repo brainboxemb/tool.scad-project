@@ -14,7 +14,7 @@ jobs:
     env:
       TEMPLATE_HEAD: 082b0cecb47ba082899214751080adc54556e94c
       TEMPLATE_BASE: 8c25d1d326354cad82be0932df311acb3320df43
-      OMITTED_INTERMEDIATE: 57ed48879370c5c3b60076ccb5a526d154fa6aa9
+      OMITTED_INTERMEDIATE: 1e090239a5209b0abcfcbce5f7cc698b2f32351d
 
     steps:
       - name: Checkout exact template head only
@@ -35,11 +35,11 @@ jobs:
           git -C fixture rev-parse --verify "${TEMPLATE_BASE}^{commit}"
 
           if git -C fixture cat-file -e "${OMITTED_INTERMEDIATE}^{commit}" 2>/dev/null; then
-            echo "ERROR: intermediate commit unexpectedly exists locally" >&2
+            echo "ERROR: deeper intermediate commit unexpectedly exists locally" >&2
             exit 1
           fi
 
-          echo "Only the exact head and base commits required for the proof are locally available."
+          echo "The exact head and base commits exist while deeper intervening history is absent."
 
       - name: Query released Moon affected preflight
         id: affected
