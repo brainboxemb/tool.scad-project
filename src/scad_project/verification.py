@@ -11,6 +11,7 @@ from . import build as direct_build
 from . import build_decisions
 from . import build_engine
 from .config import ProjectContext
+from .execution_evidence import append_evidence_navigation, write_execution_evidence
 from .process import run_checked
 
 
@@ -299,12 +300,22 @@ def run_functional_verification(context: ProjectContext) -> None:
     if not targets and not commands:
         raise RuntimeError("No verification targets or commands are configured")
 
-    if targets:
-        build_verification_targets(context)
-    else:
-        # Keep this call observable for tests and future instrumentation while avoiding
-        # duplicate target discovery inside build_verification_targets.
-        build_verification_targets(context)
+    # Keep this call observable for tests and future instrumentation while avoiding
+    # duplicate target discovery inside build_verification_targets.
+    build_verification_targets(context)
 
     for command in commands:
         run_checked(command, cwd=context.root)
+
+    verification = context.config.get("verification", {}) or {}
+    output_root = context.path(str(verification.get("output_root", "vrf/out")))
+    report = context.path(VERIFICATION_SCONS_STATE_ROOT) / "last-verification-build.json"
+    write_execution_evidence(
+        context,
+        capability="scad.verify",
+        action="verify",
+        execution_id="scad-verify",
+        output_root=output_root,
+        domain_report=report,
+    )
+    append_evidence_navigation(output_root / "README.md", output_root)

@@ -130,6 +130,16 @@ there is no new per-target design decision report for that run; the Step Summary
 states that explicitly instead of pretending the snapshot restore was a SCons
 target outcome.
 
+## Persistent producer evidence
+
+These target-level decision reports remain SCAD-specific domain evidence. T6 also
+retains a small common producer execution envelope/log for `scad.docs`,
+`scad.build` and `scad.verify`, with the relevant decision report copied alongside
+the producer output under `evidence/domain/`.
+
+See [`execution-evidence.md`](execution-evidence.md) for the producer-versus-current-
+materialization boundary, persistent layout and generated-output navigation policy.
+
 ## Scope boundary
 
 This telemetry contract is Step 1 of the cross-project tooling plan in
