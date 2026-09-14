@@ -1,4 +1,14 @@
-"""CLI coverage for explicit post-build decision audits."""
+"""CLI coverage for explicit post-build decision audits.
+
+Checks:
+The command accepts direct/file changed-path input, writes the default or requested
+structured audit output, preserves failure evidence before exit 1, and treats warnings
+as successful command execution.
+
+Testing approach:
+Tests replace project/config loading with a minimal temporary context, invoke the real
+argparse dispatcher through `cli.main`, and inspect written JSON plus exit behavior.
+"""
 
 from __future__ import annotations
 
