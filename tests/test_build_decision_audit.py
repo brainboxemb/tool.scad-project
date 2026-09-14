@@ -1,4 +1,14 @@
-"""Post-build decision audit policy and structured report contract."""
+"""Post-build decision audit policy and structured report contract.
+
+Checks:
+The audit proves impact only from exact matches between explicit changed paths and
+recorded target sources, maps build outcomes to pass/warning/fail policy, preserves
+structured evidence, and fails closed for unsupported report shapes.
+
+Testing approach:
+Tests construct small schema-v1 decision reports directly and exercise the pure audit
+module without Git or SCons so policy failures are isolated from build-engine behavior.
+"""
 
 from __future__ import annotations
 
