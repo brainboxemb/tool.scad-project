@@ -5,6 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from .config import ProjectContext
+from .execution_evidence import evidence_navigation_lines
 from .publish import resolve_publication_target
 
 
@@ -101,7 +102,7 @@ def write_build_index(context: ProjectContext) -> Path:
         "This directory contains generated output for a successful project build.",
         "It is generated automatically and should not be edited manually.",
         "",
-        "## Contents",
+        "## Artifacts",
         "",
     ]
 
@@ -110,9 +111,12 @@ def write_build_index(context: ProjectContext) -> Path:
     else:
         lines.append("- No generated output sections are present.")
 
+    lines.extend(["", *evidence_navigation_lines(
+        build_root,
+        include_publication_context=False,
+    )])
     lines += [
-        "",
-        "## Publication",
+        "## Publication context",
         "",
         f"- Context: `{publication.context}`",
         f"- Source: {publication.source_ref_type} `{publication.source_ref}`",
@@ -120,6 +124,7 @@ def write_build_index(context: ProjectContext) -> Path:
         f"- Policy: {policy_text}",
         "",
         "See `publication-info.txt` for the exact source commit, tooling and runtime provenance.",
+        "Publication/finalization consumes prepared output and must not rewrite producer execution evidence.",
         "",
     ]
 
