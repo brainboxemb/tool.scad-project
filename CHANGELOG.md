@@ -215,7 +215,7 @@ Functional changes to released `tool.scad-project` versions.
 ### Added
 
 - Add `design.include_externals` project policy, defaulting to `true` for backwards compatibility.
-- Allow consumer projects to omit configured external design docs while keeping external CAD source dependencies available.
+- Allow consumer projects to omit configured external design documentation while keeping external CAD source dependencies available.
 - Mark omitted external design documentation explicitly in the generated design index instead of reporting it as missing.
 
 ## v0.7.2
