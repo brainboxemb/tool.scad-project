@@ -166,6 +166,7 @@ scad-project build
 scad-project verify
 scad-project produce-build
 scad-project produce-verification
+scad-project build-audit
 scad-project build-index
 ```
 
@@ -186,6 +187,12 @@ verification validation, verification-only targets/project checks and producer
 provenance; it never invokes normal Build. GitHub/Moon cache restore, current
 materialization evidence and generated-branch publication remain outside these
 domain actions.
+
+`build-audit` is an explicit post-build correctness check. It consumes an existing
+schema-v1 build-decision report plus explicit changed repository paths, compares
+those paths with each target's already-recorded `sources`, and emits a separate
+machine-readable audit report. Generic Git/GitHub changed-path discovery remains
+outside the SCAD tool. See [`docs/build-decision-audit.md`](docs/build-decision-audit.md).
 
 ## Directory-based builds
 
@@ -404,10 +411,9 @@ Normal changes use issue -> numbered feature branch -> draft PR -> evidence ->
 review -> merge. See [`AGENTS.md`](AGENTS.md) for the authoritative repository
 rules.
 
-Cross-project architecture and rollout order are coordinated from
-[`meta.scad-projects`](https://github.com/brainboxemb/meta.scad-projects). The
-broader current/classic CAD inventory is maintained in
-[`tech.scad`](https://github.com/brainboxemb/tech.scad).
+Cross-project architecture, repository classification and migration/rollout order
+are coordinated from
+[`brainboxemb.meta`](https://github.com/brainboxemb/brainboxemb.meta).
 
 The model, code and documentation are being developed with the assistance of
 ChatGPT.
