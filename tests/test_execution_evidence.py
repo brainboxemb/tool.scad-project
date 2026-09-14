@@ -6,6 +6,13 @@ canonical human-readable log, copies richer SCons decision telemetry as domain
 evidence, preserves exact source/owner revisions, and adds readable navigation
 without duplicating evidence. Local non-Git builds remain usable and simply skip
 persistent evidence when exact revisions cannot be resolved.
+
+Testing approach:
+The tests use temporary project/output trees and explicit fake source/owner revision
+environment values. A representative SCons decision report verifies copied domain
+evidence and concise log summarization. Separate cases remove Git/revision context to
+prove local compatibility and append navigation twice to prove deterministic,
+idempotent generated README content.
 """
 
 from __future__ import annotations
