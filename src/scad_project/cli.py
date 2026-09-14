@@ -2,10 +2,12 @@
 
 from __future__ import annotations
 import argparse
+import json
 from pathlib import Path
 import sys
 
 from .build import check_libraries
+from . import build_decision_audit
 from .build_engine import build_project
 from .build_engine_config import validate_build_engine_config
 from .config import ConfigError, load_context, validate_config
@@ -47,6 +49,31 @@ def fail(errors):
     return 1
 
 
+def _project_path(root: Path, path: Path) -> Path:
+    return path if path.is_absolute() else root / path
+
+
+def _audit_changed_paths(root: Path, args) -> list[str]:
+    direct = list(args.changed_path or [])
+    files = list(args.changed_paths_file or [])
+    if not direct and not files:
+        raise RuntimeError(
+            "build-audit requires --changed-path and/or --changed-paths-file"
+        )
+
+    values = direct
+    for configured in files:
+        path = _project_path(root, configured)
+        if not path.is_file():
+            raise RuntimeError(f"changed-paths file does not exist: {path}")
+        values.extend(
+            line.strip()
+            for line in path.read_text(encoding="utf-8").splitlines()
+            if line.strip()
+        )
+    return values
+
+
 def main() -> None:
     """Parse one project command and execute it against the nearest project.yml."""
 
@@ -66,6 +93,14 @@ def main() -> None:
         "repo-sync", "repo-update", "repo-status", "workflow-sync",
     ):
         sub.add_parser(name)
+
+    build_audit = sub.add_parser("build-audit")
+    build_audit.add_argument("--report", type=Path, required=True)
+    build_audit.add_argument("--changed-path", action="append", default=[])
+    build_audit.add_argument(
+        "--changed-paths-file", type=Path, action="append", default=[]
+    )
+    build_audit.add_argument("--output", type=Path, default=None)
 
     publication_cleanup = sub.add_parser("publication-cleanup-pr")
     publication_cleanup.add_argument("--pr-number", type=int, required=True)
@@ -165,6 +200,35 @@ def main() -> None:
                 raise RuntimeError("\n".join(errors))
             build_project(ctx)
             print("build: OK")
+        elif args.command == "build-audit":
+            report_path = _project_path(ctx.root, args.report)
+            if not report_path.is_file():
+                raise RuntimeError(f"build-decision report does not exist: {report_path}")
+            try:
+                decision_report = json.loads(report_path.read_text(encoding="utf-8"))
+            except json.JSONDecodeError as exc:
+                raise RuntimeError(
+                    f"invalid build-decision report JSON: {report_path}: {exc}"
+                ) from exc
+
+            changed_paths = _audit_changed_paths(ctx.root, args)
+            output_path = (
+                _project_path(ctx.root, args.output)
+                if args.output is not None
+                else report_path.with_name(f"{report_path.stem}-audit.json")
+            )
+            audit = build_decision_audit.write_audit_report(
+                decision_report=decision_report,
+                changed_paths=changed_paths,
+                output_path=output_path,
+            )
+            build_decision_audit.print_audit_summary(audit)
+            print(
+                f"build audit report: "
+                f"{output_path.relative_to(ctx.root) if output_path.is_relative_to(ctx.root) else output_path}"
+            )
+            if audit["result"] == "FAIL":
+                raise SystemExit(1)
         elif args.command == "produce-build":
             produce_build(ctx)
             print("build producer: OK")
