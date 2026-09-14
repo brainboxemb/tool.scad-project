@@ -13,8 +13,9 @@ from collections.abc import Iterator
 
 from . import design as _design
 from . import design_scons as _design_scons
-from .build_engine import _engine_name
+from .build_engine import SCONS_STATE_ROOT, _engine_name
 from .config import ProjectContext
+from .execution_evidence import write_execution_evidence
 
 
 def include_external_designs(context: ProjectContext) -> bool:
@@ -63,24 +64,31 @@ def build_design(context: ProjectContext) -> None:
     """Build design documentation while honoring policy and build backend."""
 
     include_externals = include_external_designs(context)
+    engine = _engine_name(context)
     with _design_discovery_policy(context):
-        if _engine_name(context) == "scons":
+        if engine == "scons":
             _design_scons.build_design(context)
         else:
             _design.build_design(context)
 
-    if include_externals:
-        return
-
     build_root = context.path(context.config["paths"]["build_root"])
-    index = build_root / "design" / "README.md"
-    if not index.is_file():
-        return
+    if not include_externals:
+        index = build_root / "design" / "README.md"
+        if index.is_file():
+            text = index.read_text(encoding="utf-8")
+            text = text.replace(
+                "- No external design documents found.",
+                "- External design documentation intentionally omitted by "
+                "`design.include_externals: false`.",
+            )
+            index.write_text(text, encoding="utf-8")
 
-    text = index.read_text(encoding="utf-8")
-    text = text.replace(
-        "- No external design documents found.",
-        "- External design documentation intentionally omitted by "
-        "`design.include_externals: false`.",
+    report = context.path(SCONS_STATE_ROOT) / "last-design-build.json"
+    write_execution_evidence(
+        context,
+        capability="scad.docs",
+        action="design-build",
+        execution_id="scad-docs",
+        output_root=build_root,
+        domain_report=report if engine == "scons" else None,
     )
-    index.write_text(text, encoding="utf-8")
