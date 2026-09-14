@@ -12,6 +12,7 @@ from typing import Any
 from . import build as direct_build
 from . import build_decisions
 from .config import ProjectContext
+from .execution_evidence import write_execution_evidence
 from .openscad_deps import scan_openscad_dependencies
 from .process import run_checked
 
@@ -258,6 +259,16 @@ def build_project(context: ProjectContext) -> None:
     engine = _engine_name(context)
     if engine == "direct":
         direct_build.build_project(context)
-        return
+    else:
+        _build_with_scons(context)
 
-    _build_with_scons(context)
+    build_root = context.path(context.config["paths"]["build_root"])
+    report = context.path(SCONS_STATE_ROOT) / "last-build.json"
+    write_execution_evidence(
+        context,
+        capability="scad.build",
+        action="build",
+        execution_id="scad-build",
+        output_root=build_root,
+        domain_report=report if engine == "scons" else None,
+    )
