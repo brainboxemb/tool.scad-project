@@ -2,6 +2,21 @@
 
 Functional changes to released `tool.scad-project` versions.
 
+## v0.12.0
+
+### Added
+
+- Add `scad-project build-audit` as an explicit post-build check for schema-v1 SCons build-decision reports and caller-supplied changed paths.
+- Add `scad-project.build-decision-audit` schema version 1 with per-target proven-impact classification, stable reason codes and pass/warning/fail results.
+- Accept changed paths directly with repeatable `--changed-path` options or from newline-delimited `--changed-paths-file` inputs, with optional explicit audit output location.
+- Preserve machine-readable audit evidence before returning a failing exit status when a proven affected target is incorrectly reported `CURRENT` or build evidence already contains `ERROR`.
+
+### Changed
+
+- Reuse the existing per-target `sources` dependency evidence for audit decisions instead of introducing a second dependency model.
+- Treat rebuilds without proven changed-source impact as warnings rather than correctness failures in the first audit contract.
+- Keep generic Git/GitHub changed-path discovery and automatic workflow enforcement outside this release; the audit receives explicit changed paths and remains independently invokable.
+
 ## v0.11.0
 
 ### Added
