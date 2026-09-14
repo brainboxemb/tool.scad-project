@@ -146,17 +146,17 @@ jobs:
           filter: blob:none
           submodules: false
 
-      - name: Fetch only the exact comparison base when available
+      - name: Fetch only the exact comparison base
         shell: bash
         env:
           BASE_SHA: ${{ steps.range.outputs.base_sha }}
         run: |
           set -euo pipefail
-          if git rev-parse --verify --quiet "${BASE_SHA}^{commit}" >/dev/null; then
-            echo "Comparison base already exists locally."
+          if [[ "$BASE_SHA" == "0000000000000000000000000000000000000000" ]]; then
+            echo "No concrete comparison base; generic Moon preflight will run conservatively."
           elif git fetch --no-tags --depth=1 origin "$BASE_SHA"; then
             git rev-parse --verify "${BASE_SHA}^{commit}"
-            echo "Fetched exact comparison base without full repository history."
+            echo "Fetched exact comparison base as a shallow history root."
           else
             echo "Comparison base could not be fetched; generic Moon preflight will run conservatively."
           fi
