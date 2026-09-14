@@ -46,7 +46,7 @@ def _source_revision(context: ProjectContext) -> str:
     value = _git_head(context.root)
     if value:
         return value
-    raise RuntimeError("Could not resolve exact producer source revision")
+    raise RuntimeError("could not resolve exact producer source revision")
 
 
 def _owner_revision(context: ProjectContext) -> str:
@@ -68,7 +68,7 @@ def _owner_revision(context: ProjectContext) -> str:
         value = _git_head(candidate)
         if value:
             return value
-    raise RuntimeError("Could not resolve exact tool.scad-project owner revision")
+    raise RuntimeError("could not resolve exact tool.scad-project owner revision")
 
 
 def _relative(from_dir: Path, target: Path) -> str:
@@ -115,8 +115,22 @@ def write_execution_evidence(
     execution_id: str,
     output_root: Path,
     domain_report: Path | None = None,
-) -> Path:
-    """Write one common execution envelope plus one concise SCAD producer log."""
+) -> Path | None:
+    """Write one common execution envelope plus one concise SCAD producer log.
+
+    Local/unit use outside a resolvable Git checkout remains supported. In that
+    case the producer action succeeds but persistent execution evidence is skipped
+    with a warning. Persistent CI/publication consumers must assert the evidence
+    files and schema explicitly, so a published snapshot cannot silently qualify
+    without exact source and owner revisions.
+    """
+
+    try:
+        source_revision = _source_revision(context)
+        owner_revision = _owner_revision(context)
+    except RuntimeError as exc:
+        print(f"WARNING: persistent SCAD execution evidence skipped: {exc}")
+        return None
 
     evidence_root = output_root / "evidence"
     execution_root = evidence_root / "executions" / execution_id
@@ -138,9 +152,6 @@ def write_execution_evidence(
             ) from exc
         if isinstance(value, dict):
             report_payload = value
-
-    source_revision = _source_revision(context)
-    owner_revision = _owner_revision(context)
 
     log_lines = [
         "SCAD producer execution",
@@ -191,7 +202,11 @@ def write_execution_evidence(
     return output
 
 
-def evidence_navigation_lines(output_root: Path) -> list[str]:
+def evidence_navigation_lines(
+    output_root: Path,
+    *,
+    include_publication_context: bool = True,
+) -> list[str]:
     """Return human-facing navigation for retained evidence in one output root."""
 
     execution_root = output_root / "evidence" / "executions"
@@ -243,12 +258,15 @@ def evidence_navigation_lines(output_root: Path) -> list[str]:
         "The publication layer may add `orchestration/materialization.json` for the current source revision/context and `orchestration/moon.log` for Moon's execute/cache/hydrate decision.",
         "After cache hydration, that current materialization revision may intentionally differ from the producer `source_revision` above.",
         "",
-        "## Publication context",
-        "",
-        "`publication-info.txt` records generated-branch context plus source, tooling and runtime provenance.",
-        "Publication/finalization consumes prepared output and must not rewrite producer execution evidence.",
-        "",
     ])
+    if include_publication_context:
+        lines.extend([
+            "## Publication context",
+            "",
+            "`publication-info.txt` records generated-branch context plus source, tooling and runtime provenance.",
+            "Publication/finalization consumes prepared output and must not rewrite producer execution evidence.",
+            "",
+        ])
     return lines
 
 
