@@ -34,12 +34,14 @@ jobs:
           git -C fixture rev-parse --verify "${TEMPLATE_HEAD}^{commit}"
           git -C fixture rev-parse --verify "${TEMPLATE_BASE}^{commit}"
 
-          if git -C fixture cat-file -e "${OMITTED_INTERMEDIATE}^{commit}" 2>/dev/null; then
-            echo "ERROR: deeper intermediate commit unexpectedly exists locally" >&2
+          test "$(git -C fixture rev-list --count "$TEMPLATE_HEAD")" = 1
+          test "$(git -C fixture rev-list --count "$TEMPLATE_BASE")" = 1
+          if git -C fixture rev-list "$TEMPLATE_HEAD" | grep -Fxq "$OMITTED_INTERMEDIATE"; then
+            echo "ERROR: deeper intermediate history is traversable from head" >&2
             exit 1
           fi
 
-          echo "The exact head and base commits exist while deeper intervening history is absent."
+          echo "Head and base are both shallow history roots; intervening history is not traversable."
 
       - name: Query released Moon affected preflight
         id: affected
