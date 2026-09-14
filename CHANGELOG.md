@@ -2,6 +2,20 @@
 
 Functional changes to released `tool.scad-project` versions.
 
+## v0.11.0
+
+### Added
+
+- Add persistent `brainboxemb.execution-evidence` schema-v1 envelopes and one canonical human-readable log for the existing `scad.docs`, `scad.build` and `scad.verify` producer capabilities.
+- Retain relevant structured SCons decision reports with producer output under `evidence/domain/`, so persistent domain evidence is created by the SCAD producer instead of synthesized later by consumer CI.
+- Add generated Build/Verification navigation that distinguishes artifacts, producer execution evidence, SCAD domain evidence, orchestration/materialization evidence and publication context.
+
+### Changed
+
+- Keep producer evidence attached to the existing `design-build`, `build` and `verify` actions while preserving separate Moon task boundaries; do not replace the visible SCAD graph with one coarse producer wrapper.
+- Keep Moon/current materialization evidence and publication finalization outside the SCAD producer evidence contract. Cached or hydrated producer evidence therefore remains tied to the execution that created it while current materialization records the revision/context that consumed it.
+- Keep local non-Git SCAD actions usable by skipping persistent execution evidence with a warning when exact source/owner revisions cannot be resolved; persistent CI/publication consumers are expected to require and validate the evidence files.
+
 ## v0.10.1
 
 ### Added
@@ -201,7 +215,7 @@ Functional changes to released `tool.scad-project` versions.
 ### Added
 
 - Add `design.include_externals` project policy, defaulting to `true` for backwards compatibility.
-- Allow consumer projects to omit configured-external design documentation while keeping external CAD source dependencies available.
+- Allow consumer projects to omit configured external design docs while keeping external CAD source dependencies available.
 - Mark omitted external design documentation explicitly in the generated design index instead of reporting it as missing.
 
 ## v0.7.2
