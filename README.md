@@ -163,6 +163,7 @@ scad-project docs-lint
 scad-project design-lint
 scad-project design-build
 scad-project build
+scad-project build-audit
 scad-project verify
 scad-project produce-build
 scad-project produce-verification
@@ -177,6 +178,12 @@ SCAD-specific configuration locally.
 verification-domain action: it validates verification-relevant project source,
 builds declared verification-only targets and then runs configured verification
 commands. It does not materialize normal Build output as a side effect.
+
+`build-audit` is an explicit post-build check for SCons consumers. It accepts an
+existing structured build-decision report plus changed paths and checks whether a
+reported outcome contradicts dependency impact that can be proven from the target's
+recorded `sources`. Changed-path discovery itself stays outside the SCAD domain tool.
+See [`docs/build-decision-audit.md`](docs/build-decision-audit.md).
 
 `produce-build` and `produce-verification` are stable composite producer actions
 for repository-level orchestrators. `produce-build` owns SCAD validation,
@@ -237,7 +244,9 @@ digest and available run/cache provenance. GitHub Actions Step Summaries use the
 same vocabulary instead of the older ambiguous `cache/current` label.
 
 See [`docs/build-decision-telemetry.md`](docs/build-decision-telemetry.md) for the
-machine-readable report contract and classification rules.
+machine-readable report contract and classification rules, and
+[`docs/build-decision-audit.md`](docs/build-decision-audit.md) for the independent
+post-build consistency check.
 
 ## Design documentation
 
@@ -404,10 +413,8 @@ Normal changes use issue -> numbered feature branch -> draft PR -> evidence ->
 review -> merge. See [`AGENTS.md`](AGENTS.md) for the authoritative repository
 rules.
 
-Cross-project architecture and rollout order are coordinated from
-[`meta.scad-projects`](https://github.com/brainboxemb/meta.scad-projects). The
-broader current/classic CAD inventory is maintained in
-[`tech.scad`](https://github.com/brainboxemb/tech.scad).
+Cross-project architecture, repository classification and migration/rollout order are
+coordinated from [`brainboxemb.meta`](https://github.com/brainboxemb/brainboxemb.meta).
 
 The model, code and documentation are being developed with the assistance of
 ChatGPT.
