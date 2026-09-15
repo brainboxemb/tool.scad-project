@@ -38,6 +38,7 @@ jobs:
           PY
           python3 -m pip install --break-system-packages --disable-pip-version-check -e .
           scad-project --help >/dev/null
+          python3 -m pip install --break-system-packages --disable-pip-version-check 'setuptools>=70' wheel >/dev/null
 
       - name: Install package
         timeout-minutes: 2
