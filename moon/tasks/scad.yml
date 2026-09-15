@@ -48,6 +48,6 @@ tasks:
       - 'tools/tool.scad-project/src/**/*.py'
     outputs:
       - 'vrf/out/**'
-      - '.cache/scad-project/verification-state/last-verification-build.json'
+      - '.cache/scad-project/verification-state/**'
     options:
       cache: true
