@@ -71,27 +71,35 @@ on:
     outputs:
       affected:
         description: Whether SCAD production ran or was required conservatively
-        value: ${{ jobs.preflight.outputs.affected }}
+        value: ${{ jobs.production.outputs.affected }}
       source_sha:
         description: Exact source revision assessed and, when affected, produced
-        value: ${{ jobs.preflight.outputs.source_sha }}
+        value: ${{ jobs.production.outputs.source_sha }}
       base_sha:
         description: Exact comparison base when available
-        value: ${{ jobs.preflight.outputs.base_sha }}
+        value: ${{ jobs.production.outputs.base_sha }}
 
 permissions:
-  contents: read
+  contents: write
   packages: read
 
+concurrency:
+  group: scad-production-${{ github.repository_id }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 jobs:
-  preflight:
-    name: SCAD affected preflight
+  production:
+    name: SCAD production
     runs-on: ubuntu-24.04
-    timeout-minutes: 10
+    timeout-minutes: 20
     outputs:
       affected: ${{ steps.affected.outputs.affected }}
       source_sha: ${{ steps.range.outputs.source_sha }}
       base_sha: ${{ steps.range.outputs.base_sha }}
+    env:
+      SCAD_PROJECT_WORKFLOW_VERSION: v0.13.0
+      SCAD_TOOLCHAIN_IMAGE: ghcr.io/brainboxemb/scad-toolchain:v0.4.1
+      SCAD_TOOLCHAIN_VERSION: v0.4.1
 
     steps:
       - name: Resolve exact source, comparison base and affected task
@@ -152,13 +160,14 @@ jobs:
           echo "SCAD preflight range: $base_sha -> $source_sha"
           echo "SCAD preflight target: $affected_task"
 
-      - name: Checkout exact source for host preflight
+      - name: Checkout exact source for host orchestration
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           ref: ${{ steps.range.outputs.source_sha }}
           fetch-depth: 1
           filter: blob:none
           submodules: false
+          persist-credentials: false
 
       - name: Fetch only the exact comparison base
         shell: bash
@@ -177,7 +186,7 @@ jobs:
 
       - name: Query released Moon affected preflight
         id: affected
-        uses: brainboxemb/tool.git-project/moon/affected@v0.2.6
+        uses: brainboxemb/tool.git-project/moon/affected@v0.2.7
         with:
           task: ${{ steps.range.outputs.affected_task }}
           base: ${{ steps.range.outputs.base_sha }}
@@ -210,108 +219,175 @@ jobs:
           if-no-files-found: error
           retention-days: 14
 
-  production:
-    name: SCAD production
-    if: needs.preflight.outputs.affected == 'true'
-    needs: preflight
-    runs-on: ubuntu-24.04
-    timeout-minutes: 20
-    container:
-      image: ghcr.io/brainboxemb/scad-toolchain:v0.4.1
-    env:
-      SCAD_PROJECT_WORKFLOW_VERSION: v0.13.0
-      SCAD_TOOLCHAIN_IMAGE: ghcr.io/brainboxemb/scad-toolchain:v0.4.1
-      SCAD_TOOLCHAIN_VERSION: v0.4.1
-      SCAD_PROJECT_SOURCE_SHA: ${{ needs.preflight.outputs.source_sha }}
-      SCAD_PROJECT_PR_NUMBER: ${{ github.event.pull_request.number || '' }}
+      - name: Resolve exact SCAD tool gitlink for caches
+        id: tooling-ref
+        if: steps.affected.outputs.affected == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          entry="$(git ls-tree HEAD -- tools/tool.scad-project)"
+          read -r mode type sha path <<< "$entry"
+          test "$mode" = 160000
+          test "$type" = commit
+          test "$path" = tools/tool.scad-project
+          test "$sha" != ""
+          echo "scad_tool_sha=$sha" >> "$GITHUB_OUTPUT"
+          echo "SCAD tool gitlink: $sha"
 
-    steps:
-      - name: Checkout exact production source only
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - name: Restore portable Moon task cache
+        if: steps.affected.outputs.affected == 'true'
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
         with:
-          ref: ${{ needs.preflight.outputs.source_sha }}
-          fetch-depth: 1
-          filter: blob:none
-          submodules: false
-
-      - name: Prepare minimal Moon production VCS range
-        shell: bash
-        env:
-          BASE_SHA: ${{ needs.preflight.outputs.base_sha }}
-          SOURCE_SHA: ${{ needs.preflight.outputs.source_sha }}
-        run: |
-          set -euo pipefail
-          git config --global --add safe.directory "$GITHUB_WORKSPACE"
-
-          if [[ "$BASE_SHA" == "0000000000000000000000000000000000000000" ]]; then
-            echo "No concrete production comparison base; forcing Moon execution without affected VCS checks."
-            echo "MOON_FORCE=true" >> "$GITHUB_ENV"
-            echo "MOON_BASE=$SOURCE_SHA" >> "$GITHUB_ENV"
-            echo "MOON_HEAD=$SOURCE_SHA" >> "$GITHUB_ENV"
-          elif git fetch --no-tags --depth=1 origin "$BASE_SHA"; then
-            git rev-parse --verify "${BASE_SHA}^{commit}"
-            echo "MOON_BASE=$BASE_SHA" >> "$GITHUB_ENV"
-            echo "MOON_HEAD=$SOURCE_SHA" >> "$GITHUB_ENV"
-            echo "Prepared exact shallow Moon production range: $BASE_SHA -> $SOURCE_SHA"
-          else
-            echo "Production comparison base could not be fetched; forcing Moon execution without affected VCS checks."
-            echo "MOON_FORCE=true" >> "$GITHUB_ENV"
-            echo "MOON_BASE=$SOURCE_SHA" >> "$GITHUB_ENV"
-            echo "MOON_HEAD=$SOURCE_SHA" >> "$GITHUB_ENV"
-          fi
-
-      - name: Bootstrap exact repository dependencies
-        id: tooling
-        shell: bash
-        run: |
-          set -euo pipefail
-          git config --global --add safe.directory "$GITHUB_WORKSPACE"
-          bash ./bootstrap.sh
-          git config --global --add safe.directory "$GITHUB_WORKSPACE/tools/tool.git-project"
-          git config --global --add safe.directory "$GITHUB_WORKSPACE/tools/tool.scad-project"
-
-          git_tool_sha="$(git -C tools/tool.git-project rev-parse HEAD)"
-          scad_tool_sha="$(git -C tools/tool.scad-project rev-parse HEAD)"
-          echo "git_tool_sha=$git_tool_sha" >> "$GITHUB_OUTPUT"
-          echo "scad_tool_sha=$scad_tool_sha" >> "$GITHUB_OUTPUT"
-          echo "SCAD_PROJECT_TOOL_SHA=$scad_tool_sha" >> "$GITHUB_ENV"
-
-          tools/tool.git-project/git-project.sh validate --repo .
-          bash ./tools/tool.scad-project/scad-project.sh tooling-check
+          path: |
+            .moon/cache/hashes
+            .moon/cache/outputs
+          key: tool-git-project-moon-2.5.4-${{ runner.os }}-${{ inputs.cache_namespace }}-${{ github.run_id }}-${{ github.run_attempt }}
+          restore-keys: |
+            tool-git-project-moon-2.5.4-${{ runner.os }}-${{ inputs.cache_namespace }}-
 
       - name: Restore normal SCons object cache
         id: build-cache
+        if: steps.affected.outputs.affected == 'true'
         uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
         with:
           path: .cache/scad-project/scons
-          key: scad-production-build-scons-v1-${{ runner.os }}-${{ github.repository_id }}-v0.4.1-${{ steps.tooling.outputs.scad_tool_sha }}-${{ github.run_id }}-${{ github.run_attempt }}
+          key: scad-production-build-scons-v1-${{ runner.os }}-${{ github.repository_id }}-v0.4.1-${{ steps.tooling-ref.outputs.scad_tool_sha }}-${{ github.run_id }}-${{ github.run_attempt }}
           restore-keys: |
-            scad-production-build-scons-v1-${{ runner.os }}-${{ github.repository_id }}-v0.4.1-${{ steps.tooling.outputs.scad_tool_sha }}-
+            scad-production-build-scons-v1-${{ runner.os }}-${{ github.repository_id }}-v0.4.1-${{ steps.tooling-ref.outputs.scad_tool_sha }}-
 
       - name: Restore verification SCons object cache
         id: verification-cache
+        if: steps.affected.outputs.affected == 'true'
         uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
         with:
           path: .cache/scad-project/verification-scons
-          key: scad-production-verification-scons-v1-${{ runner.os }}-${{ github.repository_id }}-v0.4.1-${{ steps.tooling.outputs.scad_tool_sha }}-${{ github.run_id }}-${{ github.run_attempt }}
+          key: scad-production-verification-scons-v1-${{ runner.os }}-${{ github.repository_id }}-v0.4.1-${{ steps.tooling-ref.outputs.scad_tool_sha }}-${{ github.run_id }}-${{ github.run_attempt }}
           restore-keys: |
-            scad-production-verification-scons-v1-${{ runner.os }}-${{ github.repository_id }}-v0.4.1-${{ steps.tooling.outputs.scad_tool_sha }}-
+            scad-production-verification-scons-v1-${{ runner.os }}-${{ github.repository_id }}-v0.4.1-${{ steps.tooling-ref.outputs.scad_tool_sha }}-
 
-      - name: Show SCAD toolchain
+      - name: Prepare exact Moon range for the SCAD container
+        id: moon-range
+        if: steps.affected.outputs.affected == 'true'
         shell: bash
-        run: scad-toolchain-info
+        env:
+          BASE_SHA: ${{ steps.range.outputs.base_sha }}
+          SOURCE_SHA: ${{ steps.range.outputs.source_sha }}
+        run: |
+          set -euo pipefail
+          moon_force=false
+          moon_base="$SOURCE_SHA"
+          if [[ "$BASE_SHA" != "0000000000000000000000000000000000000000" ]] && git rev-parse --verify "${BASE_SHA}^{commit}" >/dev/null 2>&1; then
+            moon_base="$BASE_SHA"
+            echo "Prepared exact shallow Moon production range: $BASE_SHA -> $SOURCE_SHA"
+          else
+            moon_force=true
+            echo "No usable production comparison base; forcing Moon execution without affected VCS checks."
+          fi
+          echo "moon_force=$moon_force" >> "$GITHUB_OUTPUT"
+          echo "moon_base=$moon_base" >> "$GITHUB_OUTPUT"
+          echo "moon_head=$SOURCE_SHA" >> "$GITHUB_OUTPUT"
 
-      - name: Run or hydrate aggregate SCAD production graph
-        uses: brainboxemb/tool.git-project/moon@v0.2.6
+      - name: Pull exact SCAD toolchain image on host
+        if: steps.affected.outputs.affected == 'true'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          printf '%s' "$GH_TOKEN" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+          docker pull "$SCAD_TOOLCHAIN_IMAGE"
+          docker logout ghcr.io >/dev/null 2>&1 || true
+
+      - name: Run or hydrate aggregate SCAD production graph in one Docker process
+        if: steps.affected.outputs.affected == 'true'
+        shell: bash
+        env:
+          SOURCE_SHA: ${{ steps.range.outputs.source_sha }}
+          MOON_BASE_VALUE: ${{ steps.moon-range.outputs.moon_base }}
+          MOON_HEAD_VALUE: ${{ steps.moon-range.outputs.moon_head }}
+          MOON_FORCE_VALUE: ${{ steps.moon-range.outputs.moon_force }}
+          AGGREGATE_TASK: ${{ inputs.aggregate_task }}
+          PR_NUMBER: ${{ github.event.pull_request.number || '' }}
+          SOURCE_REF: ${{ github.event.pull_request.head.ref || github.ref_name }}
+        run: |
+          set -euo pipefail
+
+          moon_runtime="$RUNNER_TEMP/tool-git-project/moon-runtime"
+          git_tool_action_root="$(realpath "$GITHUB_WORKSPACE/../../_actions/brainboxemb/tool.git-project/v0.2.7")"
+          test -d "$moon_runtime"
+          test -f "$git_tool_action_root/moon-project.sh"
+          test "$(tr -d '\r\n' < "$git_tool_action_root/VERSION")" = 0.2.7
+
+          docker_args=(
+            --rm
+            --user "$(id -u):$(id -g)"
+            -e HOME=/tmp
+            -e CI=true
+            -e GITHUB_ACTIONS=true
+            -e GITHUB_WORKSPACE=/work
+            -e "GITHUB_REPOSITORY=$GITHUB_REPOSITORY"
+            -e "GITHUB_EVENT_NAME=$GITHUB_EVENT_NAME"
+            -e "GITHUB_REF=$GITHUB_REF"
+            -e "GITHUB_REF_TYPE=$GITHUB_REF_TYPE"
+            -e "GITHUB_REF_NAME=$SOURCE_REF"
+            -e "GITHUB_HEAD_REF=${GITHUB_HEAD_REF:-}"
+            -e "GITHUB_BASE_REF=${GITHUB_BASE_REF:-}"
+            -e "GITHUB_SHA=$SOURCE_SHA"
+            -e "GITHUB_RUN_ID=$GITHUB_RUN_ID"
+            -e "GITHUB_RUN_ATTEMPT=$GITHUB_RUN_ATTEMPT"
+            -e "SCAD_PROJECT_PR_NUMBER=$PR_NUMBER"
+            -e "SCAD_PROJECT_SOURCE_SHA=$SOURCE_SHA"
+            -e "SCAD_PROJECT_WORKFLOW_VERSION=$SCAD_PROJECT_WORKFLOW_VERSION"
+            -e "SCAD_TOOLCHAIN_IMAGE=$SCAD_TOOLCHAIN_IMAGE"
+            -e "SCAD_TOOLCHAIN_VERSION=$SCAD_TOOLCHAIN_VERSION"
+            -e "MOON_BASE=$MOON_BASE_VALUE"
+            -e "MOON_HEAD=$MOON_HEAD_VALUE"
+            -e MOON_INSTALL_ROOT=/moon-runtime
+            -e "AGGREGATE_TASK=$AGGREGATE_TASK"
+            -v "$GITHUB_WORKSPACE:/work"
+            -v "$moon_runtime:/moon-runtime"
+            -v "$git_tool_action_root:/tool-git-v027:ro"
+            -w /work
+          )
+          if [[ "$MOON_FORCE_VALUE" == true ]]; then
+            docker_args+=( -e MOON_FORCE=true )
+          fi
+
+          docker run "${docker_args[@]}" "$SCAD_TOOLCHAIN_IMAGE" bash -lc '
+            set -euo pipefail
+            git config --global --add safe.directory /work
+            bash ./bootstrap.sh
+            git config --global --add safe.directory /work/tools/tool.git-project
+            git config --global --add safe.directory /work/tools/tool.scad-project
+            tools/tool.git-project/git-project.sh validate --repo .
+            bash ./tools/tool.scad-project/scad-project.sh tooling-check
+            scad-toolchain-info
+            printf "consumer tool.git-project gitlink: %s\n" "$(git -C tools/tool.git-project rev-parse HEAD)"
+            printf "tool.scad-project gitlink: %s\n" "$(git -C tools/tool.scad-project rev-parse HEAD)"
+            printf "repository orchestration release: %s\n" "$(tr -d "\r\n" < /tool-git-v027/VERSION)"
+            bash /tool-git-v027/moon-project.sh run "$AGGREGATE_TASK" --repo . --install-root /moon-runtime
+          '
+
+      - name: Save normal SCons object cache
+        if: always() && steps.affected.outputs.affected == 'true' && steps.build-cache.outputs.cache-hit != 'true' && hashFiles('.cache/scad-project/scons/**') != ''
+        uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
         with:
-          task: ${{ inputs.aggregate_task }}
-          cache-namespace: ${{ inputs.cache_namespace }}
+          path: .cache/scad-project/scons
+          key: ${{ steps.build-cache.outputs.cache-primary-key }}
+
+      - name: Save verification SCons object cache
+        if: always() && steps.affected.outputs.affected == 'true' && steps.verification-cache.outputs.cache-hit != 'true' && hashFiles('.cache/scad-project/verification-scons/**') != ''
+        uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: .cache/scad-project/verification-scons
+          key: ${{ steps.verification-cache.outputs.cache-primary-key }}
 
       - name: Validate generic production materialization
+        if: steps.affected.outputs.affected == 'true'
         shell: bash
         env:
           AGGREGATE_TASK: ${{ inputs.aggregate_task }}
-          SOURCE_SHA: ${{ needs.preflight.outputs.source_sha }}
+          SOURCE_SHA: ${{ steps.range.outputs.source_sha }}
           BUILD_PATH: ${{ inputs.build_path }}
           VERIFICATION_PATH: ${{ inputs.verification_path }}
         run: |
@@ -345,21 +421,8 @@ jobs:
           print(json.dumps(data, indent=2))
           PY
 
-      - name: Save normal SCons object cache
-        if: always() && steps.build-cache.outputs.cache-hit != 'true' && hashFiles('.cache/scad-project/scons/**') != ''
-        uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
-        with:
-          path: .cache/scad-project/scons
-          key: ${{ steps.build-cache.outputs.cache-primary-key }}
-
-      - name: Save verification SCons object cache
-        if: always() && steps.verification-cache.outputs.cache-hit != 'true' && hashFiles('.cache/scad-project/verification-scons/**') != ''
-        uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
-        with:
-          path: .cache/scad-project/verification-scons
-          key: ${{ steps.verification-cache.outputs.cache-primary-key }}
-
       - name: Stage publication trees with current orchestration evidence
+        if: steps.affected.outputs.affected == 'true'
         shell: bash
         env:
           AGGREGATE_TASK: ${{ inputs.aggregate_task }}
@@ -383,6 +446,7 @@ jobs:
           done
 
       - name: Upload prepared Build publication
+        if: steps.affected.outputs.affected == 'true'
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: ${{ inputs.build_artifact_name }}
@@ -391,6 +455,7 @@ jobs:
           retention-days: 14
 
       - name: Upload prepared Verification publication
+        if: steps.affected.outputs.affected == 'true'
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: ${{ inputs.verification_artifact_name }}
@@ -398,30 +463,20 @@ jobs:
           if-no-files-found: error
           retention-days: 14
 
-  publish-build:
-    name: Publish Build output
-    if: inputs.publish && needs.preflight.outputs.affected == 'true'
-    needs:
-      - preflight
-      - production
-    permissions:
-      contents: write
-    uses: brainboxemb/tool.git-project/.github/workflows/reusable-generated-output-publish.yml@v0.2.6
-    with:
-      artifact_name: ${{ inputs.build_artifact_name }}
-      branch_suffix: ${{ inputs.build_branch_suffix }}
-      source_revision: ${{ needs.preflight.outputs.source_sha }}
+      - name: Publish Build output from host
+        if: inputs.publish && steps.affected.outputs.affected == 'true' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)
+        uses: brainboxemb/tool.git-project/generated-output/publish@6234b7437b0dc0115642468f74d1f4a2c2214bef
+        with:
+          source-directory: ${{ runner.temp }}/scad-build-publication
+          branch-suffix: ${{ inputs.build_branch_suffix }}
+          source-revision: ${{ steps.range.outputs.source_sha }}
+          token: ${{ github.token }}
 
-  publish-verification:
-    name: Publish Verification output
-    if: inputs.publish && needs.preflight.outputs.affected == 'true'
-    needs:
-      - preflight
-      - production
-    permissions:
-      contents: write
-    uses: brainboxemb/tool.git-project/.github/workflows/reusable-generated-output-publish.yml@v0.2.6
-    with:
-      artifact_name: ${{ inputs.verification_artifact_name }}
-      branch_suffix: ${{ inputs.verification_branch_suffix }}
-      source_revision: ${{ needs.preflight.outputs.source_sha }}
+      - name: Publish Verification output from host
+        if: inputs.publish && steps.affected.outputs.affected == 'true' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)
+        uses: brainboxemb/tool.git-project/generated-output/publish@6234b7437b0dc0115642468f74d1f4a2c2214bef
+        with:
+          source-directory: ${{ runner.temp }}/scad-verification-publication
+          branch-suffix: ${{ inputs.verification_branch_suffix }}
+          source-revision: ${{ steps.range.outputs.source_sha }}
+          token: ${{ github.token }}
