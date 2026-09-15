@@ -24,7 +24,9 @@ host preflight
               |
               v
         one SCAD production job
-          exact HEAD, shallow + blobless
+          fresh exact HEAD, shallow + blobless
+          exact BASE fetched shallowly for Moon run context
+          explicit MOON_BASE / MOON_HEAD
           bootstrap exact repository dependencies
           separate Build SCons cache
           separate Verify SCons cache
@@ -66,9 +68,22 @@ The reusable workflow resolves revisions as follows:
 
 A missing, invalid or unfetchable base must never cause a false skip. The released `tool.git-project` Moon preflight returns `affected=true` for uncertainty.
 
-## Production checkout
+## Production checkout and Moon VCS context
 
-The heavy SCAD job performs a fresh exact source checkout. It does not inherit or refetch the preflight history.
+The heavy SCAD job performs a fresh exact source checkout. It does not inherit the preflight worktree or its Git history.
+
+Moon also uses VCS context while executing and hashing normal tasks, even when the requested aggregate target is not invoked with `--affected`. A detached one-commit source checkout alone is therefore insufficient because the workspace default branch is not locally resolvable.
+
+For a concrete comparison base, the production job independently fetches only that exact base commit with `--depth=1` and exports:
+
+```text
+MOON_BASE=<exact comparison base>
+MOON_HEAD=<exact source revision>
+```
+
+This gives the normal Moon run the same explicit revision range as the preflight without introducing full history, a synthetic branch, or a second VCS decision model.
+
+When no usable base exists, preflight already chose conservative production. In that case the production job exports `MOON_FORCE=true` so Moon executes without relying on an affected VCS comparison that cannot be resolved. This intentionally trades cache reuse for correctness only in the uncertain case.
 
 Submodules/dependencies are initialized only after the affected gate by the consumer's root `bootstrap.sh`. This preserves the generic repository bootstrap ownership of `tool.git-project` and avoids paying dependency setup for unaffected changes.
 
