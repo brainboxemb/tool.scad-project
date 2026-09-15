@@ -15,7 +15,7 @@ from pathlib import Path
 
 
 WORKFLOW = Path(".github/workflows/project-production.yml")
-GIT_TOOL_RELEASE = "ce7c81c39ebc70933b4150028aa74d928a53c2ba"
+GIT_TOOL_RELEASE = "v0.2.6"
 
 
 def _text() -> str:
