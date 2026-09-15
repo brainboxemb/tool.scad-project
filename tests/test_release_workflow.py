@@ -2,7 +2,8 @@
 
 Checks:
 The reusable release workflow must validate the exact current production commit before
-building and again before publication, run Build and Verify before finalization, verify
+building and again before publication, derive runtime/cache policy from the same SCAD
+project plan used by normal production, run Build and Verify before finalization, verify
 checksums before publishing, publish immutable branches before creating the tag/GitHub
 Release, and contain rollback steps for incomplete finalization. Nested reusable
 workflows must use the explicit self-repository references required for cross-repository
@@ -11,8 +12,8 @@ consumers.
 Testing approach:
 GitHub Actions workflows cannot be meaningfully executed as a local unit test, so these
 tests inspect the workflow YAML source itself. They check for the required jobs,
-dependencies, commands and ordering. End-to-end behavior is additionally exercised in
-the template reference consumer; this module protects the safety rules from accidental
+dependencies, plan hand-off, commands and ordering. End-to-end behavior is additionally
+exercised in a reference consumer; this module protects the safety rules from accidental
 YAML edits.
 """
 
@@ -43,6 +44,31 @@ def test_release_workflow_preflights_before_build_and_verify():
     assert text.count("source_ref: ${{ inputs.source_sha }}") == 2
     assert text.count("release_version: ${{ inputs.version }}") == 2
     assert text.count("source_sha: ${{ inputs.source_sha }}") >= 2
+
+
+def test_release_preflight_derives_runtime_and_cache_policy_once():
+    text = read(RELEASE)
+
+    assert "name: Resolve SCAD release runtime and cache policy" in text
+    assert "from scad_project.ci_policy import build_ci_plan" in text
+    assert "plan = build_ci_plan(load_context(Path.cwd()))" in text
+    assert "runtime_profile: ${{ steps.scad-plan.outputs.runtime_profile }}" in text
+    assert "runtime_image: ${{ steps.scad-plan.outputs.runtime_image }}" in text
+    assert "use_scons_cache: ${{ steps.scad-plan.outputs.use_scons_cache }}" in text
+    assert (
+        "use_verification_scons_cache: "
+        "${{ steps.scad-plan.outputs.use_verification_scons_cache }}"
+    ) in text
+
+    assert "runtime_image: ${{ needs.preflight.outputs.runtime_image }}" in text
+    assert (
+        "use_scons_cache: ${{ needs.preflight.outputs.use_scons_cache == 'true' }}"
+        in text
+    )
+    assert (
+        "use_verification_scons_cache: "
+        "${{ needs.preflight.outputs.use_verification_scons_cache == 'true' }}"
+    ) in text
 
 
 def test_release_preflight_requires_current_production_head():
@@ -122,9 +148,24 @@ def test_build_and_verify_support_exact_release_source_context():
         assert "source_ref:" in text
         assert "release_version:" in text
         assert "source_sha:" in text
+        assert "runtime_image:" in text
         assert "SCAD_PROJECT_RELEASE_VERSION: ${{ inputs.release_version }}" in text
         assert "SCAD_PROJECT_SOURCE_SHA: ${{ inputs.source_sha || github.sha }}" in text
         assert "ref: ${{ inputs.source_ref || github.ref }}" in text
+        assert "image: ${{ inputs.runtime_image }}" in text
+
+
+def test_release_keeps_complete_artifacts_as_cross_job_handoff():
+    release = read(RELEASE)
+    build = read(BUILD)
+    verify = read(VERIFY)
+
+    assert "artifact_name: scad-project-release-build" in release
+    assert "artifact_name: scad-project-release-verification" in release
+    assert "name: Download verified build output" in release
+    assert "name: Download verified verification output" in release
+    assert "name: Upload generated build" in build
+    assert "name: Upload verification evidence" in verify
 
 
 def test_release_workflow_uses_self_repository_reusable_workflows():
