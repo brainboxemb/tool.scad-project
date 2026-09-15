@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import argparse
 from dataclasses import asdict, dataclass
 import json
 from pathlib import Path
@@ -14,6 +15,7 @@ from .config import ProjectContext, load_context, validate_config
 
 
 SCAD_CAPABILITIES = ("scad.docs", "scad.build", "scad.verify")
+BUILD_PUBLICATION_CAPABILITIES = ("scad.docs", "scad.build")
 TOOLCHAIN_VERSION = "v0.5.0"
 RUNTIME_IMAGES = {
     "openscad": f"ghcr.io/brainboxemb/scad-toolchain-openscad:{TOOLCHAIN_VERSION}",
@@ -46,7 +48,7 @@ class CiPlan:
 
 def _load_yaml_mapping(path: Path) -> dict[str, Any]:
     if not path.is_file():
-        raise CiPolicyError(f"Required Moon configuration is missing: {path.relative_to(path.parent.parent) if path.parent.parent in path.parents else path}")
+        raise CiPolicyError(f"Required configuration is missing: {path}")
     try:
         data = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
     except yaml.YAMLError as exc:
@@ -57,8 +59,7 @@ def _load_yaml_mapping(path: Path) -> dict[str, Any]:
 
 
 def _inherited_scad_capabilities(root: Path) -> tuple[str, ...]:
-    workspace_path = root / ".moon" / "workspace.yml"
-    workspace_data = _load_yaml_mapping(workspace_path)
+    workspace_data = _load_yaml_mapping(root / ".moon" / "workspace.yml")
     workspace = workspace_data.get("workspace", {}) or {}
     if not isinstance(workspace, dict):
         raise CiPolicyError(".moon/workspace.yml workspace must be a mapping")
@@ -137,7 +138,7 @@ def _validate_output_overrides(
     paths = context.config.get("paths", {}) or {}
     build_root = str(paths.get("build_root", "bld")).rstrip("/")
     if build_root != "bld":
-        for capability in ("scad.docs", "scad.build"):
+        for capability in BUILD_PUBLICATION_CAPABILITIES:
             if capability in capabilities and not _has_output_under(
                 _task_outputs(local_tasks, capability), build_root
             ):
@@ -209,7 +210,7 @@ def build_ci_plan(context: ProjectContext) -> CiPlan:
         build_engine=build_engine,
         use_scons_cache=(
             build_engine == "scons"
-            and any(value in inherited for value in ("scad.docs", "scad.build"))
+            and any(value in inherited for value in BUILD_PUBLICATION_CAPABILITIES)
         ),
         use_verification_scons_cache=(
             build_engine == "scons"
@@ -221,13 +222,97 @@ def build_ci_plan(context: ProjectContext) -> CiPlan:
     )
 
 
+def resolve_execution_plan(
+    plan: CiPlan,
+    affected_task_ids: list[str],
+    *,
+    conservative: bool,
+) -> dict[str, Any]:
+    """Combine SCAD project intent with Moon's one-query impact result.
+
+    `affected_capabilities` are the capabilities whose inputs changed. A complete
+    generated Build branch may contain both docs and presentation output, so when
+    either Build contributor changes, all configured Build contributors are also
+    listed in `materialization_capabilities`. Unaffected contributors normally
+    hydrate from Moon; on a cache miss Moon may safely reproduce them. Verification
+    is a separate publication family and is never pulled in merely for Build.
+    """
+
+    if conservative:
+        affected = list(plan.capabilities)
+    else:
+        affected_names = {
+            value.rsplit(":", 1)[-1]
+            for value in affected_task_ids
+            if isinstance(value, str)
+        }
+        affected = [
+            capability
+            for capability in plan.capabilities
+            if capability in affected_names
+        ]
+
+    materialization = list(affected)
+    if any(value in affected for value in BUILD_PUBLICATION_CAPABILITIES):
+        for capability in BUILD_PUBLICATION_CAPABILITIES:
+            if capability in plan.capabilities and capability not in materialization:
+                materialization.append(capability)
+    materialization = [
+        capability for capability in SCAD_CAPABILITIES if capability in materialization
+    ]
+
+    result = plan.to_dict()
+    result.update(
+        {
+            "impact_mode": "conservative" if conservative else "precise",
+            "affected_capabilities": affected,
+            "materialization_capabilities": materialization,
+            "run_runtime": bool(materialization),
+            "publish_build": any(
+                value in affected for value in BUILD_PUBLICATION_CAPABILITIES
+            ),
+            "publish_verification": "scad.verify" in affected,
+        }
+    )
+    return result
+
+
+def _read_json(path: Path) -> Any:
+    try:
+        return json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        raise CiPolicyError(f"Unable to read JSON evidence {path}: {exc}") from exc
+
+
 def main() -> None:
+    parser = argparse.ArgumentParser(prog="python -m scad_project.ci_policy")
+    parser.add_argument("--affected-tasks", type=Path, required=True)
+    parser.add_argument("--decision", type=Path, required=True)
+    args = parser.parse_args()
+
     try:
         context = load_context()
         plan = build_ci_plan(context)
+        affected_task_ids = _read_json(args.affected_tasks)
+        decision = _read_json(args.decision)
+        if not isinstance(affected_task_ids, list) or not all(
+            isinstance(value, str) for value in affected_task_ids
+        ):
+            raise CiPolicyError("affected-task evidence must be a JSON string array")
+        if not isinstance(decision, dict):
+            raise CiPolicyError("decision evidence must be a JSON object")
+        status = decision.get("status")
+        if status not in {"success", "conservative"}:
+            raise CiPolicyError(f"unsupported affected decision status: {status!r}")
+        execution = resolve_execution_plan(
+            plan,
+            affected_task_ids,
+            conservative=status == "conservative",
+        )
     except (CiPolicyError, RuntimeError) as exc:
         raise SystemExit(f"ERROR: {exc}") from exc
-    print(json.dumps(plan.to_dict(), sort_keys=True, separators=(",", ":")))
+
+    print(json.dumps(execution, sort_keys=True, separators=(",", ":")))
 
 
 if __name__ == "__main__":

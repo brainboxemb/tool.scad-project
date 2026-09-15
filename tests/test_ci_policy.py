@@ -4,7 +4,11 @@ from pathlib import Path
 
 import pytest
 
-from scad_project.ci_policy import CiPolicyError, build_ci_plan
+from scad_project.ci_policy import (
+    CiPolicyError,
+    build_ci_plan,
+    resolve_execution_plan,
+)
 from scad_project.config import load_context
 
 
@@ -45,6 +49,26 @@ workspace:
     (root / "moon.yml").write_text(local_tasks, encoding="utf-8")
 
 
+def _hub_plan(tmp_path: Path):
+    _write_repository(
+        tmp_path,
+        profile="""paths:
+  design_root: .
+  build_root: bld
+  render_root: openscad/render
+build_engine:
+  engine: scons
+openscad: {}
+verification:
+  commands:
+    - [bash, scripts/verify.sh]
+  output_root: vrf/out
+""",
+        capabilities=["scad.docs", "scad.build", "scad.verify"],
+    )
+    return build_ci_plan(load_context(tmp_path))
+
+
 def test_dual_runtime_direct_project_plan(tmp_path: Path):
     _write_repository(
         tmp_path,
@@ -73,24 +97,7 @@ verification:
 
 
 def test_openscad_scons_presentation_project_plan(tmp_path: Path):
-    _write_repository(
-        tmp_path,
-        profile="""paths:
-  design_root: .
-  build_root: bld
-  render_root: openscad/render
-build_engine:
-  engine: scons
-openscad: {}
-verification:
-  commands:
-    - [bash, scripts/verify.sh]
-  output_root: vrf/out
-""",
-        capabilities=["scad.docs", "scad.build", "scad.verify"],
-    )
-
-    plan = build_ci_plan(load_context(tmp_path))
+    plan = _hub_plan(tmp_path)
 
     assert plan.runtime_profile == "openscad"
     assert plan.runtime_image == "ghcr.io/brainboxemb/scad-toolchain-openscad:v0.5.0"
@@ -216,3 +223,68 @@ externals: []
 
     with pytest.raises(CiPolicyError, match="workspace.inheritedTasks.include"):
         build_ci_plan(load_context(tmp_path))
+
+
+def test_precise_docs_change_hydrates_complete_build_publication_family(tmp_path: Path):
+    plan = _hub_plan(tmp_path)
+
+    execution = resolve_execution_plan(
+        plan,
+        ["consumer:scad.docs"],
+        conservative=False,
+    )
+
+    assert execution["affected_capabilities"] == ["scad.docs"]
+    assert execution["materialization_capabilities"] == ["scad.docs", "scad.build"]
+    assert execution["publish_build"] is True
+    assert execution["publish_verification"] is False
+
+
+def test_precise_verification_change_does_not_materialize_build_family(tmp_path: Path):
+    plan = _hub_plan(tmp_path)
+
+    execution = resolve_execution_plan(
+        plan,
+        ["consumer:scad.verify"],
+        conservative=False,
+    )
+
+    assert execution["affected_capabilities"] == ["scad.verify"]
+    assert execution["materialization_capabilities"] == ["scad.verify"]
+    assert execution["publish_build"] is False
+    assert execution["publish_verification"] is True
+
+
+def test_conservative_impact_runs_full_safe_scope(tmp_path: Path):
+    plan = _hub_plan(tmp_path)
+
+    execution = resolve_execution_plan(plan, [], conservative=True)
+
+    assert execution["impact_mode"] == "conservative"
+    assert execution["affected_capabilities"] == [
+        "scad.docs",
+        "scad.build",
+        "scad.verify",
+    ]
+    assert execution["materialization_capabilities"] == [
+        "scad.docs",
+        "scad.build",
+        "scad.verify",
+    ]
+    assert execution["run_runtime"] is True
+    assert execution["publish_build"] is True
+    assert execution["publish_verification"] is True
+
+
+def test_non_scad_affected_tasks_do_not_start_scad_runtime(tmp_path: Path):
+    plan = _hub_plan(tmp_path)
+
+    execution = resolve_execution_plan(
+        plan,
+        ["consumer:some.other.task"],
+        conservative=False,
+    )
+
+    assert execution["affected_capabilities"] == []
+    assert execution["materialization_capabilities"] == []
+    assert execution["run_runtime"] is False
