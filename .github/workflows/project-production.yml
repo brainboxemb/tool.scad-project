@@ -217,6 +217,29 @@ jobs:
           filter: blob:none
           submodules: false
 
+      - name: Prepare minimal Moon production VCS range
+        shell: bash
+        env:
+          BASE_SHA: ${{ needs.preflight.outputs.base_sha }}
+          SOURCE_SHA: ${{ needs.preflight.outputs.source_sha }}
+        run: |
+          set -euo pipefail
+
+          if [[ "$BASE_SHA" == "0000000000000000000000000000000000000000" ]]; then
+            echo "No concrete production comparison base; forcing Moon execution without affected VCS checks."
+            echo "MOON_FORCE=true" >> "$GITHUB_ENV"
+            echo "MOON_HEAD=$SOURCE_SHA" >> "$GITHUB_ENV"
+          elif git fetch --no-tags --depth=1 origin "$BASE_SHA"; then
+            git rev-parse --verify "${BASE_SHA}^{commit}"
+            echo "MOON_BASE=$BASE_SHA" >> "$GITHUB_ENV"
+            echo "MOON_HEAD=$SOURCE_SHA" >> "$GITHUB_ENV"
+            echo "Prepared exact shallow Moon production range: $BASE_SHA -> $SOURCE_SHA"
+          else
+            echo "Production comparison base could not be fetched; forcing Moon execution without affected VCS checks."
+            echo "MOON_FORCE=true" >> "$GITHUB_ENV"
+            echo "MOON_HEAD=$SOURCE_SHA" >> "$GITHUB_ENV"
+          fi
+
       - name: Bootstrap exact repository dependencies
         id: tooling
         shell: bash
