@@ -224,10 +224,12 @@ jobs:
           SOURCE_SHA: ${{ needs.preflight.outputs.source_sha }}
         run: |
           set -euo pipefail
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
 
           if [[ "$BASE_SHA" == "0000000000000000000000000000000000000000" ]]; then
             echo "No concrete production comparison base; forcing Moon execution without affected VCS checks."
             echo "MOON_FORCE=true" >> "$GITHUB_ENV"
+            echo "MOON_BASE=$SOURCE_SHA" >> "$GITHUB_ENV"
             echo "MOON_HEAD=$SOURCE_SHA" >> "$GITHUB_ENV"
           elif git fetch --no-tags --depth=1 origin "$BASE_SHA"; then
             git rev-parse --verify "${BASE_SHA}^{commit}"
@@ -237,6 +239,7 @@ jobs:
           else
             echo "Production comparison base could not be fetched; forcing Moon execution without affected VCS checks."
             echo "MOON_FORCE=true" >> "$GITHUB_ENV"
+            echo "MOON_BASE=$SOURCE_SHA" >> "$GITHUB_ENV"
             echo "MOON_HEAD=$SOURCE_SHA" >> "$GITHUB_ENV"
           fi
 
