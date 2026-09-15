@@ -89,7 +89,7 @@ Functional changes to released `tool.scad-project` versions.
 
 ### Added
 
-- Add dependency-aware verification-only OpenSCAD render/export targets through `verification.render_root` and `verification.export_root` paths, with their own `verification.output_root` and optional `verification.image_size`.
+- Add dependency-aware verification-only OpenSCAD render/export targets through `verification.render_root` and `verification.export_root`, with their own `verification.output_root` and optional `verification.image_size`.
 - Add verification profile `output_pattern` support so size-expanded verification targets can keep stable project-specific filenames.
 - Add a separate persistent `verification-scons` cache and `last-verification-build.json` report so unchanged verification evidence can be restored target-by-target.
 
