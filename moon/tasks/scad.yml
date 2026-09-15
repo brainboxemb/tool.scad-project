@@ -1,0 +1,53 @@
+tasks:
+  scad.docs:
+    description: Build SCAD design documentation.
+    command: 'bash tools/tool.scad-project/scad-project.sh design-build'
+    inputs:
+      - 'project.yml'
+      - 'project.scad.yml'
+      - '.gitmodules'
+      - 'tools/tool.scad-project/scad-project.sh'
+      - 'tools/tool.scad-project/pyproject.toml'
+      - 'tools/tool.scad-project/src/**/*.py'
+    outputs:
+      - 'bld/design/**'
+      - 'bld/evidence/executions/scad-docs/**'
+      - 'bld/evidence/domain/last-design-build.json'
+      - '.cache/scad-project/state/last-design-build.json'
+    options:
+      cache: true
+
+  scad.build:
+    description: Build configured presentation/render/export output.
+    command: 'bash tools/tool.scad-project/scad-project.sh build'
+    inputs:
+      - 'project.yml'
+      - 'project.scad.yml'
+      - '.gitmodules'
+      - 'tools/tool.scad-project/scad-project.sh'
+      - 'tools/tool.scad-project/pyproject.toml'
+      - 'tools/tool.scad-project/src/**/*.py'
+    outputs:
+      - 'bld/png/**'
+      - 'bld/stl/**'
+      - 'bld/evidence/executions/scad-build/**'
+      - 'bld/evidence/domain/last-build.json'
+      - '.cache/scad-project/state/last-build.json'
+    options:
+      cache: true
+
+  scad.verify:
+    description: Run SCAD project verification.
+    command: 'bash tools/tool.scad-project/scad-project.sh verify'
+    inputs:
+      - 'project.yml'
+      - 'project.scad.yml'
+      - '.gitmodules'
+      - 'tools/tool.scad-project/scad-project.sh'
+      - 'tools/tool.scad-project/pyproject.toml'
+      - 'tools/tool.scad-project/src/**/*.py'
+    outputs:
+      - 'vrf/out/**'
+      - '.cache/scad-project/verification-state/last-verification-build.json'
+    options:
+      cache: true
