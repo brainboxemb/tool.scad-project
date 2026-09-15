@@ -20,7 +20,7 @@ GIT_TOOL_PATH = "tools/tool.git-project"
 SCAD_TOOL_PATH = "tools/tool.scad-project"
 WORKFLOW_USE_RE = re.compile(
     r"(brainboxemb/tool\.scad-project/\.github/workflows/"
-    r"(?:project-build|project-verify|project-release)\.yml)@([^\s\"']+)"
+    r"(?:project-build|project-verify|project-production|project-release)\.yml)@([^\s\"']+)"
 )
 
 

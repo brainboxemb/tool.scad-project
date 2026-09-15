@@ -3,8 +3,8 @@
 Checks:
 Repository bootstrap/status/update operations are delegated to the pinned
 `tool.git-project` checkout instead of being reimplemented by the SCAD tool. After a
-generic update, SCAD reusable Build, Verify and Release workflow callers are aligned to
-the exact checked-out `tool.scad-project` commit.
+generic update, SCAD reusable Build, Verify, Production and Release workflow callers
+are aligned to the exact checked-out `tool.scad-project` commit.
 
 Testing approach:
 Tests create small temporary repository layouts and replace command execution or Git SHA
@@ -70,9 +70,7 @@ def test_repo_update_runs_generic_update_before_scad_workflow_sync(tmp_path, mon
     assert events == [("generic", "update"), ("scad", "workflow-sync")]
 
 
-def test_workflow_sync_pins_build_verify_and_release_to_checked_out_sha(
-    tmp_path, monkeypatch
-):
+def test_workflow_sync_pins_scad_workflows_to_checked_out_sha(tmp_path, monkeypatch):
     workflow_dir = tmp_path / ".github" / "workflows"
     workflow_dir.mkdir(parents=True)
     workflow = workflow_dir / "ci.yml"
@@ -82,6 +80,8 @@ def test_workflow_sync_pins_build_verify_and_release_to_checked_out_sha(
     uses: brainboxemb/tool.scad-project/.github/workflows/project-build.yml@old
   verify:
     uses: brainboxemb/tool.scad-project/.github/workflows/project-verify.yml@old
+  production:
+    uses: brainboxemb/tool.scad-project/.github/workflows/project-production.yml@old
   release:
     uses: brainboxemb/tool.scad-project/.github/workflows/project-release.yml@old
 """,
@@ -105,6 +105,11 @@ def test_workflow_sync_pins_build_verify_and_release_to_checked_out_sha(
     text = workflow.read_text(encoding="utf-8")
 
     assert changed == [workflow]
-    for name in ("project-build", "project-verify", "project-release"):
+    for name in (
+        "project-build",
+        "project-verify",
+        "project-production",
+        "project-release",
+    ):
         assert f"{name}.yml@{sha}" in text
     assert "@old" not in text
