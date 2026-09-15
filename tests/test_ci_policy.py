@@ -3,11 +3,13 @@
 Checks:
 - runtime/profile and SCons transport follow project.scad.yml intent;
 - inherited Moon capabilities must agree with configured SCAD capabilities;
+- capability selection is read from project-level moon.yml, matching Moon 2.5.4;
 - non-standard output roots require explicit local Moon output overrides;
 - precise and conservative Moon impact results resolve to publication-safe materialization scopes.
 
 Testing approach:
 - create small temporary consumer repositories with real project/Moon YAML;
+- keep .moon/workspace.yml limited to valid workspace-level configuration;
 - load them through the production configuration loader and assert the resulting plans/errors.
 """
 
@@ -44,12 +46,8 @@ profiles:
     (root / "project.scad.yml").write_text(profile, encoding="utf-8")
     include = "\n".join(f"      - {value}" for value in capabilities)
     (root / ".moon" / "workspace.yml").write_text(
-        f"""projects:
+        """projects:
   consumer: '.'
-workspace:
-  inheritedTasks:
-    include:
-{include}
 """,
         encoding="utf-8",
     )
@@ -57,7 +55,14 @@ workspace:
         "extends: '../../tools/tool.scad-project/moon/tasks/scad.yml'\n",
         encoding="utf-8",
     )
-    (root / "moon.yml").write_text(local_tasks, encoding="utf-8")
+    (root / "moon.yml").write_text(
+        f"""workspace:
+  inheritedTasks:
+    include:
+{include}
+{local_tasks}""",
+        encoding="utf-8",
+    )
 
 
 def _hub_plan(tmp_path: Path):
@@ -232,8 +237,24 @@ externals: []
     )
     (tmp_path / "moon.yml").write_text("tasks: {}\n", encoding="utf-8")
 
-    with pytest.raises(CiPolicyError, match="workspace.inheritedTasks.include"):
+    with pytest.raises(CiPolicyError, match="workspace.inheritedTasks.include in moon.yml"):
         build_ci_plan(load_context(tmp_path))
+
+
+def test_workspace_file_is_not_used_for_project_inherited_task_selection(tmp_path: Path):
+    _write_repository(
+        tmp_path,
+        profile="""paths:
+  design_root: .
+  build_root: bld
+openscad: {}
+""",
+        capabilities=["scad.docs"],
+    )
+    workspace_text = (tmp_path / ".moon" / "workspace.yml").read_text(encoding="utf-8")
+
+    assert "inheritedTasks" not in workspace_text
+    assert build_ci_plan(load_context(tmp_path)).capabilities == ("scad.docs",)
 
 
 def test_precise_docs_change_hydrates_complete_build_publication_family(tmp_path: Path):
