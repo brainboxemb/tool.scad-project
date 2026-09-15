@@ -33,6 +33,16 @@ on:
         required: false
         type: string
         default: ''
+      runtime_image:
+        description: Qualified SCAD runtime image selected from project configuration
+        required: false
+        type: string
+        default: ghcr.io/brainboxemb/scad-toolchain:v0.5.0
+      use_verification_scons_cache:
+        description: Restore/save Verification SCons objects only when verification render/export targets exist
+        required: false
+        type: boolean
+        default: true
 
 permissions:
   contents: write
@@ -43,15 +53,16 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     container:
-      image: ghcr.io/brainboxemb/scad-toolchain:v0.4.1
+      image: ${{ inputs.runtime_image }}
 
     env:
-      SCAD_PROJECT_WORKFLOW_VERSION: v0.13.1
-      SCAD_TOOLCHAIN_IMAGE: ghcr.io/brainboxemb/scad-toolchain:v0.4.1
-      SCAD_TOOLCHAIN_VERSION: v0.4.1
+      SCAD_PROJECT_WORKFLOW_VERSION: v0.14.0
+      SCAD_TOOLCHAIN_IMAGE: ${{ inputs.runtime_image }}
+      SCAD_TOOLCHAIN_VERSION: v0.5.0
       SCAD_PROJECT_RELEASE_VERSION: ${{ inputs.release_version }}
       SCAD_PROJECT_SOURCE_SHA: ${{ inputs.source_sha || github.sha }}
       SCAD_PROJECT_PR_NUMBER: ${{ github.event.pull_request.number || '' }}
+      PYTHONDONTWRITEBYTECODE: '1'
 
     steps:
       - name: Checkout project and pinned submodules
@@ -72,6 +83,8 @@ jobs:
         id: scons-cache
         timeout-minutes: 2
         shell: bash
+        env:
+          USE_VERIFICATION_SCONS_CACHE: ${{ inputs.use_verification_scons_cache }}
         run: |
           set -euo pipefail
           TOOL_SHA="$(git -C tools/tool.scad-project rev-parse HEAD)"
@@ -83,10 +96,11 @@ jobs:
           echo "  Repository: ${GITHUB_REPOSITORY}"
           echo "  Toolchain : ${SCAD_TOOLCHAIN_VERSION}"
           echo "  Tool       : ${SCAD_PROJECT_WORKFLOW_VERSION} (${SHORT_TOOL_SHA})"
-          echo "  Mode       : Verify restores and writes only the verification cache"
+          echo "  Enabled    : ${USE_VERIFICATION_SCONS_CACHE}"
 
       - name: Restore selective verification cache
         id: verification-cache
+        if: inputs.use_verification_scons_cache
         timeout-minutes: 2
         uses: actions/cache/restore@v4
         with:
@@ -99,13 +113,20 @@ jobs:
         timeout-minutes: 2
         shell: bash
         env:
+          VERIFICATION_ENABLED: ${{ inputs.use_verification_scons_cache }}
           VERIFICATION_HIT: ${{ steps.verification-cache.outputs.cache-hit }}
           VERIFICATION_PRIMARY_KEY: ${{ steps.verification-cache.outputs.cache-primary-key }}
           VERIFICATION_MATCHED_KEY: ${{ steps.verification-cache.outputs.cache-matched-key }}
         run: |
           set -euo pipefail
 
-          if [[ "$VERIFICATION_HIT" == "true" ]]; then
+          if [[ "$VERIFICATION_ENABLED" != true ]]; then
+            VERIFICATION_STATUS="disabled by project configuration"
+            echo "SCAD_PROJECT_CACHE_NAMESPACE=disabled" >> "$GITHUB_ENV"
+            echo "SCAD_PROJECT_CACHE_PRIMARY_KEY=" >> "$GITHUB_ENV"
+            echo "SCAD_PROJECT_CACHE_MATCHED_KEY=" >> "$GITHUB_ENV"
+            echo "SCAD_PROJECT_CACHE_HIT=false" >> "$GITHUB_ENV"
+          elif [[ "$VERIFICATION_HIT" == "true" ]]; then
             VERIFICATION_STATUS="exact hit"
           elif [[ -n "$VERIFICATION_MATCHED_KEY" ]]; then
             VERIFICATION_STATUS="fallback hit - selective reuse available"
@@ -113,10 +134,12 @@ jobs:
             VERIFICATION_STATUS="miss - cold cache"
           fi
 
-          echo "SCAD_PROJECT_CACHE_NAMESPACE=scad-verification-v1" >> "$GITHUB_ENV"
-          echo "SCAD_PROJECT_CACHE_PRIMARY_KEY=${VERIFICATION_PRIMARY_KEY}" >> "$GITHUB_ENV"
-          echo "SCAD_PROJECT_CACHE_MATCHED_KEY=${VERIFICATION_MATCHED_KEY}" >> "$GITHUB_ENV"
-          echo "SCAD_PROJECT_CACHE_HIT=${VERIFICATION_HIT}" >> "$GITHUB_ENV"
+          if [[ "$VERIFICATION_ENABLED" == true ]]; then
+            echo "SCAD_PROJECT_CACHE_NAMESPACE=scad-verification-v1" >> "$GITHUB_ENV"
+            echo "SCAD_PROJECT_CACHE_PRIMARY_KEY=${VERIFICATION_PRIMARY_KEY}" >> "$GITHUB_ENV"
+            echo "SCAD_PROJECT_CACHE_MATCHED_KEY=${VERIFICATION_MATCHED_KEY}" >> "$GITHUB_ENV"
+            echo "SCAD_PROJECT_CACHE_HIT=${VERIFICATION_HIT}" >> "$GITHUB_ENV"
+          fi
 
           echo "Selective verification cache: ${VERIFICATION_STATUS}"
           {
@@ -172,7 +195,7 @@ jobs:
           PY
 
       - name: Save selective verification cache
-        if: steps.verification-cache.outputs.cache-hit != 'true' && hashFiles('.cache/scad-project/verification-scons/**') != ''
+        if: inputs.use_verification_scons_cache && steps.verification-cache.outputs.cache-hit != 'true' && hashFiles('.cache/scad-project/verification-scons/**') != ''
         timeout-minutes: 2
         uses: actions/cache/save@v4
         with:
