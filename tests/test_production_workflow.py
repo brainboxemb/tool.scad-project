@@ -52,9 +52,15 @@ def test_production_reuses_exact_preflight_range_without_full_history():
 
     vcs_step = "Prepare minimal Moon production VCS range"
     aggregate_step = "Run or hydrate aggregate SCAD production graph"
+    safe_directory = 'git config --global --add safe.directory "$GITHUB_WORKSPACE"'
+    production_fetch = 'git fetch --no-tags --depth=1 origin "$BASE_SHA"'
+
     assert vcs_step in text
     assert text.index(vcs_step) < text.index(aggregate_step)
+    vcs_offset = text.index(vcs_step)
+    assert text.index(safe_directory, vcs_offset) < text.index(production_fetch, vcs_offset)
     assert 'echo "MOON_BASE=$BASE_SHA" >> "$GITHUB_ENV"' in text
+    assert text.count('echo "MOON_BASE=$SOURCE_SHA" >> "$GITHUB_ENV"') == 2
     assert 'echo "MOON_HEAD=$SOURCE_SHA" >> "$GITHUB_ENV"' in text
     assert 'echo "MOON_FORCE=true" >> "$GITHUB_ENV"' in text
     assert "Prepared exact shallow Moon production range" in text
