@@ -163,7 +163,7 @@ jobs:
 
       - name: Query released Moon affected preflight
         id: affected
-        uses: brainboxemb/tool.git-project/moon/affected@ce7c81c39ebc70933b4150028aa74d928a53c2ba
+        uses: brainboxemb/tool.git-project/moon/affected@v0.2.6
         with:
           task: ${{ inputs.aggregate_task }}
           base: ${{ steps.range.outputs.base_sha }}
@@ -259,7 +259,7 @@ jobs:
         run: scad-toolchain-info
 
       - name: Run or hydrate aggregate SCAD production graph
-        uses: brainboxemb/tool.git-project/moon@ce7c81c39ebc70933b4150028aa74d928a53c2ba
+        uses: brainboxemb/tool.git-project/moon@v0.2.6
         with:
           task: ${{ inputs.aggregate_task }}
           cache-namespace: ${{ inputs.cache_namespace }}
@@ -363,7 +363,7 @@ jobs:
       - production
     permissions:
       contents: write
-    uses: brainboxemb/tool.git-project/.github/workflows/reusable-generated-output-publish.yml@ce7c81c39ebc70933b4150028aa74d928a53c2ba
+    uses: brainboxemb/tool.git-project/.github/workflows/reusable-generated-output-publish.yml@v0.2.6
     with:
       artifact_name: ${{ inputs.build_artifact_name }}
       branch_suffix: ${{ inputs.build_branch_suffix }}
@@ -377,7 +377,7 @@ jobs:
       - production
     permissions:
       contents: write
-    uses: brainboxemb/tool.git-project/.github/workflows/reusable-generated-output-publish.yml@ce7c81c39ebc70933b4150028aa74d928a53c2ba
+    uses: brainboxemb/tool.git-project/.github/workflows/reusable-generated-output-publish.yml@v0.2.6
     with:
       artifact_name: ${{ inputs.verification_artifact_name }}
       branch_suffix: ${{ inputs.verification_branch_suffix }}
