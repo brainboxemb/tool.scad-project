@@ -1,4 +1,17 @@
-"""Contract tests for the repository-level SCAD production workflow."""
+"""Repository-level SCAD production workflow policy.
+
+Checks:
+The reusable production workflow has one host orchestrator job, keeps the
+expensive SCAD runtime behind the Moon affected decision, uses the immutable
+SCAD image through one explicit Docker process, keeps source checkout write
+credentials out of that process, and publishes with the exact released generic
+same-job publisher rather than a second reusable-workflow job.
+
+Testing approach:
+Parse the workflow for its structural job boundary and inspect the source text
+for the pinned generic orchestration/publication interfaces and credential /
+container policy that must remain visible and reviewable.
+"""
 
 from pathlib import Path
 
@@ -24,5 +37,10 @@ def test_production_workflow_keeps_container_conditional_and_publication_host_si
     assert "brainboxemb/tool.git-project/moon/affected@v0.2.7" in text
     assert "docker run" in text
     assert "ghcr.io/brainboxemb/scad-toolchain:v0.4.1" in text
-    assert f"brainboxemb/tool.git-project/generated-output/publish@{GIT_TOOL_RELEASE_SHA}" in text
+    assert (
+        f"brainboxemb/tool.git-project/generated-output/publish@{GIT_TOOL_RELEASE_SHA}"
+        in text
+    )
     assert "reusable-generated-output-publish.yml" not in text
+    assert "persist-credentials: false" in text
+    assert "-e GITHUB_TOKEN" not in text
