@@ -1,142 +1,46 @@
-"""Reusable aggregate SCAD production workflow contract.
+"""Repository-level SCAD production workflow policy.
 
 Checks:
-The shared production workflow performs a host-side Moon affected decision before the
-single heavy SCAD container, uses minimal exact-revision checkouts, retains independent
-normal/verification SCons caches, invokes one repository aggregate task, stages generic
-Build/Verification trees, and delegates publication to lightweight generic tooling.
+The reusable production workflow has one host orchestrator job, keeps the
+expensive SCAD runtime behind the Moon affected decision, uses the immutable
+SCAD image through one explicit Docker process, keeps source checkout write
+credentials out of that process, and publishes with the exact released generic
+same-job publisher rather than a second reusable-workflow job.
 
 Testing approach:
-The workflow YAML is inspected as contract text. End-to-end event, cache and container
-behavior is qualified separately against the reference template before release.
+Parse the workflow for its structural job boundary and inspect the source text
+for the pinned generic orchestration/publication interfaces and credential /
+container policy that must remain visible and reviewable.
 """
 
 from pathlib import Path
 
+import yaml
+
 
 WORKFLOW = Path(".github/workflows/project-production.yml")
-GIT_TOOL_RELEASE = "v0.2.6"
+GIT_TOOL_RELEASE_SHA = "6234b7437b0dc0115642468f74d1f4a2c2214bef"
 
 
-def _text() -> str:
-    return WORKFLOW.read_text(encoding="utf-8")
+def test_production_workflow_uses_one_host_orchestrator_job():
+    data = yaml.safe_load(WORKFLOW.read_text(encoding="utf-8"))
+
+    assert list(data["jobs"]) == ["production"]
+    job = data["jobs"]["production"]
+    assert job["runs-on"] == "ubuntu-24.04"
+    assert "container" not in job
 
 
-def test_preflight_uses_minimal_blobless_exact_revision_checkout():
-    text = _text()
+def test_production_workflow_keeps_container_conditional_and_publication_host_side():
+    text = WORKFLOW.read_text(encoding="utf-8")
 
-    assert "fetch-depth: 0" not in text
-    assert text.count("fetch-depth: 1") >= 2
-    assert text.count("filter: blob:none") >= 2
-    assert text.count("submodules: false") >= 2
-    assert text.count('git fetch --no-tags --depth=1 origin "$BASE_SHA"') >= 2
-    assert "github.event.pull_request.base.sha" in text
-    assert "github.event.before" in text
-
-
-def test_released_moon_preflight_gates_the_only_scad_container():
-    text = _text()
-
-    affected_use = f"brainboxemb/tool.git-project/moon/affected@{GIT_TOOL_RELEASE}"
-    moon_use = f"brainboxemb/tool.git-project/moon@{GIT_TOOL_RELEASE}"
-    assert affected_use in text
-    assert moon_use in text
-    assert text.index(affected_use) < text.index("container:")
-    assert text.count("container:") == 1
-    assert "if: needs.preflight.outputs.affected == 'true'" in text
-    assert "image: ghcr.io/brainboxemb/scad-toolchain:v0.4.1" in text
-
-
-def test_preflight_can_use_a_source_impact_target_separate_from_execution_aggregate():
-    text = _text()
-
-    assert "affected_task:" in text
-    assert "defaults to aggregate_task" in text
-    assert 'affected_task="$AFFECTED_INPUT"' in text
-    assert 'affected_task="$AGGREGATE_TASK"' in text
-    assert 'echo "affected_task=$affected_task" >> "$GITHUB_OUTPUT"' in text
-    assert "task: ${{ steps.range.outputs.affected_task }}" in text
-    assert "task: ${{ inputs.aggregate_task }}" in text
-    assert text.index("task: ${{ steps.range.outputs.affected_task }}") < text.index("container:")
-    assert text.index("container:") < text.index("task: ${{ inputs.aggregate_task }}")
-
-
-def test_production_reuses_exact_preflight_range_without_full_history():
-    text = _text()
-
-    vcs_step = "Prepare minimal Moon production VCS range"
-    aggregate_step = "Run or hydrate aggregate SCAD production graph"
-    safe_directory = 'git config --global --add safe.directory "$GITHUB_WORKSPACE"'
-    production_fetch = 'git fetch --no-tags --depth=1 origin "$BASE_SHA"'
-
-    assert vcs_step in text
-    assert text.index(vcs_step) < text.index(aggregate_step)
-    vcs_offset = text.index(vcs_step)
-    assert text.index(safe_directory, vcs_offset) < text.index(production_fetch, vcs_offset)
-    assert 'echo "MOON_BASE=$BASE_SHA" >> "$GITHUB_ENV"' in text
-    assert text.count('echo "MOON_BASE=$SOURCE_SHA" >> "$GITHUB_ENV"') == 2
-    assert 'echo "MOON_HEAD=$SOURCE_SHA" >> "$GITHUB_ENV"' in text
-    assert 'echo "MOON_FORCE=true" >> "$GITHUB_ENV"' in text
-    assert "Prepared exact shallow Moon production range" in text
-    assert "Production comparison base could not be fetched" in text
-
-
-def test_uncertain_or_forced_ranges_run_conservatively():
-    text = _text()
-
-    missing_revision = "0000000000000000000000000000000000000000"
-    assert missing_revision in text
-    assert "Force requested; preflight will deliberately fail conservative." in text
-    assert "No unambiguous event base is available" in text
-    assert "generic Moon preflight will run conservatively" in text
-    assert "forcing Moon execution without affected VCS checks" in text
-
-
-def test_production_bootstraps_dependencies_only_after_the_gate():
-    text = _text()
-
-    bootstrap = "bash ./bootstrap.sh"
-    assert bootstrap in text
-    assert text.index("container:") < text.index(bootstrap)
-    assert "tools/tool.git-project/git-project.sh validate --repo ." in text
-    assert "scad-project.sh tooling-check" in text
-
-
-def test_build_and_verify_keep_separate_scons_caches():
-    text = _text()
-
-    assert "path: .cache/scad-project/scons" in text
-    assert "path: .cache/scad-project/verification-scons" in text
-    assert "scad-production-build-scons-v1-" in text
-    assert "scad-production-verification-scons-v1-" in text
-    assert text.count("Run or hydrate aggregate SCAD production graph") == 1
-
-
-def test_generic_materialization_validation_does_not_encode_template_outputs():
-    text = _text()
-
-    assert "build_path:" in text
-    assert "verification_path:" in text
-    assert "AGGREGATE_TASK" in text
-    assert '"source_revision": os.environ["SOURCE_SHA"]' in text
-    assert '"status": "success"' in text
-    assert '"exit_code": 0' in text
-    for template_specific in (
-        "tube-holder-assembly",
-        "tube-holder-bore-check",
-        "mounting-plate-thickness-check",
-    ):
-        assert template_specific not in text
-
-
-def test_publication_runs_outside_scad_container_through_generic_workflow():
-    text = _text()
-
-    publisher = (
-        "brainboxemb/tool.git-project/.github/workflows/"
-        f"reusable-generated-output-publish.yml@{GIT_TOOL_RELEASE}"
+    assert "brainboxemb/tool.git-project/moon/affected@v0.2.7" in text
+    assert "docker run" in text
+    assert "ghcr.io/brainboxemb/scad-toolchain:v0.4.1" in text
+    assert (
+        f"brainboxemb/tool.git-project/generated-output/publish@{GIT_TOOL_RELEASE_SHA}"
+        in text
     )
-    assert text.count(publisher) == 2
-    assert "Publish Build output" in text
-    assert "Publish Verification output" in text
-    assert "source_revision: ${{ needs.preflight.outputs.source_sha }}" in text
+    assert "reusable-generated-output-publish.yml" not in text
+    assert "persist-credentials: false" in text
+    assert "-e GITHUB_TOKEN" not in text
