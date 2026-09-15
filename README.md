@@ -364,6 +364,7 @@ and runtime provenance.
 Consumers keep thin callers for:
 
 ```text
+.github/workflows/project-production.yml
 .github/workflows/project-build.yml
 .github/workflows/project-verify.yml
 .github/workflows/project-release.yml
@@ -373,15 +374,22 @@ External callers should be pinned to the exact checked-out tool commit, not a
 moving branch and not an annotated tag. `workflow-sync` maintains these literal
 SHAs after dependency updates.
 
-The reusable workflows provide the common lint/design/build/cache/publication
-sequence and run on the pinned `docker.scad-toolchain` image. Build and Verify
-remain separate domain workflows: Verify owns only verification targets, commands,
-evidence and its verification cache.
+`project-production.yml` is the normal repository-level production orchestrator.
+Its host-side Moon preflight can finish an unaffected change without starting the
+SCAD container or bootstrapping SCAD dependencies. When production is required,
+it runs one publication-ready aggregate inside one heavy SCAD job while keeping
+Build and Verify as separate consumer graph domains and separate SCons caches.
+An optional source-impact `affected_task` can be distinct from the execution
+`aggregate_task` when publication/index tasks contain environment-sensitive
+inputs. See [`docs/production-workflow.md`](docs/production-workflow.md).
 
-Repository-level orchestrators may instead bind their coarse tasks to
-`produce-build` and `produce-verification`. Those commands provide the complete
-SCAD producer boundary while SCons remains authoritative for fine-grained target
-decisions whenever a producer task actually executes.
+The reusable Build and Verify workflows remain available as explicit domain
+workflows and are also used by the coordinated Release workflow. Verify owns only
+verification targets, commands, evidence and its verification cache.
+
+Repository-level orchestrators may bind their own Moon tasks to the SCAD producer
+actions while SCons remains authoritative for fine-grained target decisions when
+a producer task actually executes.
 
 ## Direct dependency rule
 
