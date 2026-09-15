@@ -52,7 +52,7 @@ submodules: false
 
 When a concrete comparison base is available, it fetches only that exact commit with `--depth=1`. The base and head are therefore available as shallow history roots; intermediate ancestry is not required for Moon's explicit `base -> head` changed-file query.
 
-The repository contains a Migration-004 proof workflow while this behavior is being qualified against Moon 2.5.4. That proof uses real `template.scad-project` commits and requires a normal successful `task-affected` decision rather than accepting the conservative fallback.
+Migration 004 qualified this behavior against Moon 2.5.4 with real `template.scad-project` revisions. Retained run `34895987723` proves a normal successful affected decision when both exact commits are shallow roots and intermediate history is not traversable. The temporary proof workflow used for that qualification is deliberately not part of the released production surface.
 
 ## Event baselines
 
