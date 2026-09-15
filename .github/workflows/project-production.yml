@@ -4,10 +4,15 @@ on:
   workflow_call:
     inputs:
       aggregate_task:
-        description: Fully-qualified Moon aggregate production task
+        description: Fully-qualified Moon aggregate production task to execute when production is required
         required: false
         type: string
         default: consumer:scad.ci
+      affected_task:
+        description: Optional fully-qualified Moon task used only for the pre-container affected decision; defaults to aggregate_task
+        required: false
+        type: string
+        default: ''
       cache_namespace:
         description: Stable repository-local Moon cache namespace
         required: false
@@ -89,12 +94,14 @@ jobs:
       base_sha: ${{ steps.range.outputs.base_sha }}
 
     steps:
-      - name: Resolve exact source and comparison base
+      - name: Resolve exact source, comparison base and affected task
         id: range
         shell: bash
         env:
           SOURCE_INPUT: ${{ inputs.source_sha }}
           BASE_INPUT: ${{ inputs.base_sha }}
+          AFFECTED_INPUT: ${{ inputs.affected_task }}
+          AGGREGATE_TASK: ${{ inputs.aggregate_task }}
           FORCE: ${{ inputs.force }}
           PR_HEAD_SHA: ${{ github.event.pull_request.head.sha || '' }}
           PR_BASE_SHA: ${{ github.event.pull_request.base.sha || '' }}
@@ -134,9 +141,16 @@ jobs:
             base_sha="0000000000000000000000000000000000000000"
           fi
 
+          affected_task="$AFFECTED_INPUT"
+          if [[ -z "$affected_task" ]]; then
+            affected_task="$AGGREGATE_TASK"
+          fi
+
           echo "source_sha=$source_sha" >> "$GITHUB_OUTPUT"
           echo "base_sha=$base_sha" >> "$GITHUB_OUTPUT"
+          echo "affected_task=$affected_task" >> "$GITHUB_OUTPUT"
           echo "SCAD preflight range: $base_sha -> $source_sha"
+          echo "SCAD preflight target: $affected_task"
 
       - name: Checkout exact source for host preflight
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
@@ -165,7 +179,7 @@ jobs:
         id: affected
         uses: brainboxemb/tool.git-project/moon/affected@v0.2.6
         with:
-          task: ${{ inputs.aggregate_task }}
+          task: ${{ steps.range.outputs.affected_task }}
           base: ${{ steps.range.outputs.base_sha }}
           head: ${{ steps.range.outputs.source_sha }}
           evidence-directory: .moon/preflight
@@ -182,6 +196,8 @@ jobs:
             echo ""
             echo "- source: \`${{ steps.range.outputs.source_sha }}\`"
             echo "- base: \`${{ steps.range.outputs.base_sha }}\`"
+            echo "- affected task: \`${{ steps.range.outputs.affected_task }}\`"
+            echo "- execution task: \`${{ inputs.aggregate_task }}\`"
             echo "- affected: \`$AFFECTED\`"
           } >> "$GITHUB_STEP_SUMMARY"
 
