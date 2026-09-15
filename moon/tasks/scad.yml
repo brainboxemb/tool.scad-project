@@ -9,6 +9,11 @@ tasks:
       - 'tools/tool.scad-project/scad-project.sh'
       - 'tools/tool.scad-project/pyproject.toml'
       - 'tools/tool.scad-project/src/**/*.py'
+    outputs:
+      - 'bld/design/**'
+      - 'bld/evidence/executions/scad-docs/**'
+      - 'bld/evidence/domain/last-design-build.json'
+      - '.cache/scad-project/state/last-design-build.json'
     options:
       cache: true
 
@@ -22,6 +27,11 @@ tasks:
       - 'tools/tool.scad-project/scad-project.sh'
       - 'tools/tool.scad-project/pyproject.toml'
       - 'tools/tool.scad-project/src/**/*.py'
+    outputs:
+      - 'bld/png/**'
+      - 'bld/evidence/executions/scad-build/**'
+      - 'bld/evidence/domain/last-build.json'
+      - '.cache/scad-project/state/last-build.json'
     options:
       cache: true
 
@@ -35,5 +45,7 @@ tasks:
       - 'tools/tool.scad-project/scad-project.sh'
       - 'tools/tool.scad-project/pyproject.toml'
       - 'tools/tool.scad-project/src/**/*.py'
+    outputs:
+      - 'vrf/out/**'
     options:
       cache: true
