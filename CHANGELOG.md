@@ -2,6 +2,20 @@
 
 Functional changes to released `tool.scad-project` versions.
 
+## v0.14.3
+
+### Fixed
+
+- Make shared Moon capability outputs describe stable materialized capability output instead of requiring optional SCons state and domain-report files that are absent for direct-engine consumers or verification commands without SCons targets.
+- Add regression coverage for the shared Moon output contract so direct and SCons consumers can use the same capability definitions without false `missing_outputs` failures.
+
+## v0.14.2
+
+### Fixed
+
+- Read inherited Moon capability selection from project-level root `moon.yml` via `workspace.inheritedTasks.include`, matching Moon 2.5.4 instead of placing that project-level selection in `.moon/workspace.yml`.
+- Align the Migration-005 consumer configuration guidance and release markers with the corrected root `moon.yml` capability-selection model.
+
 ## v0.14.1
 
 ### Fixed
@@ -133,7 +147,7 @@ Functional changes to released `tool.scad-project` versions.
 
 ### Changed
 
-- Define the canonical PR-first agent workflow centrally in `AGENTS.md`: reserve the final pull-request number with a temporary issue, create `feature/pr-<number>-<slug>`, convert that exact issue into the same-number draft PR, and keep subsequent work attached to that PR.
+- Define the canonical PR-first agent workflow centrally in `AGENTS.md`: reserve the final pull-request number with a temporary issue, create `feature/pr-<number>-<slug>` from current target branch; make the smallest initial commit; convert that exact issue into the same-number draft PR; and keep subsequent work attached to that PR.
 - Clarify that the actual PR number is authoritative for `dev/pr-<number>/build` and `dev/pr-<number>/verification`; never guess a future PR number or reuse an unrelated issue number.
 - Align the central publication guidance with the v0.9.11 PR-scoped model and make consumer root `AGENTS.md` files defer to the pinned tool policy for branch/PR/publication workflow.
 - Clarify the central watermark policy so configured build/design PNGs and project verification commands use the shared `scad-image-watermark` runtime command instead of duplicating image-processing logic.
