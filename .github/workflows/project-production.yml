@@ -97,7 +97,7 @@ jobs:
       source_sha: ${{ steps.range.outputs.source_sha }}
       base_sha: ${{ steps.range.outputs.base_sha }}
     env:
-      SCAD_PROJECT_WORKFLOW_VERSION: v0.13.0
+      SCAD_PROJECT_WORKFLOW_VERSION: v0.13.1
       SCAD_TOOLCHAIN_IMAGE: ghcr.io/brainboxemb/scad-toolchain:v0.4.1
       SCAD_TOOLCHAIN_VERSION: v0.4.1
 

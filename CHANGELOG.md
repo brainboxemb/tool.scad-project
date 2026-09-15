@@ -2,6 +2,20 @@
 
 Functional changes to released `tool.scad-project` versions.
 
+## v0.13.1
+
+### Changed
+
+- Collapse normal repository production into one host orchestrator job while retaining Moon host preflight and exactly one explicit immutable SCAD Docker process for affected work.
+- Reuse the same shallow exact-source worktree and pinned Moon runtime across preflight, container execution and host validation instead of crossing a second production checkout/job boundary.
+- Publish prepared Build and Verification trees sequentially from the host job through released `tool.git-project` v0.2.7 same-job generated-output tooling, keeping write credentials outside the SCAD container.
+- Keep README-only or otherwise unaffected changes at zero SCAD image pulls/container starts and preserve conservative forced production when source/base context is uncertain.
+
+### Fixed
+
+- Use explicit SCons cache restore/save actions so cold affected runs save reusable normal and verification cache snapshots with valid keys.
+- Do not attempt generated-output publication for unsupported manual feature-branch contexts.
+
 ## v0.13.0
 
 ### Added
