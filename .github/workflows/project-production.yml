@@ -76,7 +76,7 @@ jobs:
       source_sha: ${{ steps.range.outputs.source_sha }}
       base_sha: ${{ steps.range.outputs.base_sha }}
     env:
-      SCAD_PROJECT_WORKFLOW_VERSION: v0.14.0
+      SCAD_PROJECT_WORKFLOW_VERSION: v0.14.1
       SCAD_TOOLCHAIN_VERSION: v0.5.0
       PYTHONDONTWRITEBYTECODE: '1'
 
@@ -221,7 +221,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          python -m pip install --disable-pip-version-check --no-build-isolation -e ./tools/tool.scad-project
+          python -m pip install --disable-pip-version-check -e ./tools/tool.scad-project
 
       - name: Validate tooling alignment and build SCAD execution plan
         id: plan
