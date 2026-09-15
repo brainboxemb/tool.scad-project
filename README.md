@@ -5,37 +5,37 @@ verification, publication and release workflows.
 
 ## Architecture
 
-`tool.scad-project` is no longer the generic repository bootstrap/dependency
-manager. That responsibility is owned by
+`tool.scad-project` owns SCAD-domain configuration, commands, shared Moon capability
+policy and reusable GitHub workflows. Generic repository bootstrap, Moon/VCS query
+mechanics and generated-output publication primitives belong to
 [`tool.git-project`](https://github.com/brainboxemb/tool.git-project).
 
 ```text
 consumer repository
-    │
-    ├─ tools/tool.git-project
-    │      generic bootstrap / dependency registration / status / update
-    │
-    ├─ project.yml
-    │      generic project + profile + dependency policy
-    │
-    ├─ project.scad.yml
-    │      SCAD-specific build/design/verification/publication policy
-    │
-    └─ tools/tool.scad-project
-           SCAD CLI + reusable workflows
-                  │
-                  └─ docker.scad-toolchain
-                         runtime capabilities
+    |
+    +-- tools/tool.git-project
+    |      generic bootstrap / Moon / generated-output publication
+    |
+    +-- project.yml
+    |      generic project + dependency policy
+    |
+    +-- project.scad.yml
+    |      SCAD build/design/verification/publication intent
+    |
+    +-- .moon/tasks/scad.yml
+    |      one link to shared SCAD capability policy
+    |
+    `-- tools/tool.scad-project
+           SCAD CLI + reusable workflows + capability policy
+                  |
+                  `-- docker.scad-toolchain image family
 ```
-
-The split is deliberate: generic Git/submodule behavior should not be copied
-back into this repository.
 
 Release history: [`CHANGELOG.md`](CHANGELOG.md).
 
 ## Configuration
 
-A current-generation consumer uses generic `project.yml` plus a SCAD profile.
+A current-generation consumer uses generic `project.yml` plus `project.scad.yml`.
 
 `project.yml`:
 
@@ -56,16 +56,9 @@ dependencies:
     url: https://github.com/brainboxemb/tool.scad-project.git
     path: tools/tool.scad-project
     ref: <immutable-tag-or-full-commit>
-
-  - name: lib.scad.clamps
-    role: external
-    type: git-submodule
-    url: https://github.com/brainboxemb/lib.scad.clamps.git
-    path: dsg/openscad/ext/lib.scad.clamps
-    ref: <immutable-tag-or-full-commit>
 ```
 
-`project.scad.yml`:
+`project.scad.yml` contains SCAD-domain intent, for example:
 
 ```yaml
 paths:
@@ -73,10 +66,6 @@ paths:
   build_root: bld
   render_root: dsg/openscad/render
   export_root: dsg/openscad/export
-
-externals:
-  - name: lib.scad.clamps
-    required_file: openscad/tube-clamp/tube_clamp.scad
 
 build_engine:
   engine: scons
@@ -93,29 +82,44 @@ design:
   include_externals: false
 ```
 
-Dependency URL/path/ref/type come from generic `project.yml`. SCAD-only external
-metadata such as `required_file` is matched by dependency name from the profile.
-The loader composes both files into one internal SCAD configuration.
+Dependency URL/path/ref/type come from generic `project.yml`. SCAD-specific external
+metadata is matched by dependency name from the SCAD profile. The loader composes both
+files into one internal project context.
 
-The older combined `project.yml` remains a compatibility input. Current-generation
-consumers use the split model; removing the compatibility path is a later cleanup
-and release decision.
+The older combined `project.yml` remains a compatibility input. New consumers use the
+split model.
 
 See [`examples/project.yml`](examples/project.yml) and
 [`examples/project.scad.yml`](examples/project.scad.yml).
 
+## Visible capabilities
+
+Migration 005 reduces the normal Moon model to real maintainer-visible capabilities:
+
+```text
+scad.docs    design documentation
+scad.build   presentation renders/exports
+scad.verify  verification
+```
+
+Standard commands, common stable inputs, output boundaries and Moon cache policy are
+owned here in [`moon/tasks/scad.yml`](moon/tasks/scad.yml). A consumer links that file
+once using Moon inheritance and selects only the capabilities it actually exposes.
+Project-specific `moon.yml` content is limited to source-impact additions and exceptional
+output overrides.
+
+The SCAD CI planner validates that the Moon capability selection agrees with
+`project.scad.yml`; a consumer cannot silently claim a Build/Verification capability that
+its project configuration does not support, or omit one that is configured.
+
 ## Bootstrap and dependency update
 
-The bootstrap engine is `tools/tool.git-project`, pinned directly by the parent
-repository gitlink. Root `bootstrap.ps1` / `bootstrap.sh` launchers come from
-`tool.git-project`; they restore that exact bootstrap tool and then establish the
-managed dependencies declared in `project.yml`.
+The bootstrap engine is `tools/tool.git-project`, pinned by the parent repository gitlink.
+Root `bootstrap.ps1` / `bootstrap.sh` launchers restore that exact bootstrap tool and then
+establish managed dependencies declared in `project.yml`.
 
-`tool.scad-project` no longer contains a generic bootstrap implementation or a
-second Git ref resolver.
-
-A SCAD consumer can use the small wrappers in [`consumer/`](consumer/) for an
-intentional dependency update:
+A SCAD consumer can use the small wrappers in [`consumer/`](consumer/) for an intentional
+dependency update:
 
 ```powershell
 .\update-repo.ps1
@@ -129,28 +133,12 @@ Those wrappers call:
 
 ```text
 scad-project repo-update
-    ↓
-tool.git-project update
-    ↓
-scad-project workflow-sync
+    -> tool.git-project update
+    -> scad-project workflow-sync
 ```
 
-The generic tool moves dependency gitlinks. The final `workflow-sync` step is
-SCAD-specific: consumer Build, Verify and Release reusable-workflow calls are
-rewritten to the exact checked-out `tool.scad-project` commit SHA.
-
-Compatibility commands remain available:
-
-```text
-scad-project repo-sync      delegate generic bootstrap, then workflow-sync
-scad-project repo-update    delegate generic update, then workflow-sync
-scad-project repo-status    delegate generic status
-scad-project workflow-sync  align SCAD reusable workflows only
-```
-
-`externals-init` and `externals-sync` are compatibility aliases for generic
-bootstrap. `externals-deinit` is no longer a SCAD-owned Git mutation; generic
-managed dependencies belong to `tool.git-project`.
+The generic tool moves dependency gitlinks. `workflow-sync` is SCAD-specific and aligns
+consumer reusable-workflow calls with the exact checked-out `tool.scad-project` commit.
 
 ## Core commands
 
@@ -170,33 +158,24 @@ scad-project build-audit
 scad-project build-index
 ```
 
-`config-lint` validates the generic `project.yml` through the pinned
-`tool.git-project` when the split configuration model is active, then validates
-SCAD-specific configuration locally.
+`config-lint` validates generic `project.yml` through the pinned `tool.git-project` when
+the split configuration model is active and validates SCAD-specific configuration here.
 
-`build` owns normal configured render/export output. `verify` is the separate
-verification-domain action: it validates verification-relevant project source,
-builds declared verification-only targets and then runs configured verification
-commands. It does not materialize normal Build output as a side effect.
+`build` owns normal render/export output. `verify` owns the independent verification
+domain: verification-only targets and project-specific checks. It does not materialize
+normal Build output as a side effect.
 
-`produce-build` and `produce-verification` are stable composite producer actions
-for repository-level orchestrators. `produce-build` owns SCAD validation,
-generated design documentation, normal configured output, build indexing and
-producer provenance as one logical producer result. `produce-verification` owns
-verification validation, verification-only targets/project checks and producer
-provenance; it never invokes normal Build. GitHub/Moon cache restore, current
-materialization evidence and generated-branch publication remain outside these
-domain actions.
+`produce-build` and `produce-verification` remain stable composite producer actions for
+explicit callers. Normal Migration-005 repository production uses the three coarse Moon
+capabilities directly so each can be affected/cached independently.
 
-`build-audit` is an explicit post-build correctness check. It consumes an existing
-schema-v1 build-decision report plus explicit changed repository paths, compares
-those paths with each target's already-recorded `sources`, and emits a separate
-machine-readable audit report. Generic Git/GitHub changed-path discovery remains
-outside the SCAD tool. See [`docs/build-decision-audit.md`](docs/build-decision-audit.md).
+`build-audit` consumes existing build-decision evidence plus explicit changed paths and
+checks target-level rebuild correctness. See
+[`docs/build-decision-audit.md`](docs/build-decision-audit.md).
 
 ## Directory-based builds
 
-Normal OpenSCAD build entrypoints can be discovered from configured directories:
+OpenSCAD build entrypoints can be discovered from configured directories:
 
 ```yaml
 paths:
@@ -211,40 +190,29 @@ render_root/*.scad -> bld/png/*.png
 export_root/*.scad -> bld/stl/*.stl
 ```
 
-Optional `render.yml` and `export.yml` files beside the entrypoints define size
-variants, image sizes and output-name patterns. Explicit `builds:` mappings
-remain available for exceptional source/output mappings.
+Optional `render.yml` and `export.yml` files beside entrypoints define variants, image
+sizes and output-name patterns. Explicit `builds:` mappings remain available for
+exceptional source/output mappings.
 
 ## Selective SCons build engine
 
-SCons is an optional internal backend behind the normal `scad-project build`
-interface:
+SCons is an optional fine-grained backend behind the normal SCAD commands:
 
 ```yaml
 build_engine:
   engine: scons
 ```
 
-The direct backend remains available for compatible projects. Both backends use
-the same target-discovery model.
+Moon decides/reuses whole capabilities. SCons, when configured, decides/reuses individual
+CAD targets inside a capability.
 
-The SCons backend tracks transitive OpenSCAD `use`/`include` dependencies and
-literal `import()`/`surface()` leaf inputs. Dynamic file loading that cannot be
-represented safely is rejected rather than silently creating stale output.
+The normal SCons cache is transported by normal CI only for SCons projects with
+Build/docs capabilities. The separate Verification-SCons cache is transported only when
+the project actually declares verification render/export targets. Direct projects do not
+pay SCons cache restore/save cost simply because SCons is present in the runtime image.
 
-Normal build and verification maintain separate selective cache/state scopes.
-Generated design documentation uses dependency-aware per-image SCons targets
-when the exact whole-design snapshot is unavailable.
-
-SCons build decisions are written as structured per-target telemetry with the
-shared outcomes `BUILT`, `CACHE_RESTORED`, `CURRENT` and `ERROR`. Normal build,
-generated-design and verification reports use the same schema, include output
-existence before/after execution, source/dependency inputs, a stable target-spec
-digest and available run/cache provenance. GitHub Actions Step Summaries use the
-same vocabulary instead of the older ambiguous `cache/current` label.
-
-See [`docs/build-decision-telemetry.md`](docs/build-decision-telemetry.md) for the
-machine-readable report contract and classification rules.
+SCons decisions use the outcomes `BUILT`, `CACHE_RESTORED`, `CURRENT` and `ERROR`.
+See [`docs/build-decision-telemetry.md`](docs/build-decision-telemetry.md).
 
 ## Design documentation
 
@@ -255,32 +223,17 @@ bld/design/project/...
 bld/design/ext/<external-name>/...
 ```
 
-Canonical render declarations use:
+Canonical render declarations use `scad-render-defaults` and `scad-render`. Supported
+engines are OpenSCAD and PythonSCAD. Explicit engine selection wins over suffix
+inference.
 
-```text
-scad-render-defaults
-scad-render
-```
-
-Supported render engines are OpenSCAD and PythonSCAD. Explicit engine selection
-wins over suffix inference.
-
-A source-view declaration may use an existing module/view rather than duplicate
-geometry in Markdown. Inline render snippets remain OpenSCAD-only.
-
-Camera policy:
-
-- orientation-only `vpr` may use autocenter/viewall;
-- exact framing requires `vpr`, `vpt` and `vpd` together;
-- prefer a dedicated detail view when unrelated geometry should be omitted.
-
-`design.include_externals: false` suppresses generated external design docs but
-does not remove external CAD source needed by builds.
+`design.include_externals: false` suppresses generated external design docs while keeping
+external CAD source available to builds.
 
 ## Source documentation
 
-Structured `.scad` documentation follows upstream `openscad_docsgen` syntax.
-A structured source begins with `File:` or `LibFile:` before Module/Function/etc.
+Structured `.scad` documentation follows upstream `openscad_docsgen` syntax. A structured
+source begins with `File:` or `LibFile:` before Module/Function/etc.
 
 ```text
 scad-project docs-lint
@@ -290,9 +243,9 @@ runs the upstream documentation check on project source.
 
 ## OpenSCAD warning policy
 
-A zero exit code is not sufficient proof of valid geometry. Shared command
-execution rejects warning/error classes that indicate undefined values or broken
-geometry while allowing known benign presentation warnings.
+A zero process exit code is not sufficient proof of valid geometry. Shared command
+execution rejects warning/error classes that indicate undefined values or broken geometry
+while allowing known benign presentation warnings.
 
 ## Render post-processing
 
@@ -304,14 +257,13 @@ rendering:
     text: "© 2026 brainboxemb"
 ```
 
-The generic image operation itself is supplied by `docker.scad-toolchain` as
-`scad-image-watermark`; this repository owns only when it is invoked. STL output
-is never watermarked.
+The image operation is supplied by `docker.scad-toolchain` as
+`scad-image-watermark`; this repository owns when it is invoked. STL output is never
+watermarked.
 
 ## Verification
 
-Verification-only OpenSCAD evidence can be declared separately from production
-build output:
+Verification-only OpenSCAD evidence can be declared separately from production output:
 
 ```yaml
 verification:
@@ -322,15 +274,10 @@ verification:
     - [bash, scripts/run-project-checks.sh]
 ```
 
-`scad-project verify` first performs the source/configuration checks required for
-verification, then builds declared verification targets through the dedicated
-verification SCons cache/state path, and finally runs project-specific commands.
-Normal `bld/` output and the normal Build cache are outside this action.
-
-Declared evidence is dependency-aware and uses a verification-specific SCons
-cache. Project-specific commands run after declared verification targets and
-should inspect/assert behavior rather than become a second target-orchestration
-system.
+`scad-project verify` builds declared verification targets and then runs project-specific
+commands. Declared geometry targets use the dedicated Verification-SCons state/cache only
+when the project uses the SCons engine. Command-only verification does not need that
+cache.
 
 ## Publication
 
@@ -344,84 +291,94 @@ publication:
     verification_branch: prod/verification
   development:
     pr_branch_prefix: dev/pr
-  tags:
-    pattern: "v*"
   release:
     branch_prefix: rel
     tag_pattern: "v*"
     changelog: CHANGELOG.md
 ```
 
-Normal production builds publish mutable `prod/*` snapshots. Pull requests may
-publish isolated `dev/pr-N/*` previews. Coordinated releases create immutable
-release snapshots/assets from one exact source commit.
+Normal production publishes mutable `prod/*` snapshots. Pull requests may publish
+isolated `dev/pr-N/*` previews. Coordinated releases create immutable snapshots/assets
+from one exact source commit.
 
-Every generated snapshot includes `publication-info.txt` with source, tooling
-and runtime provenance.
+Every generated snapshot includes `publication-info.txt` with current source, tooling and
+runtime context. Source-derived Moon capability output does not use PR/ref/run/publication
+values as cache identity.
 
-## Reusable GitHub workflows
+## Normal reusable production workflow
 
-Consumers keep thin callers for:
+`project-production.yml` implements the Migration-005 normal lifecycle:
 
-```text
-.github/workflows/project-production.yml
-.github/workflows/project-build.yml
-.github/workflows/project-verify.yml
-.github/workflows/project-release.yml
+1. resolve exact source/base;
+2. ask released `tool.git-project v0.2.8` once for Moon's complete affected-task set;
+3. stop before Python planner/image/SCons work when no SCAD capability is affected;
+4. validate project intent and select the appropriate `docker.scad-toolchain v0.5.0`
+   runtime profile;
+5. restore only applicable Moon/SCons cache paths;
+6. execute or hydrate required coarse capabilities in one Docker process;
+7. add current-run finishing information on the host;
+8. retain compact orchestration evidence;
+9. publish changed Build/Verification families, overlapping both publishers on the same
+   runner when both are needed.
+
+Normal CI does **not** upload duplicate complete Build/Verification Actions artifacts by
+default. Release is different: separate Build/Verify/finalize jobs require those complete
+artifacts as an actual cross-job hand-off.
+
+A thin consumer caller is typically:
+
+```yaml
+jobs:
+  scad:
+    permissions:
+      contents: write
+      packages: read
+    uses: brainboxemb/tool.scad-project/.github/workflows/project-production.yml@<exact-tool-commit>
+    with:
+      cache_namespace: my-repository-scad-production-v2
 ```
 
-External callers should be pinned to the exact checked-out tool commit, not a
-moving branch and not an annotated tag. `workflow-sync` maintains these literal
-SHAs after dependency updates.
+See [`docs/production-workflow.md`](docs/production-workflow.md) for the detailed lifecycle,
+including publication-safe Moon hydration when multiple capabilities contribute to one
+complete Build tree.
 
-`project-production.yml` is the normal repository-level production orchestrator.
-Its host-side Moon preflight can finish an unaffected change without starting the
-SCAD container or bootstrapping SCAD dependencies. When production is required,
-it runs one publication-ready aggregate inside one heavy SCAD job while keeping
-Build and Verify as separate consumer graph domains and separate SCons caches.
-An optional source-impact `affected_task` can be distinct from the execution
-`aggregate_task` when publication/index tasks contain environment-sensitive
-inputs. See [`docs/production-workflow.md`](docs/production-workflow.md).
+## Release workflow
 
-The reusable Build and Verify workflows remain available as explicit domain
-workflows and are also used by the coordinated Release workflow. Verify owns only
-verification targets, commands, evidence and its verification cache.
+The coordinated Release workflow keeps its separate preflight, Build, Verify and finalize
+jobs. Preflight uses the same SCAD project planner as normal production to select the
+runtime image and applicable SCons cache paths, while complete Build/Verification
+artifacts remain mandatory cross-job hand-off.
 
-Repository-level orchestrators may bind their own Moon tasks to the SCAD producer
-actions while SCons remains authoritative for fine-grained target decisions when
-a producer task actually executes.
+The reusable Build and Verify workflows remain available for explicit domain execution
+and for Release.
+
+## Runtime image family
+
+Migration 005 uses the released v0.5.0 image family:
+
+```text
+OpenSCAD-focused:
+  ghcr.io/brainboxemb/scad-toolchain-openscad:v0.5.0
+
+Full/dual OpenSCAD + PythonSCAD:
+  ghcr.io/brainboxemb/scad-toolchain:v0.5.0
+```
+
+The effective runtime is derived from SCAD project configuration rather than repository
+name. `scad-toolchain-info` reports exact runtime/tool versions.
 
 ## Direct dependency rule
 
-Normal repositories initialize only their own direct dependencies. Nested
-submodules belonging to a consumed library's standalone development environment
-are not recursively initialized by a parent consumer.
-
-`actions/checkout` and SCAD-owned helper code must therefore remain
-non-recursive unless a dedicated integration test explicitly proves a complete
-dependency tree.
-
-## Runtime
-
-The runtime image and external CAD capabilities remain separate from this tool:
-
-```text
-ghcr.io/brainboxemb/scad-toolchain:<pinned release>
-```
-
-The image contains OpenSCAD, PythonSCAD, SCons and supporting commands. Exact
-runtime versions are reported by `scad-toolchain-info` and publication
-provenance.
+Normal repositories initialize only their direct dependencies. Nested submodules that
+belong to a consumed library's standalone development environment are not recursively
+initialized by a parent consumer unless a dedicated integration requires them.
 
 ## Development workflow
 
-Normal changes use issue -> numbered feature branch -> draft PR -> evidence ->
-review -> merge. See [`AGENTS.md`](AGENTS.md) for the authoritative repository
-rules.
+Normal changes use issue -> numbered feature branch -> draft PR -> evidence -> review ->
+merge. See [`AGENTS.md`](AGENTS.md) for the repository rules.
 
-Cross-project architecture, repository classification and migration/rollout order
-are coordinated from
+Cross-project architecture and rollout order are coordinated from
 [`brainboxemb.meta`](https://github.com/brainboxemb/brainboxemb.meta).
 
-The model, code and documentation are being developed with the assistance of
-ChatGPT.
+The model, code and documentation are being developed with the assistance of ChatGPT.
