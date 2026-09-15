@@ -29,7 +29,7 @@ def test_preflight_uses_minimal_blobless_exact_revision_checkout():
     assert text.count("fetch-depth: 1") >= 2
     assert text.count("filter: blob:none") >= 2
     assert text.count("submodules: false") >= 2
-    assert 'git fetch --no-tags --depth=1 origin "$BASE_SHA"' in text
+    assert text.count('git fetch --no-tags --depth=1 origin "$BASE_SHA"') >= 2
     assert "github.event.pull_request.base.sha" in text
     assert "github.event.before" in text
 
@@ -47,6 +47,20 @@ def test_released_moon_preflight_gates_the_only_scad_container():
     assert "image: ghcr.io/brainboxemb/scad-toolchain:v0.4.1" in text
 
 
+def test_production_reuses_exact_preflight_range_without_full_history():
+    text = _text()
+
+    vcs_step = "Prepare minimal Moon production VCS range"
+    aggregate_step = "Run or hydrate aggregate SCAD production graph"
+    assert vcs_step in text
+    assert text.index(vcs_step) < text.index(aggregate_step)
+    assert 'echo "MOON_BASE=$BASE_SHA" >> "$GITHUB_ENV"' in text
+    assert 'echo "MOON_HEAD=$SOURCE_SHA" >> "$GITHUB_ENV"' in text
+    assert 'echo "MOON_FORCE=true" >> "$GITHUB_ENV"' in text
+    assert "Prepared exact shallow Moon production range" in text
+    assert "Production comparison base could not be fetched" in text
+
+
 def test_uncertain_or_forced_ranges_run_conservatively():
     text = _text()
 
@@ -55,6 +69,7 @@ def test_uncertain_or_forced_ranges_run_conservatively():
     assert "Force requested; preflight will deliberately fail conservative." in text
     assert "No unambiguous event base is available" in text
     assert "generic Moon preflight will run conservatively" in text
+    assert "forcing Moon execution without affected VCS checks" in text
 
 
 def test_production_bootstraps_dependencies_only_after_the_gate():
