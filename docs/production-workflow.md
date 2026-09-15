@@ -1,155 +1,215 @@
 # Reusable SCAD production workflow
 
-`project-production.yml` provides the normal repository-level SCAD production lifecycle for current SCAD projects and libraries.
+`project-production.yml` is the normal repository-level SCAD lifecycle for Migration 005 consumers.
 
-It deliberately keeps three responsibilities separate:
-
-- `tool.git-project` owns Moon/VCS affected-state, the pinned Moon runtime and generated-output publication primitives;
-- `tool.scad-project` owns the SCAD production workflow shape and the Build/Verify cache boundaries;
-- the consumer repository owns its Moon graph, repository-specific verification and output content.
-
-## Execution model
-
-Normal production uses one GitHub-hosted orchestrator job. The immutable SCAD toolchain remains a container runtime, but it is started explicitly only when Moon says production is required.
+The maintainer-facing model is deliberately capability-oriented. A consumer exposes only the SCAD capabilities it actually has:
 
 ```text
-one host orchestrator job
-  exact HEAD checkout, shallow + blobless
-  exact BASE fetched shallowly when available
-  no SCAD submodules yet
-  Moon affected query against source-impact target
-       |
-       +-- unaffected --> retain preflight evidence and stop
-       |                  no image pull / no SCAD container / no publication
-       |
-       `-- affected / uncertain
-              |
-              v
-        restore Moon + separate SCons caches on host
-        pull immutable SCAD image
-        exactly one explicit docker run
-          mount the same checked-out worktree
-          mount pinned Moon runtime read-only/without GitHub credentials
-          bootstrap exact repository dependencies
-          explicit MOON_BASE / MOON_HEAD, or MOON_FORCE on uncertainty
-          one publication-ready Moon aggregate task
-              |
-              v
-        container exits
-        validate current materialization on host
-        stage Build + Verification publication trees
-        retain prepared artifacts/evidence
-        publish both trees sequentially from the same host job
+scad.docs    design documentation
+scad.build   presentation renders/exports
+scad.verify  verification
 ```
 
-The GitHub job/container boundary is not a domain boundary. Build and Verify remain logically independent tasks in the consumer Moon graph even though normal CI executes or hydrates them through one publication-ready aggregate and at most one SCAD container process.
+Generic lifecycle mechanics are not extra Moon capabilities.
 
-The single-host topology deliberately removes two lifecycle boundaries from the earlier implementation: there is no second production checkout/job and no artifact download hand-off to separate publication jobs. The same exact source worktree is mounted into the SCAD container and then reused by host-side validation and publication after that process exits.
-
-## Affected target versus execution aggregate
-
-Moon correctly treats a configured environment-variable input as affected whenever that variable exists and is non-empty. This matters for publication/index tasks that intentionally include CI context such as `GITHUB_EVENT_NAME` or a pull-request number in their cache inputs. Those tasks should refresh when production runs in a different publication context, but they must not force the expensive SCAD runtime to start for an otherwise unrelated README-only source change.
-
-The workflow therefore supports two Moon targets with different responsibilities:
-
-- `affected_task`: optional source-impact target used only by the host-side preflight;
-- `aggregate_task`: publication-ready execution target run inside the SCAD container when production is required.
-
-When `affected_task` is omitted it defaults to `aggregate_task`, preserving the simple contract for consumers whose aggregate contains no always-defined environment inputs.
-
-For SCAD consumers that have environment-sensitive index/provenance tasks, the recommended graph is:
+## Responsibility split
 
 ```text
-scad.production-impact
-    depends on producer-domain tasks only
-    e.g. scad.docs + scad.build + scad.verify
-
-scad.ci
-    depends on publication-ready branches
-    e.g. scad.build-provenance + scad.verification-provenance
+GitHub Actions
+  exact source/base, credentials, hosted runner
+        |
+        v
+Moon on the host
+  one affected-task query
+        |
+        +-- no affected SCAD capability -> stop
+        |
+        v
+SCAD-owned execution plan
+  validate Moon capabilities against project.scad.yml
+  select runtime profile and applicable caches
+        |
+        v
+one SCAD Docker process
+  execute/hydrate required Moon capabilities
+        |
+        v
+host finishing/publication
+  current source/run/publication information
+  compact orchestration evidence
+  changed Build/Verification publication families
 ```
 
-This is still entirely Moon-native affected analysis. It does not add a second changed-path model or duplicate file filters in GitHub Actions; the consumer Moon graph remains the authority for what source changes require heavy production.
+`tool.git-project` owns the Moon runtime, VCS change query and generic generated-output publisher. `tool.scad-project` owns the shared SCAD capability policy, project/configuration consistency, runtime/cache selection and finishing workflow. The consumer owns project-specific capability inputs, exceptional output overrides and domain verification commands.
 
-## Minimal checkout and VCS range
+## Shared Moon capability policy
 
-The workflow intentionally does not use `fetch-depth: 0`.
+The standard capability definitions live in pinned `tools/tool.scad-project/moon/tasks/scad.yml` and are inherited with native Moon configuration. A consumer links the shared task file once and selects the capabilities it exposes through `workspace.inheritedTasks.include`.
 
-It checks out only the exact source/head revision with:
+Conceptually:
 
 ```yaml
-fetch-depth: 1
-filter: blob:none
-submodules: false
-persist-credentials: false
+# .moon/tasks/scad.yml
+extends: '../../tools/tool.scad-project/moon/tasks/scad.yml'
 ```
 
-When a concrete comparison base is available, it fetches only that exact commit with `--depth=1`. The base and head are therefore available as shallow history roots. Migration 004 qualified Moon 2.5.4 against this explicit range model with real consumer revisions; full repository history is not required for the production contract.
+```yaml
+# .moon/workspace.yml
+workspace:
+  inheritedTasks:
+    include:
+      - scad.docs
+      - scad.verify
+```
 
-The checkout is performed once on the host. If production is affected, that same worktree is mounted into the explicit Docker process. Dependencies are initialized only after the affected gate by the consumer's root `bootstrap.sh`, so an unrelated change never pays SCAD dependency/bootstrap cost.
+The consumer `moon.yml` contains only project-specific input additions and exceptional output overrides. It does not copy commands, common tool inputs, cache policy, provenance tasks or lifecycle aggregate roots.
 
-## Event baselines and conservative execution
+`project.scad.yml` remains the SCAD-domain project model. The SCAD planner rejects contradictions between the visible Moon capability set and the project configuration.
 
-The reusable workflow resolves revisions as follows:
+## One impact query
 
-- pull request: exact PR head versus exact PR base;
-- push: exact current SHA versus `github.event.before`;
-- explicit caller overrides: `source_sha` and/or `base_sha`;
-- manual/unsupported context without an unambiguous base: missing-base conservative run;
-- `force: true`: deliberate conservative run.
+The workflow checks out the exact source revision shallow/blobless and fetches only the exact comparison-base commit when available. It then calls released `tool.git-project v0.2.8` once.
 
-A missing, invalid or unfetchable base must never cause a false skip. Released `tool.git-project` affected preflight returns `affected=true` with conservative evidence for uncertainty.
+That action asks Moon for the complete affected-task set for `base -> head`. Migration 005 consumes the returned task list instead of reducing the result to one boolean.
 
-For a concrete base the Docker process receives:
+The current v0.2.8 interface still requires one existing Moon task as a query anchor. The production workflow uses `consumer:scad.docs`; the reference/template rollout therefore requires `scad.docs`. The complete affected-task list itself is not limited to that task: build- or verification-only changes are still present in the same Moon query result. A future generic affected interface may remove the anchor requirement; it must not reintroduce a second changed-path model in this workflow.
+
+A missing/unusable base or Moon-query failure is conservative: the configured SCAD capability set is treated as required rather than risking a false skip.
+
+## Unaffected path
+
+If the complete affected-task list contains no configured SCAD capability, normal production stops on the host.
+
+That path intentionally performs:
 
 ```text
-MOON_BASE=<exact comparison base>
-MOON_HEAD=<exact source revision>
+SCAD image pulls     0
+SCAD Docker starts   0
+CAD work             0
+SCons cache actions  0
 ```
 
-When no usable base exists, preflight has already chosen conservative production. The Docker process then receives `MOON_FORCE=true` and uses the exact source revision for both `MOON_BASE` and `MOON_HEAD`. This intentionally trades affected/cache precision for correctness only in the uncertain case.
+Only compact impact evidence is retained.
 
-## Container and credential boundary
+## SCAD-owned execution plan
 
-The SCAD image remains immutable:
+Only when Moon reports possible SCAD work does the host initialize the exact pinned `tool.scad-project` dependency and run the SCAD planner.
+
+The planner derives and validates:
+
+- configured capability set;
+- affected capability set;
+- publication-safe materialization scope;
+- OpenSCAD-focused versus full/dual runtime profile;
+- direct versus SCons build engine;
+- whether the normal SCons cache is applicable;
+- whether a real Verification-SCons target engine exists;
+- Build and Verification output roots.
+
+Runtime selection is based on project intent, never repository names:
 
 ```text
-ghcr.io/brainboxemb/scad-toolchain:<pinned release>
+OpenSCAD-only -> ghcr.io/brainboxemb/scad-toolchain-openscad:v0.5.0
+PythonSCAD configured -> ghcr.io/brainboxemb/scad-toolchain:v0.5.0
 ```
 
-The host authenticates only long enough to pull that image and then logs out. The explicit container runs as the host UID/GID and receives the mounted source worktree, Moon runtime and only the CI/provenance variables needed by the consumer graph.
+## Affected work versus publication-safe materialization
 
-The source checkout uses `persist-credentials: false`, and the GitHub write token is not passed into the SCAD container. Generated-output publication therefore remains a host responsibility after the container exits.
+`affected_capabilities` and `materialization_capabilities` are intentionally different concepts.
 
-This boundary also prevents root-owned generated output on the host workspace and avoids downloading a second Moon runtime inside the container.
+For example, `scad.docs` and `scad.build` both contribute to one complete Build publication tree. On a fresh runner, a docs-only change cannot safely publish a tree containing only `bld/design` because replacing the generated Build branch would delete unchanged presentation output.
+
+Therefore:
+
+```text
+affected:        scad.docs
+materialization: scad.docs + scad.build   (when both are configured)
+publish family:  Build
+```
+
+The unchanged contributor normally hydrates from Moon's whole-capability cache. If that cache entry is missing, Moon may safely reproduce the contributor. This is publication correctness, not a claim that the contributor was source-affected.
+
+Verification is a separate publication family and is never pulled into Build merely for completeness.
+
+## One runtime process
+
+All required capability materialization happens inside one explicit Docker process on one hosted runner. Each capability is invoked separately through released `tool.git-project v0.2.8` Moon tooling so Moon can execute or hydrate it independently.
+
+The container receives no GitHub write credential. Source checkout uses `persist-credentials: false`; generated-output publication stays on the host after the runtime exits.
+
+`PYTHONDONTWRITEBYTECODE=1` is set for production. Generated Python bytecode must not contaminate source-derived Moon input identity.
 
 ## Cache boundaries
 
-Normal Build and Verification keep separate writable SCons object caches:
+### Moon
+
+Moon is the whole-capability cache/reuse layer. The host transports only Moon's portable hash/output cache directories.
+
+### SCons
+
+SCons remains optional fine-grained target reuse inside configured capabilities.
+
+The normal cache is transported only when:
 
 ```text
-.cache/scad-project/scons
-.cache/scad-project/verification-scons
+build_engine.engine == scons
+and scad.docs/scad.build is configured
 ```
 
-The host restores those caches before the Docker process and saves newly populated caches afterwards. Restore and save use explicit cache actions/keys so a cold execution can produce a reusable cache snapshot without depending on implicit post-job behavior.
-
-The portable Moon task cache also lives in the host worktree and is mounted into the same aggregate execution. SCons remains authoritative for fine-grained SCAD target decisions when a producer actually executes.
-
-## Consumer contract
-
-A consumer supplies a publication-ready Moon aggregate task, normally `consumer:scad.ci`, whose graph owns the final Build and Verify publication branches. Consumers may additionally supply a source-impact target when publication metadata has environment-sensitive inputs.
-
-Default publication roots are:
+The separate Verification cache is transported only when:
 
 ```text
-Build:        bld
-Verification: vrf/out
+build_engine.engine == scons
+and scad.verify is configured
+and verification.render_root/export_root exists
 ```
 
-They can be overridden for a repository with a different established layout.
+A verification command by itself does not justify a Verification-SCons cache. A direct-engine project performs no SCons cache restore/save merely because SCons exists in the runtime image.
 
-A thin caller can use:
+## Source-derived output versus current-run information
+
+Shared Moon capabilities contain only source/tool/config-derived work and producer evidence. GitHub run id, PR number, current ref and publication destination do not define their cache identity.
+
+After Moon execution/hydration, the host adds truthful current-run finishing information:
+
+- `build-index` for Build publication;
+- Build or Verification `publication-info.txt`;
+- impact decision and affected-task evidence;
+- current Moon materialization evidence.
+
+Cached producer evidence intentionally continues to identify the execution that originally produced the reusable output.
+
+## Normal artifact and publication policy
+
+Normal production does not upload complete Build and Verification trees again as GitHub Actions artifacts. Those trees are already available through generated-output branches and same-job publication consumes local staging directly.
+
+Normal CI retains one compact evidence artifact containing impact/planning/orchestration evidence.
+
+Build and Verification publishers are isolated `tool.git-project` processes. When both output families changed, the workflow starts both publishers on the same host and waits for both results. This overlaps network finishing without adding another hosted runner.
+
+Only changed output families are published:
+
+```text
+docs/build change -> Build publication
+verification change -> Verification publication
+both -> both, concurrently on the same host
+```
+
+## Release remains different
+
+The coordinated release workflow deliberately retains separate preflight, Build, Verify and finalize jobs. Its complete Build and Verification artifacts are real cross-job hand-off and remain mandatory.
+
+Release preflight uses the same SCAD planner to derive:
+
+- runtime image;
+- normal SCons cache applicability;
+- Verification-SCons cache applicability.
+
+Those decisions are passed explicitly into the release Build/Verify reusable workflows. Release does not use the normal-CI artifact-retention policy.
+
+## Thin consumer caller
+
+The normal caller no longer supplies aggregate/affected Moon tasks or duplicated output-root policy. A typical caller is:
 
 ```yaml
 jobs:
@@ -159,31 +219,23 @@ jobs:
       packages: read
     uses: brainboxemb/tool.scad-project/.github/workflows/project-production.yml@<exact-tool-commit>
     with:
-      affected_task: consumer:scad.production-impact
-      aggregate_task: consumer:scad.ci
-      cache_namespace: my-repository-scad-production-v1
+      cache_namespace: my-repository-scad-production-v2
 ```
 
-The caller must pin the reusable workflow to the exact checked-out `tool.scad-project` commit. `scad-project workflow-sync` maintains that alignment.
+The reusable workflow ref must match the exact checked-out `tool.scad-project` gitlink; `scad-project workflow-sync` maintains that alignment.
 
-## Evidence and publication
+## Qualification expectations
 
-The preflight retains `.moon/preflight` as a workflow artifact. Decision evidence names the exact source-impact target, source/base revisions, affected result and conservative reason when applicable.
+Before a release of this lifecycle, owner tests plus reference-consumer evidence must prove at least:
 
-When production runs, the current aggregate `materialization.json` is validated against the exact source revision before output is staged. Build and Verification publication artifacts each receive the aggregate `moon.log` and `materialization.json` under `orchestration/`; producer/domain evidence remains consumer-owned.
-
-Publication is performed from the same host job through the released `tool.git-project/generated-output/publish` action. It consumes already-prepared trees, does not require OpenSCAD/PythonSCAD, and keeps write credentials outside the SCAD runtime.
-
-Normal publication contexts are same-repository pull requests, the production branch and release tags. Unsupported/manual feature-branch contexts may still produce evidence but do not attempt generated-branch publication.
-
-## Release qualification
-
-Before a topology change to this workflow is released, the reference `template.scad-project` must prove at least:
-
-1. README-only change: source-impact preflight succeeds with `affected=false`; image pull, Docker production and publication are skipped;
-2. relevant SCAD/config/tooling change: `affected=true`, exactly one host production job runs and it starts exactly one explicit SCAD Docker process;
-3. Build and Verify remain logically independent in the consumer graph and retain separate SCons caches;
-4. missing/invalid base runs conservatively instead of skipping and uses forced aggregate execution;
-5. aggregate Build/Verify output and current materialization evidence validate before both host-side publications succeed.
-
-Migration 004 retained these scenarios as cross-project evidence rather than keeping temporary proof workflows in the released surface.
+1. unrelated/README-only change starts no SCAD runtime;
+2. one affected capability is identified from the one Moon query;
+3. multiple affected capabilities remain distinguishable;
+4. conservative failure runs the configured capability scope safely;
+5. Moon can hydrate unchanged whole capabilities;
+6. direct projects perform no SCons transport;
+7. SCons projects retain only useful SCons cache paths;
+8. OpenSCAD-only and full/dual projects select the correct v0.5.0 image;
+9. complete normal Build/Verification Actions artifacts are not duplicated;
+10. same-host Build/Verification publication remains isolated and correct;
+11. the coordinated release artifact hand-off still works.
