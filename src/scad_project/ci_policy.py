@@ -59,17 +59,17 @@ def _load_yaml_mapping(path: Path) -> dict[str, Any]:
 
 
 def _inherited_scad_capabilities(root: Path) -> tuple[str, ...]:
-    workspace_data = _load_yaml_mapping(root / ".moon" / "workspace.yml")
-    workspace = workspace_data.get("workspace", {}) or {}
+    project_data = _load_yaml_mapping(root / "moon.yml")
+    workspace = project_data.get("workspace", {}) or {}
     if not isinstance(workspace, dict):
-        raise CiPolicyError(".moon/workspace.yml workspace must be a mapping")
+        raise CiPolicyError("moon.yml workspace must be a mapping")
     inherited = workspace.get("inheritedTasks", {}) or {}
     if not isinstance(inherited, dict):
         raise CiPolicyError("workspace.inheritedTasks must be a mapping")
     include = inherited.get("include")
     if not isinstance(include, list):
         raise CiPolicyError(
-            "Migration-005 consumers must declare workspace.inheritedTasks.include"
+            "Migration-005 consumers must declare workspace.inheritedTasks.include in moon.yml"
         )
 
     values: list[str] = []
