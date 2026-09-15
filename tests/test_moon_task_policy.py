@@ -4,6 +4,11 @@ Checks:
 - Verification always owns the generated verification publication tree.
 - Verification-SCons state remains cacheable when it exists, but is optional for
   command-only verification consumers that correctly do not create that state.
+
+Testing approach:
+Read the released inherited Moon task policy as YAML and assert that verification
+keeps `vrf/out/**` as a required output while the optional Verification-SCons state
+is represented by a directory glob instead of one mandatory state file.
 """
 
 from pathlib import Path
