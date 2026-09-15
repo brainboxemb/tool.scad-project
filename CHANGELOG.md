@@ -2,6 +2,13 @@
 
 Functional changes to released `tool.scad-project` versions.
 
+## v0.14.1
+
+### Fixed
+
+- Let normal production planner installation use the PEP 517 build requirements declared in `pyproject.toml` instead of assuming `setuptools` and `wheel` are already installed in a fresh hosted Python environment.
+- Add a clean-environment planner-install smoke test so the reusable production workflow is qualified without hidden build-backend state.
+
 ## v0.14.0
 
 ### Added
@@ -246,7 +253,7 @@ Functional changes to released `tool.scad-project` versions.
 - Add a reusable, coordinated project release workflow with fail-fast preflight, exact-source Build and Verify jobs, and finalization only after both succeed.
 - Publish mutable production snapshots to `prod/build` and `prod/verification` by default, while retaining configurable production/development branch names.
 - Publish immutable browseable release snapshots to `rel/<version>/build` and `rel/<version>/verification` without force-pushing existing release branches.
-- Generate deterministic build, verification and STL release ZIPs plus `SHA256SUMS.txt`, and verify those checksums before immutable publication and upload.
+- Generate deterministic build, verification and STL release ZIPs plus `SHA256SUMS.txt` and verify those checksums before immutable publication and upload.
 - Generate GitHub Release notes from the project's configured changelog and link to the browseable immutable build and verification branches.
 - Record coordinated release context, exact source SHA, tag, tool/submodule pins and runtime provenance in generated release snapshots.
 - Add rollback for incomplete release finalization and a self-cleaning consumer `release-request/vX.Y.Z/<sha>` trigger pattern.
