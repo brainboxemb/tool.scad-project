@@ -47,6 +47,20 @@ def test_released_moon_preflight_gates_the_only_scad_container():
     assert "image: ghcr.io/brainboxemb/scad-toolchain:v0.4.1" in text
 
 
+def test_preflight_can_use_a_source_impact_target_separate_from_execution_aggregate():
+    text = _text()
+
+    assert "affected_task:" in text
+    assert "defaults to aggregate_task" in text
+    assert 'affected_task="$AFFECTED_INPUT"' in text
+    assert 'affected_task="$AGGREGATE_TASK"' in text
+    assert 'echo "affected_task=$affected_task" >> "$GITHUB_OUTPUT"' in text
+    assert "task: ${{ steps.range.outputs.affected_task }}" in text
+    assert "task: ${{ inputs.aggregate_task }}" in text
+    assert text.index("task: ${{ steps.range.outputs.affected_task }}") < text.index("container:")
+    assert text.index("container:") < text.index("task: ${{ inputs.aggregate_task }}")
+
+
 def test_production_reuses_exact_preflight_range_without_full_history():
     text = _text()
 
