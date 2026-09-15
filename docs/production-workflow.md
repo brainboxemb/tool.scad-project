@@ -44,7 +44,7 @@ host finishing/publication
 
 ## Shared Moon capability policy
 
-The standard capability definitions live in pinned `tools/tool.scad-project/moon/tasks/scad.yml` and are inherited with native Moon configuration. A consumer links the shared task file once and selects the capabilities it exposes through `workspace.inheritedTasks.include`.
+The standard capability definitions live in pinned `tools/tool.scad-project/moon/tasks/scad.yml` and are inherited with native Moon configuration. A consumer links the shared task file once and selects the capabilities it exposes through `workspace.inheritedTasks.include` in the project-level root `moon.yml`.
 
 Conceptually:
 
@@ -54,7 +54,7 @@ extends: '../../tools/tool.scad-project/moon/tasks/scad.yml'
 ```
 
 ```yaml
-# .moon/workspace.yml
+# moon.yml
 workspace:
   inheritedTasks:
     include:
@@ -62,7 +62,7 @@ workspace:
       - scad.verify
 ```
 
-The consumer `moon.yml` contains only project-specific input additions and exceptional output overrides. It does not copy commands, common tool inputs, cache policy, provenance tasks or lifecycle aggregate roots.
+`.moon/workspace.yml` remains workspace-level configuration such as project registration. The consumer root `moon.yml` contains the project-level capability selection plus only project-specific input additions and exceptional output overrides. It does not copy commands, common tool inputs, cache policy, provenance tasks or lifecycle aggregate roots.
 
 `project.scad.yml` remains the SCAD-domain project model. The SCAD planner rejects contradictions between the visible Moon capability set and the project configuration.
 

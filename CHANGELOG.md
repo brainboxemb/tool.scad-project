@@ -2,6 +2,20 @@
 
 Functional changes to released `tool.scad-project` versions.
 
+## v0.14.3
+
+### Fixed
+
+- Make shared Moon capability outputs describe stable materialized capability output instead of requiring optional SCons state and domain-report files that are absent for direct-engine consumers or verification commands without SCons targets.
+- Add regression coverage for the shared Moon output contract so direct and SCons consumers can use the same capability definitions without false `missing_outputs` failures.
+
+## v0.14.2
+
+### Fixed
+
+- Read inherited Moon capability selection from project-level root `moon.yml` via `workspace.inheritedTasks.include`, matching Moon 2.5.4 instead of placing that project-level selection in `.moon/workspace.yml`.
+- Align the Migration-005 consumer configuration guidance and release markers with the corrected root `moon.yml` capability-selection model.
+
 ## v0.14.1
 
 ### Fixed
