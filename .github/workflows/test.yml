@@ -25,6 +25,21 @@ jobs:
         timeout-minutes: 2
         uses: actions/checkout@v4
 
+      - name: Clean planner install smoke
+        timeout-minutes: 2
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m pip uninstall --break-system-packages -y setuptools wheel >/dev/null 2>&1 || true
+          python3 - <<'PY'
+          import importlib.util
+          if importlib.util.find_spec("setuptools") is not None:
+              raise SystemExit("clean planner test still has setuptools before install")
+          PY
+          python3 -m pip install --break-system-packages --disable-pip-version-check -e .
+          scad-project --help >/dev/null
+          python3 -m pip install --break-system-packages --disable-pip-version-check 'setuptools>=70' wheel >/dev/null
+
       - name: Install package
         timeout-minutes: 2
         run: python3 -m pip install --break-system-packages -e '.[test]'

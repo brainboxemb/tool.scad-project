@@ -89,3 +89,10 @@ def test_build_and_verification_publication_can_overlap_on_same_runner():
     assert "reusable-generated-output-publish.yml" not in text
     assert "persist-credentials: false" in text
     assert "-e GITHUB_TOKEN" not in text
+
+
+def test_production_workflow_planner_install_uses_declared_build_requirements():
+    text = WORKFLOW.read_text(encoding="utf-8")
+
+    assert "python -m pip install --disable-pip-version-check -e ./tools/tool.scad-project" in text
+    assert "--no-build-isolation" not in text

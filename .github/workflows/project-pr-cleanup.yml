@@ -27,7 +27,7 @@ jobs:
     timeout-minutes: 5
 
     env:
-      SCAD_PROJECT_WORKFLOW_VERSION: v0.14.0
+      SCAD_PROJECT_WORKFLOW_VERSION: v0.14.1
 
     steps:
       - name: Checkout repository for authenticated branch cleanup
@@ -65,10 +65,10 @@ jobs:
           for KIND in build verification; do
             BRANCH="${PREFIX}-${PR_NUMBER}/${KIND}"
             if git ls-remote --exit-code --heads origin "refs/heads/${BRANCH}" >/dev/null 2>&1; then
-              git push origin --delete "${BRANCH}"
-              echo "Removed pull-request publication branch: ${BRANCH}"
+              git push origin --delete "$BRANCH"
+              echo "Removed pull-request publication branch: $BRANCH"
             else
-              echo "Preview branch already absent: ${BRANCH}"
+              echo "Preview branch already absent: $BRANCH"
             fi
           done
 
@@ -86,7 +86,7 @@ jobs:
         run: |
           set -euo pipefail
           if git ls-remote --exit-code --heads origin "refs/heads/${SOURCE_BRANCH}" >/dev/null 2>&1; then
-            git push origin --delete "${SOURCE_BRANCH}"
+            git push origin --delete "$SOURCE_BRANCH"
           else
-            echo "Source branch already absent: ${SOURCE_BRANCH}"
+            echo "Source branch already absent: $SOURCE_BRANCH"
           fi
