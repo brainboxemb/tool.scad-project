@@ -28,6 +28,16 @@ on:
         required: false
         type: string
         default: ''
+      runtime_image:
+        description: Qualified SCAD runtime image selected from project configuration
+        required: false
+        type: string
+        default: ghcr.io/brainboxemb/scad-toolchain:v0.5.0
+      use_scons_cache:
+        description: Restore/save the normal SCons cache for projects using the SCons build engine
+        required: false
+        type: boolean
+        default: true
 
 permissions:
   contents: write
@@ -38,15 +48,16 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     container:
-      image: ghcr.io/brainboxemb/scad-toolchain:v0.4.1
+      image: ${{ inputs.runtime_image }}
 
     env:
-      SCAD_PROJECT_WORKFLOW_VERSION: v0.13.1
-      SCAD_TOOLCHAIN_IMAGE: ghcr.io/brainboxemb/scad-toolchain:v0.4.1
-      SCAD_TOOLCHAIN_VERSION: v0.4.1
+      SCAD_PROJECT_WORKFLOW_VERSION: v0.14.0
+      SCAD_TOOLCHAIN_IMAGE: ${{ inputs.runtime_image }}
+      SCAD_TOOLCHAIN_VERSION: v0.5.0
       SCAD_PROJECT_RELEASE_VERSION: ${{ inputs.release_version }}
       SCAD_PROJECT_SOURCE_SHA: ${{ inputs.source_sha || github.sha }}
       SCAD_PROJECT_PR_NUMBER: ${{ github.event.pull_request.number || '' }}
+      PYTHONDONTWRITEBYTECODE: '1'
 
     steps:
       - name: Checkout project and pinned submodules
@@ -67,6 +78,8 @@ jobs:
         id: scons-cache
         timeout-minutes: 2
         shell: bash
+        env:
+          USE_SCONS_CACHE: ${{ inputs.use_scons_cache }}
         run: |
           set -euo pipefail
           TOOL_SHA="$(git -C tools/tool.scad-project rev-parse HEAD)"
@@ -78,12 +91,13 @@ jobs:
           echo "  Repository: ${GITHUB_REPOSITORY}"
           echo "  Toolchain : ${SCAD_TOOLCHAIN_VERSION}"
           echo "  Tool       : ${SCAD_PROJECT_WORKFLOW_VERSION} (${SHORT_TOOL_SHA})"
-          echo "  Mode       : Build restores and writes this cache"
+          echo "  Enabled    : ${USE_SCONS_CACHE}"
           echo "Generated design snapshot"
           echo "  Purpose   : reuse the complete bld/design tree when all design inputs are identical"
 
       - name: Restore selective build cache
         id: selective-cache
+        if: inputs.use_scons_cache
         timeout-minutes: 2
         uses: actions/cache/restore@v4
         with:
@@ -128,6 +142,7 @@ jobs:
         timeout-minutes: 2
         shell: bash
         env:
+          SELECTIVE_ENABLED: ${{ inputs.use_scons_cache }}
           SELECTIVE_HIT: ${{ steps.selective-cache.outputs.cache-hit }}
           SELECTIVE_PRIMARY_KEY: ${{ steps.selective-cache.outputs.cache-primary-key }}
           SELECTIVE_MATCHED_KEY: ${{ steps.selective-cache.outputs.cache-matched-key }}
@@ -148,13 +163,20 @@ jobs:
             fi
           }
 
-          SELECTIVE_STATUS="$(cache_status "$SELECTIVE_HIT" "$SELECTIVE_MATCHED_KEY")"
+          if [[ "$SELECTIVE_ENABLED" == true ]]; then
+            SELECTIVE_STATUS="$(cache_status "$SELECTIVE_HIT" "$SELECTIVE_MATCHED_KEY")"
+            echo "SCAD_PROJECT_CACHE_NAMESPACE=scad-selective-build-v2" >> "$GITHUB_ENV"
+            echo "SCAD_PROJECT_CACHE_PRIMARY_KEY=${SELECTIVE_PRIMARY_KEY}" >> "$GITHUB_ENV"
+            echo "SCAD_PROJECT_CACHE_MATCHED_KEY=${SELECTIVE_MATCHED_KEY}" >> "$GITHUB_ENV"
+            echo "SCAD_PROJECT_CACHE_HIT=${SELECTIVE_HIT}" >> "$GITHUB_ENV"
+          else
+            SELECTIVE_STATUS="disabled by project configuration"
+            echo "SCAD_PROJECT_CACHE_NAMESPACE=disabled" >> "$GITHUB_ENV"
+            echo "SCAD_PROJECT_CACHE_PRIMARY_KEY=" >> "$GITHUB_ENV"
+            echo "SCAD_PROJECT_CACHE_MATCHED_KEY=" >> "$GITHUB_ENV"
+            echo "SCAD_PROJECT_CACHE_HIT=false" >> "$GITHUB_ENV"
+          fi
           DESIGN_STATUS="$(cache_status "$DESIGN_HIT" "$DESIGN_MATCHED_KEY")"
-
-          echo "SCAD_PROJECT_CACHE_NAMESPACE=scad-selective-build-v2" >> "$GITHUB_ENV"
-          echo "SCAD_PROJECT_CACHE_PRIMARY_KEY=${SELECTIVE_PRIMARY_KEY}" >> "$GITHUB_ENV"
-          echo "SCAD_PROJECT_CACHE_MATCHED_KEY=${SELECTIVE_MATCHED_KEY}" >> "$GITHUB_ENV"
-          echo "SCAD_PROJECT_CACHE_HIT=${SELECTIVE_HIT}" >> "$GITHUB_ENV"
 
           echo "Selective build cache: ${SELECTIVE_STATUS}"
           echo "Generated design snapshot: ${DESIGN_STATUS}"
@@ -166,8 +188,6 @@ jobs:
             echo "| --- | --- | --- |"
             echo "| Selective build cache | Reuse unchanged design images, renders and exports per dependency | ${SELECTIVE_STATUS} |"
             echo "| Generated design snapshot | Skip the whole design build when all design inputs are identical | ${DESIGN_STATUS} |"
-            echo ""
-            echo "**How to read this:** an exact hit means identical inputs; a fallback hit means older objects can still be reused target-by-target; a miss means a cold cache."
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Generate design documentation
@@ -235,7 +255,7 @@ jobs:
           key: ${{ steps.design-cache.outputs.cache-primary-key }}
 
       - name: Save selective build cache
-        if: steps.selective-cache.outputs.cache-hit != 'true'
+        if: inputs.use_scons_cache && steps.selective-cache.outputs.cache-hit != 'true' && hashFiles('.cache/scad-project/scons/**') != ''
         timeout-minutes: 2
         uses: actions/cache/save@v4
         with:

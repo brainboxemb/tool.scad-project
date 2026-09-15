@@ -16,7 +16,9 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     container:
-      image: ghcr.io/brainboxemb/scad-toolchain:v0.4.1
+      image: ghcr.io/brainboxemb/scad-toolchain:v0.5.0
+    env:
+      PYTHONDONTWRITEBYTECODE: '1'
 
     steps:
       - name: Checkout

@@ -35,6 +35,10 @@ jobs:
       production_branch: ${{ steps.validate.outputs.production_branch }}
       build_branch: ${{ steps.validate.outputs.build_branch }}
       verification_branch: ${{ steps.validate.outputs.verification_branch }}
+      runtime_profile: ${{ steps.scad-plan.outputs.runtime_profile }}
+      runtime_image: ${{ steps.scad-plan.outputs.runtime_image }}
+      use_scons_cache: ${{ steps.scad-plan.outputs.use_scons_cache }}
+      use_verification_scons_cache: ${{ steps.scad-plan.outputs.use_verification_scons_cache }}
 
     env:
       RELEASE_VERSION: ${{ inputs.version }}
@@ -64,6 +68,36 @@ jobs:
       - name: Validate project configuration
         timeout-minutes: 2
         run: scad-project config-lint
+
+      - name: Resolve SCAD release runtime and cache policy
+        id: scad-plan
+        timeout-minutes: 2
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import os
+          from pathlib import Path
+          from scad_project.ci_policy import build_ci_plan
+          from scad_project.config import load_context
+
+          plan = build_ci_plan(load_context(Path.cwd()))
+          output = Path(os.environ["GITHUB_OUTPUT"])
+          with output.open("a", encoding="utf-8") as handle:
+              handle.write(f"runtime_profile={plan.runtime_profile}\n")
+              handle.write(f"runtime_image={plan.runtime_image}\n")
+              handle.write(f"use_scons_cache={str(plan.use_scons_cache).lower()}\n")
+              handle.write(
+                  "use_verification_scons_cache="
+                  f"{str(plan.use_verification_scons_cache).lower()}\n"
+              )
+          print(
+              "Release SCAD plan: "
+              f"runtime={plan.runtime_profile} image={plan.runtime_image} "
+              f"scons={plan.use_scons_cache} "
+              f"verification_scons={plan.use_verification_scons_cache}"
+          )
+          PY
 
       - name: Validate release source and namespace
         id: validate
@@ -160,6 +194,8 @@ jobs:
       source_ref: ${{ inputs.source_sha }}
       release_version: ${{ inputs.version }}
       source_sha: ${{ inputs.source_sha }}
+      runtime_image: ${{ needs.preflight.outputs.runtime_image }}
+      use_scons_cache: ${{ needs.preflight.outputs.use_scons_cache == 'true' }}
 
   verify:
     needs: preflight
@@ -171,6 +207,8 @@ jobs:
       source_ref: ${{ inputs.source_sha }}
       release_version: ${{ inputs.version }}
       source_sha: ${{ inputs.source_sha }}
+      runtime_image: ${{ needs.preflight.outputs.runtime_image }}
+      use_verification_scons_cache: ${{ needs.preflight.outputs.use_verification_scons_cache == 'true' }}
 
   finalize:
     needs: [preflight, build, verify]
