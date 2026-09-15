@@ -2,6 +2,22 @@
 
 Functional changes to released `tool.scad-project` versions.
 
+## v0.13.0
+
+### Added
+
+- Add `project-production.yml` as the reusable repository-level SCAD production workflow with host-side Moon affected preflight, one conditional heavy SCAD container and lightweight generated-output publication.
+- Add an optional `affected_task` so consumers can keep the source-impact gate separate from an environment-sensitive publication-ready `aggregate_task` while still using one authoritative Moon graph.
+- Retain host preflight decision evidence and validate current Moon materialization before prepared Build and Verification output is published.
+
+### Changed
+
+- Use shallow blobless exact-source checkouts and fetch only the exact comparison base required for Moon instead of requiring full repository history.
+- Reuse the explicit BASE/HEAD range in the production container through `MOON_BASE` and `MOON_HEAD`; missing or unusable comparison context forces conservative execution instead of risking a false skip.
+- Keep normal Build and Verification as logically independent consumer tasks with separate SCons caches even when the publication-ready aggregate is executed in one heavy job.
+- Keep dependency bootstrap and the SCAD container behind the affected gate; unrelated changes can finish after host preflight without initializing SCAD dependencies or the runtime image.
+- Keep generated-output publication outside the SCAD container through released `tool.git-project` lifecycle tooling.
+
 ## v0.12.0
 
 ### Added
@@ -72,7 +88,7 @@ Functional changes to released `tool.scad-project` versions.
 
 ### Changed
 
-- Define the canonical PR-first agent workflow centrally in `AGENTS.md`: reserve the final pull-request number with a temporary issue, create `feature/pr-<number>-<slug>`, convert that exact issue into the same-number draft PR, and keep subsequent work attached to that PR.
+- Define the canonical PR-first agent workflow centrally in `AGENTS.md`: reserve the final pull-request number with a temporary issue, create `feature/pr-<number>-<slug>` from current target branch, make the smallest initial commit, convert that exact issue into draft PR `#N`, and keep subsequent work attached to that PR.
 - Clarify that the actual PR number is authoritative for `dev/pr-<number>/build` and `dev/pr-<number>/verification`; never guess a future PR number or reuse an unrelated issue number.
 - Align the central publication guidance with the v0.9.11 PR-scoped model and make consumer root `AGENTS.md` files defer to the pinned tool policy for branch/PR/publication workflow.
 - Clarify the central watermark policy so configured build/design PNGs and project verification commands use the shared `scad-image-watermark` runtime command instead of duplicating image-processing logic.
@@ -84,7 +100,7 @@ Functional changes to released `tool.scad-project` versions.
 - Publish pull-request build and verification previews to isolated `dev/pr-<number>/build` and `dev/pr-<number>/verification` branches instead of one shared development destination.
 - Add `publication.development.pr_branch_prefix` for configuring the pull-request preview namespace while keeping `dev/pr` as the default.
 - Add `scad-project publication-cleanup-pr --pr-number N` and a reusable PR-cleanup workflow that removes generated preview branches when a pull request closes.
-- Allow the cleanup workflow to delete the merged same-repository source branch so feature branches do not accumulate after merge.
+- Allow the cleanup workflow to delete the merged same-repository pull request source branch so feature branches do not accumulate after merge.
 
 ### Changed
 
