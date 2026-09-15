@@ -248,7 +248,7 @@ jobs:
       - name: Restore normal SCons object cache
         id: build-cache
         if: steps.affected.outputs.affected == 'true'
-        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
         with:
           path: .cache/scad-project/scons
           key: scad-production-build-scons-v1-${{ runner.os }}-${{ github.repository_id }}-v0.4.1-${{ steps.tooling-ref.outputs.scad_tool_sha }}-${{ github.run_id }}-${{ github.run_attempt }}
@@ -258,7 +258,7 @@ jobs:
       - name: Restore verification SCons object cache
         id: verification-cache
         if: steps.affected.outputs.affected == 'true'
-        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
         with:
           path: .cache/scad-project/verification-scons
           key: scad-production-verification-scons-v1-${{ runner.os }}-${{ github.repository_id }}-v0.4.1-${{ steps.tooling-ref.outputs.scad_tool_sha }}-${{ github.run_id }}-${{ github.run_attempt }}
@@ -464,7 +464,7 @@ jobs:
           retention-days: 14
 
       - name: Publish Build output from host
-        if: inputs.publish && steps.affected.outputs.affected == 'true' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)
+        if: inputs.publish && steps.affected.outputs.affected == 'true' && ((github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository) || github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v'))
         uses: brainboxemb/tool.git-project/generated-output/publish@6234b7437b0dc0115642468f74d1f4a2c2214bef
         with:
           source-directory: ${{ runner.temp }}/scad-build-publication
@@ -473,7 +473,7 @@ jobs:
           token: ${{ github.token }}
 
       - name: Publish Verification output from host
-        if: inputs.publish && steps.affected.outputs.affected == 'true' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)
+        if: inputs.publish && steps.affected.outputs.affected == 'true' && ((github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository) || github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v'))
         uses: brainboxemb/tool.git-project/generated-output/publish@6234b7437b0dc0115642468f74d1f4a2c2214bef
         with:
           source-directory: ${{ runner.temp }}/scad-verification-publication
