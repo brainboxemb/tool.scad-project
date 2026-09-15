@@ -2,6 +2,30 @@
 
 Functional changes to released `tool.scad-project` versions.
 
+## v0.14.0
+
+### Added
+
+- Add shared inherited Moon capability policy for `scad.docs`, `scad.build` and `scad.verify`, so consumers select real SCAD capabilities without copying lifecycle task implementations.
+- Add SCAD-owned CI planning that validates the visible Moon capability set against `project.scad.yml`, selects the OpenSCAD-focused or full/dual v0.5.0 runtime, and derives applicable normal/Verification SCons cache transport.
+- Expose affected versus publication-safe materialization scope explicitly so a complete generated Build tree can hydrate unchanged contributors without falsely classifying them as source-affected.
+
+### Changed
+
+- Consume the complete affected-task list from released `tool.git-project v0.2.8` once per normal run and start no SCAD planner/image/runtime for an unrelated change.
+- Execute or hydrate required coarse capabilities in one explicit Docker process on one hosted runner, using `docker.scad-toolchain v0.5.0` and `PYTHONDONTWRITEBYTECODE=1`.
+- Keep normal SCons transport only for SCons-configured Build/docs work and keep the separate Verification-SCons cache only when real verification render/export targets exist.
+- Move Build index/publication information and current impact/materialization evidence out of Moon source-derived task identity and into host finishing after execution/hydration.
+- Stop uploading duplicate complete Build and Verification Actions artifacts during normal production; retain compact orchestration evidence and publish local staging trees directly.
+- Allow independent Build/Verification publishers to overlap on the same host without adding another runner.
+- Derive coordinated-release runtime and cache policy from the same SCAD planner while preserving complete Build/Verification artifacts as the required cross-job release hand-off.
+- Align reusable Build, Verify, Production and PR-cleanup workflow markers plus the package runtime version at v0.14.0.
+
+### Fixed
+
+- Avoid broad `tools/tool.scad-project/**` Moon inputs that could admit generated Python bytecode and destabilize source-derived task hashes across fresh runners.
+- Preserve unchanged presentation or documentation contributors when only one Build-family capability is affected, preventing complete generated-output branch publication from dropping unaffected content.
+
 ## v0.13.1
 
 ### Changed
@@ -114,7 +138,7 @@ Functional changes to released `tool.scad-project` versions.
 - Publish pull-request build and verification previews to isolated `dev/pr-<number>/build` and `dev/pr-<number>/verification` branches instead of one shared development destination.
 - Add `publication.development.pr_branch_prefix` for configuring the pull-request preview namespace while keeping `dev/pr` as the default.
 - Add `scad-project publication-cleanup-pr --pr-number N` and a reusable PR-cleanup workflow that removes generated preview branches when a pull request closes.
-- Allow the cleanup workflow to delete the merged same-repository source branch so feature branches do not accumulate after merge.
+- Allow the cleanup workflow to delete the merged same-repository pull request source branch so feature branches do not accumulate after merge.
 
 ### Changed
 
