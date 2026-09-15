@@ -1,4 +1,15 @@
-"""Migration-005 CI plan and capability/configuration consistency."""
+"""Migration-005 CI plan and capability/configuration consistency.
+
+Checks:
+- runtime/profile and SCons transport follow project.scad.yml intent;
+- inherited Moon capabilities must agree with configured SCAD capabilities;
+- non-standard output roots require explicit local Moon output overrides;
+- precise and conservative Moon impact results resolve to publication-safe materialization scopes.
+
+Testing approach:
+- create small temporary consumer repositories with real project/Moon YAML;
+- load them through the production configuration loader and assert the resulting plans/errors.
+"""
 
 from pathlib import Path
 
