@@ -104,7 +104,7 @@ Functional changes to released `tool.scad-project` versions.
 
 - Keep producer evidence attached to the existing `design-build`, `build` and `verify` actions while preserving separate Moon task boundaries; do not replace the visible SCAD graph with one coarse producer wrapper.
 - Keep Moon/current materialization evidence and publication finalization outside the SCAD producer evidence contract. Cached or hydrated producer evidence therefore remains tied to the execution that created it while current materialization records the revision/context that consumed it.
-- Keep local non-Git SCAD actions usable by skipping persistent execution evidence with a warning when exact source/owner revisions cannot be resolved; persistent CI/publication consumers are expected to require and validate the evidence files.
+- Keep local non-Git SCAD actions usable by skipping persistent execution evidence with a warning when exact source and owner revisions cannot be resolved; persistent CI/publication consumers are expected to require and validate the evidence files.
 
 ## v0.10.1
 
@@ -147,7 +147,7 @@ Functional changes to released `tool.scad-project` versions.
 
 ### Changed
 
-- Define the canonical PR-first agent workflow centrally in `AGENTS.md`: reserve the final pull-request number with a temporary issue, create `feature/pr-<number>-<slug>` from current target branch; make the smallest initial commit; convert that exact issue into the same-number draft PR; and keep subsequent work attached to that PR.
+- Define the canonical PR-first agent workflow centrally in `AGENTS.md`: reserve the final pull-request number with a temporary issue, create `feature/pr-<number>-<slug>`, convert that exact issue into the same-number draft PR, and keep subsequent work attached to that PR.
 - Clarify that the actual PR number is authoritative for `dev/pr-<number>/build` and `dev/pr-<number>/verification`; never guess a future PR number or reuse an unrelated issue number.
 - Align the central publication guidance with the v0.9.11 PR-scoped model and make consumer root `AGENTS.md` files defer to the pinned tool policy for branch/PR/publication workflow.
 - Clarify the central watermark policy so configured build/design PNGs and project verification commands use the shared `scad-image-watermark` runtime command instead of duplicating image-processing logic.
