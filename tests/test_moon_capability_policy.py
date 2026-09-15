@@ -1,3 +1,17 @@
+"""Moon capability output policy
+
+Checks:
+Shared Migration-005 Moon capability tasks expose only stable materialized
+outputs. Optional SCons state files and optional domain-evidence reports must not
+be required outputs, because direct-engine consumers and verification commands
+without SCons targets do not produce them.
+
+Testing approach:
+Load the real shared Moon task YAML and assert the public output contract for
+`scad.docs`, `scad.build` and `scad.verify`. Also reject cache-state and optional
+domain-report paths from every declared output list.
+"""
+
 from pathlib import Path
 
 import yaml
