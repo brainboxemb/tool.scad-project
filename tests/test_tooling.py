@@ -86,6 +86,7 @@ def test_release_version_markers_are_aligned():
     for workflow_path in (
         Path(".github/workflows/project-build.yml"),
         Path(".github/workflows/project-verify.yml"),
+        Path(".github/workflows/project-production.yml"),
         Path(".github/workflows/project-pr-cleanup.yml"),
     ):
         text = workflow_path.read_text(encoding="utf-8")

@@ -2,6 +2,22 @@
 
 Functional changes to released `tool.scad-project` versions.
 
+## v0.13.0
+
+### Added
+
+- Add `project-production.yml` as the reusable repository-level SCAD production workflow with host-side Moon affected preflight, one conditional heavy SCAD container and lightweight generated-output publication.
+- Add an optional `affected_task` so consumers can keep the source-impact gate separate from an environment-sensitive publication-ready `aggregate_task` while still using one authoritative Moon graph.
+- Retain host preflight decision evidence and validate current Moon materialization before prepared Build and Verification output is published.
+
+### Changed
+
+- Use shallow blobless exact-source checkouts and fetch only the exact comparison base required for Moon instead of requiring full repository history.
+- Reuse the explicit BASE/HEAD range in the production container through `MOON_BASE` and `MOON_HEAD`; missing or unusable comparison context forces conservative execution instead of risking a false skip.
+- Keep normal Build and Verification as logically independent consumer tasks with separate SCons caches even when the publication-ready aggregate is executed in one heavy job.
+- Keep dependency bootstrap and the SCAD container behind the affected gate; unrelated changes can finish after host preflight without initializing SCAD dependencies or the runtime image.
+- Keep generated-output publication outside the SCAD container through released `tool.git-project` lifecycle tooling.
+
 ## v0.12.0
 
 ### Added

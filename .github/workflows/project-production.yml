@@ -219,6 +219,7 @@ jobs:
     container:
       image: ghcr.io/brainboxemb/scad-toolchain:v0.4.1
     env:
+      SCAD_PROJECT_WORKFLOW_VERSION: v0.13.0
       SCAD_TOOLCHAIN_IMAGE: ghcr.io/brainboxemb/scad-toolchain:v0.4.1
       SCAD_TOOLCHAIN_VERSION: v0.4.1
       SCAD_PROJECT_SOURCE_SHA: ${{ needs.preflight.outputs.source_sha }}
