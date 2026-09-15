@@ -88,7 +88,7 @@ Functional changes to released `tool.scad-project` versions.
 
 ### Changed
 
-- Define the canonical PR-first agent workflow centrally in `AGENTS.md`: reserve the final pull-request number with a temporary issue, create `feature/pr-<number>-<slug>` from current target branch, make the smallest initial commit, convert that exact issue into draft PR `#N`, and keep subsequent work attached to that PR.
+- Define the canonical PR-first agent workflow centrally in `AGENTS.md`: reserve the final pull-request number with a temporary issue, create `feature/pr-<number>-<slug>`, convert that exact issue into the same-number draft PR, and keep subsequent work attached to that PR.
 - Clarify that the actual PR number is authoritative for `dev/pr-<number>/build` and `dev/pr-<number>/verification`; never guess a future PR number or reuse an unrelated issue number.
 - Align the central publication guidance with the v0.9.11 PR-scoped model and make consumer root `AGENTS.md` files defer to the pinned tool policy for branch/PR/publication workflow.
 - Clarify the central watermark policy so configured build/design PNGs and project verification commands use the shared `scad-image-watermark` runtime command instead of duplicating image-processing logic.
@@ -100,7 +100,7 @@ Functional changes to released `tool.scad-project` versions.
 - Publish pull-request build and verification previews to isolated `dev/pr-<number>/build` and `dev/pr-<number>/verification` branches instead of one shared development destination.
 - Add `publication.development.pr_branch_prefix` for configuring the pull-request preview namespace while keeping `dev/pr` as the default.
 - Add `scad-project publication-cleanup-pr --pr-number N` and a reusable PR-cleanup workflow that removes generated preview branches when a pull request closes.
-- Allow the cleanup workflow to delete the merged same-repository pull request source branch so feature branches do not accumulate after merge.
+- Allow the cleanup workflow to delete the merged same-repository source branch so feature branches do not accumulate after merge.
 
 ### Changed
 
