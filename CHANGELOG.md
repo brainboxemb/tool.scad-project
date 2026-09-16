@@ -2,6 +2,14 @@
 
 Functional changes to released `tool.scad-project` versions.
 
+## v0.14.9
+
+### Changed
+
+- Normalize current-generation persistent generated-output technical namespaces to `bld` and `vrf` for pull-request, production and coordinated-release publication, matching the existing SCAD workspace roots.
+- Keep Build and Verification as readable lifecycle/semantic names while retaining explicit custom branch overrides and historical already-published `build`/`verification` branches as historical evidence.
+- Align PR cleanup, examples, documentation, release browse links and regression coverage with `dev/pr-N/{bld,vrf}`, `prod/{bld,vrf}` and `rel/vX.Y.Z/{bld,vrf}`.
+
 ## v0.14.8
 
 ### Fixed
