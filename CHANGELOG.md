@@ -2,6 +2,13 @@
 
 Functional changes to released `tool.scad-project` versions.
 
+## v0.14.5
+
+### Fixed
+
+- Run shared `scad.docs`, `scad.build` and `scad.verify` Moon capability wrappers with the immutable SCAD runtime's guaranteed `python3` executable instead of assuming an unavailable `python` alias.
+- Add regression coverage for the shared capability launcher contract so future Moon policy changes cannot silently reintroduce the unsupported alias.
+
 ## v0.14.4
 
 ### Added
