@@ -78,6 +78,7 @@ jobs:
     env:
       SCAD_PROJECT_WORKFLOW_VERSION: v0.14.5
       SCAD_TOOLCHAIN_VERSION: v0.5.0
+      SCAD_WORKFLOW_TIMINGS: .moon/preflight/workflow-timings.json
       PYTHONDONTWRITEBYTECODE: '1'
 
     steps:
@@ -93,6 +94,9 @@ jobs:
           PUSH_BEFORE_SHA: ${{ github.event.before || '' }}
         run: |
           set -euo pipefail
+
+          workflow_started_at="$(date -u +'%Y-%m-%dT%H:%M:%S.%3NZ')"
+          echo "SCAD_WORKFLOW_STARTED_AT=$workflow_started_at" >> "$GITHUB_ENV"
 
           source_sha="$SOURCE_INPUT"
           if [[ -z "$source_sha" ]]; then
@@ -265,6 +269,14 @@ jobs:
           echo "SCAD_TOOLCHAIN_IMAGE=$(jq -r '.runtime_image' "$plan_file")" >> "$GITHUB_ENV"
           echo "SCAD_PROJECT_TOOL_SHA=$(git -C tools/tool.scad-project rev-parse HEAD)" >> "$GITHUB_ENV"
 
+          if [[ "$(jq -r '.run_runtime' "$plan_file")" == true ]]; then
+            python -m scad_project.workflow_timing transition \
+              --file "$SCAD_WORKFLOW_TIMINGS" \
+              --finish preflight_and_plan \
+              --begin cache_restore \
+              --workflow-started-at "$SCAD_WORKFLOW_STARTED_AT"
+          fi
+
           {
             echo ""
             echo "## SCAD execution plan"
@@ -317,9 +329,17 @@ jobs:
           RUNTIME_IMAGE: ${{ steps.plan.outputs.runtime_image }}
         run: |
           set -euo pipefail
+          python -m scad_project.workflow_timing transition \
+            --file "$SCAD_WORKFLOW_TIMINGS" \
+            --finish cache_restore \
+            --begin runtime_pull
           printf '%s' "$GH_TOKEN" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
           docker pull "$RUNTIME_IMAGE"
           docker logout ghcr.io >/dev/null 2>&1 || true
+          python -m scad_project.workflow_timing transition \
+            --file "$SCAD_WORKFLOW_TIMINGS" \
+            --finish runtime_pull \
+            --begin materialization
 
       - name: Execute or hydrate required SCAD capabilities in one Docker process
         if: steps.plan.outputs.run_runtime == 'true'
@@ -372,6 +392,11 @@ jobs:
               done
             '
 
+          python -m scad_project.workflow_timing transition \
+            --file "$SCAD_WORKFLOW_TIMINGS" \
+            --finish materialization \
+            --begin cache_save
+
       - name: Save normal SCons cache when actually configured and populated
         if: always() && steps.plan.outputs.run_runtime == 'true' && steps.plan.outputs.use_scons_cache == 'true' && steps.build-cache.outputs.cache-hit != 'true' && hashFiles('.cache/scad-project/scons/**') != ''
         uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
@@ -385,6 +410,16 @@ jobs:
         with:
           path: .cache/scad-project/verification-scons
           key: ${{ steps.verification-cache.outputs.cache-primary-key }}
+
+      - name: Close cache-save timing and start finishing
+        if: steps.plan.outputs.run_runtime == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m scad_project.workflow_timing transition \
+            --file "$SCAD_WORKFLOW_TIMINGS" \
+            --finish cache_save \
+            --begin finishing
 
       - name: Validate capability materialization
         if: steps.plan.outputs.run_runtime == 'true'
@@ -452,6 +487,10 @@ jobs:
           BASE_SHA: ${{ steps.range.outputs.base_sha }}
         run: |
           set -euo pipefail
+          python -m scad_project.workflow_timing transition \
+            --file "$SCAD_WORKFLOW_TIMINGS" \
+            --finish finishing
+
           build_staging="$RUNNER_TEMP/scad-build-publication"
           verification_staging="$RUNNER_TEMP/scad-verification-publication"
 
@@ -490,6 +529,10 @@ jobs:
           PR_HEAD_REPOSITORY: ${{ github.event.pull_request.head.repo.full_name || '' }}
         run: |
           set -euo pipefail
+          python -m scad_project.workflow_timing begin \
+            --file "$SCAD_WORKFLOW_TIMINGS" \
+            --phase publication
+
           publisher="$(realpath "$GITHUB_WORKSPACE/../../_actions/brainboxemb/tool.git-project/v0.2.8/generated-output-publish.sh")"
           test -f "$publisher"
 
@@ -531,6 +574,12 @@ jobs:
             fi
             cat "$RUNNER_TEMP/${names[$i]}-publisher.log"
           done
+
+          if [[ "$failed" == 0 ]]; then
+            python -m scad_project.workflow_timing transition \
+              --file "$SCAD_WORKFLOW_TIMINGS" \
+              --finish publication
+          fi
           exit "$failed"
 
       - name: Upload compact SCAD orchestration evidence
@@ -546,7 +595,7 @@ jobs:
             .cache/scad-project/verification-state/last-verification-build.json
           if-no-files-found: warn
           include-hidden-files: true
-          retention-days: 14
+          retention-days: 90
 
       - name: Resolve reusable workflow result
         id: result
