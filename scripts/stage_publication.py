@@ -12,6 +12,7 @@ import shutil
 import time
 
 from scad_project.execution_evidence import append_evidence_navigation
+from scad_project.workflow_timing import snapshot_timings
 
 
 SCHEMA = "brainboxemb.scad-orchestration-run-context"
@@ -21,8 +22,7 @@ SCHEMA_VERSION = 1
 def _utc_now() -> str:
     return (
         datetime.now(timezone.utc)
-        .replace(microsecond=0)
-        .isoformat()
+        .isoformat(timespec="milliseconds")
         .replace("+00:00", "Z")
     )
 
@@ -74,6 +74,9 @@ def stage_publication(
         preflight / "scad-ci-plan.json",
         orchestration / "scad-ci-plan.json",
     )
+    timing_source = preflight / "workflow-timings.json"
+    if not timing_source.is_file():
+        raise RuntimeError(f"current workflow timing evidence is missing: {timing_source}")
     if not invocations.is_dir():
         raise RuntimeError(f"current Moon invocation evidence is missing: {invocations}")
     shutil.copytree(
@@ -82,8 +85,11 @@ def stage_publication(
         dirs_exist_ok=True,
     )
 
+    finished_at = _utc_now()
+    duration_ms = max(0, (time.monotonic_ns() - started_ns) // 1_000_000)
+
     run_context_path = orchestration / "run-context.json"
-    provisional = {
+    run_context = {
         "schema": SCHEMA,
         "schema_version": SCHEMA_VERSION,
         "publication_family": family,
@@ -95,28 +101,33 @@ def stage_publication(
         "base_revision": base_sha,
         "snapshot_preparation": {
             "started_at": started_at,
-            "finished_at": None,
-            "duration_ms": None,
+            "finished_at": finished_at,
+            "duration_ms": duration_ms,
         },
     }
     run_context_path.write_text(
-        json.dumps(provisional, indent=2, sort_keys=True) + "\n",
+        json.dumps(run_context, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+
+    timing_path = orchestration / "timings.json"
+    timing_path.write_text(
+        json.dumps(
+            snapshot_timings(
+                timing_source,
+                publication_family=family,
+                snapshot_started_at=started_at,
+                snapshot_finished_at=finished_at,
+                snapshot_duration_ms=duration_ms,
+            ),
+            indent=2,
+            sort_keys=True,
+        )
+        + "\n",
         encoding="utf-8",
     )
 
     append_evidence_navigation(staging_root / "README.md", staging_root)
-
-    finished_at = _utc_now()
-    duration_ms = max(0, (time.monotonic_ns() - started_ns) // 1_000_000)
-    provisional["snapshot_preparation"] = {
-        "started_at": started_at,
-        "finished_at": finished_at,
-        "duration_ms": duration_ms,
-    }
-    run_context_path.write_text(
-        json.dumps(provisional, indent=2, sort_keys=True) + "\n",
-        encoding="utf-8",
-    )
     return run_context_path
 
 
