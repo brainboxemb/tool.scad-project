@@ -33,10 +33,6 @@ jobs:
           replacements = {
               'pyproject.toml': [('version = "0.14.7"', 'version = "0.14.8"')],
               'src/scad_project/__init__.py': [('__version__ = "0.14.7"', '__version__ = "0.14.8"')],
-              '.github/workflows/project-build.yml': [('SCAD_PROJECT_WORKFLOW_VERSION: v0.14.7', 'SCAD_PROJECT_WORKFLOW_VERSION: v0.14.8')],
-              '.github/workflows/project-verify.yml': [('SCAD_PROJECT_WORKFLOW_VERSION: v0.14.7', 'SCAD_PROJECT_WORKFLOW_VERSION: v0.14.8')],
-              '.github/workflows/project-production.yml': [('SCAD_PROJECT_WORKFLOW_VERSION: v0.14.7', 'SCAD_PROJECT_WORKFLOW_VERSION: v0.14.8')],
-              '.github/workflows/project-pr-cleanup.yml': [('SCAD_PROJECT_WORKFLOW_VERSION: v0.14.7', 'SCAD_PROJECT_WORKFLOW_VERSION: v0.14.8')],
           }
           for filename, pairs in replacements.items():
               path = Path(filename)
@@ -56,9 +52,8 @@ jobs:
           if '## v0.14.8' in text:
               raise SystemExit('CHANGELOG.md: v0.14.8 already present')
           changelog.write_text(text.replace(anchor, anchor + section, 1), encoding='utf-8')
+          Path('RELEASE-V0.14.8.md').unlink(missing_ok=True)
           PY
-
-          rm .github/workflows/prepare-v0148.yml
 
       - name: Commit release preparation
         shell: bash
@@ -68,5 +63,5 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add -A
           git diff --cached --check
-          git commit -m "Prepare v0.14.8 release"
+          git commit -m "Prepare v0.14.8 release metadata"
           git push origin HEAD:feature/release-v0.14.8
