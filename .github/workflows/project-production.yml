@@ -163,6 +163,17 @@ jobs:
           test -f tools/tool.scad-project/moon/tasks/scad.yml
           echo "SCAD task policy: $(git -C tools/tool.scad-project rev-parse HEAD)"
 
+      - name: Make exact base SCAD task policy revision available
+        timeout-minutes: 2
+        shell: bash
+        env:
+          BASE_SHA: ${{ steps.range.outputs.base_sha }}
+        run: |
+          set -euo pipefail
+          bash tools/tool.scad-project/scripts/fetch_base_gitlink_commit.sh \
+            "$BASE_SHA" \
+            tools/tool.scad-project
+
       - name: Query affected Moon tasks once
         id: affected
         uses: brainboxemb/tool.git-project/moon/affected@v0.2.8
@@ -437,37 +448,29 @@ jobs:
           VERIFICATION_ROOT: ${{ steps.plan.outputs.verification_root }}
           PUBLISH_BUILD: ${{ steps.plan.outputs.publish_build }}
           PUBLISH_VERIFICATION: ${{ steps.plan.outputs.publish_verification }}
+          SOURCE_SHA: ${{ steps.range.outputs.source_sha }}
+          BASE_SHA: ${{ steps.range.outputs.base_sha }}
         run: |
           set -euo pipefail
           build_staging="$RUNNER_TEMP/scad-build-publication"
           verification_staging="$RUNNER_TEMP/scad-verification-publication"
-          rm -rf "$build_staging" "$verification_staging"
-
-          add_orchestration() {
-            local staging="$1"
-            mkdir -p "$staging/orchestration"
-            cp .moon/preflight/decision.json "$staging/orchestration/impact-decision.json"
-            cp .moon/preflight/affected-task-ids.json "$staging/orchestration/affected-task-ids.json"
-            cp .moon/preflight/scad-ci-plan.json "$staging/orchestration/scad-ci-plan.json"
-            if [[ -d .moon/invocations ]]; then
-              cp -a .moon/invocations "$staging/orchestration/moon-invocations"
-            fi
-          }
 
           if [[ "$PUBLISH_BUILD" == true ]]; then
-            test -d "$BUILD_ROOT"
-            find "$BUILD_ROOT" -mindepth 1 -print -quit | grep -q .
-            mkdir -p "$build_staging"
-            cp -a "$BUILD_ROOT"/. "$build_staging/"
-            add_orchestration "$build_staging"
+            python tools/tool.scad-project/scripts/stage_publication.py \
+              --family build \
+              --source-root "$BUILD_ROOT" \
+              --staging-root "$build_staging" \
+              --source-sha "$SOURCE_SHA" \
+              --base-sha "$BASE_SHA"
           fi
 
           if [[ "$PUBLISH_VERIFICATION" == true ]]; then
-            test -d "$VERIFICATION_ROOT"
-            find "$VERIFICATION_ROOT" -mindepth 1 -print -quit | grep -q .
-            mkdir -p "$verification_staging"
-            cp -a "$VERIFICATION_ROOT"/. "$verification_staging/"
-            add_orchestration "$verification_staging"
+            python tools/tool.scad-project/scripts/stage_publication.py \
+              --family verification \
+              --source-root "$VERIFICATION_ROOT" \
+              --staging-root "$verification_staging" \
+              --source-sha "$SOURCE_SHA" \
+              --base-sha "$BASE_SHA"
           fi
 
       - name: Publish changed Build and Verification families concurrently on this runner

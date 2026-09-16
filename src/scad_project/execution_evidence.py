@@ -7,12 +7,14 @@ separate domain evidence.
 
 from __future__ import annotations
 
+from datetime import datetime, timezone
 import json
 import os
 from pathlib import Path
 import re
 import shutil
 import subprocess
+import time
 from typing import Any
 
 from . import __version__
@@ -73,6 +75,38 @@ def _owner_revision(context: ProjectContext) -> str:
 
 def _relative(from_dir: Path, target: Path) -> str:
     return os.path.relpath(target, from_dir).replace(os.sep, "/")
+
+
+def _utc_now() -> str:
+    return (
+        datetime.now(timezone.utc)
+        .replace(microsecond=0)
+        .isoformat()
+        .replace("+00:00", "Z")
+    )
+
+
+def _producer_timing() -> dict[str, Any] | None:
+    """Return timing started by the shared Moon producer wrapper when available."""
+
+    started_at = os.environ.get("SCAD_PROJECT_PRODUCER_STARTED_AT", "").strip()
+    raw_started_ns = os.environ.get(
+        "SCAD_PROJECT_PRODUCER_STARTED_MONOTONIC_NS",
+        "",
+    ).strip()
+    if not started_at or not raw_started_ns:
+        return None
+    try:
+        started_ns = int(raw_started_ns)
+    except ValueError:
+        return None
+
+    duration_ms = max(0, (time.monotonic_ns() - started_ns) // 1_000_000)
+    return {
+        "started_at": started_at,
+        "finished_at": _utc_now(),
+        "duration_ms": duration_ms,
+    }
 
 
 def _decision_summary(report: dict[str, Any]) -> list[str]:
@@ -153,6 +187,7 @@ def write_execution_evidence(
         if isinstance(value, dict):
             report_payload = value
 
+    producer_timing = _producer_timing()
     log_lines = [
         "SCAD producer execution",
         "=======================",
@@ -165,6 +200,14 @@ def write_execution_evidence(
         f"tool.scad-project version: {__version__}",
         "Status: success",
     ]
+    if producer_timing is not None:
+        log_lines.extend(
+            [
+                f"Producer started (UTC): {producer_timing['started_at']}",
+                f"Producer finished (UTC): {producer_timing['finished_at']}",
+                f"Producer duration: {producer_timing['duration_ms']} ms",
+            ]
+        )
     if domain_paths:
         log_lines.extend(["", f"Domain evidence: {domain_paths[0]}"])
     else:
@@ -180,7 +223,7 @@ def write_execution_evidence(
     log_path = execution_root / "execution.log"
     log_path.write_text("\n".join(log_lines) + "\n", encoding="utf-8")
 
-    payload = {
+    payload: dict[str, Any] = {
         "schema": SCHEMA_NAME,
         "schema_version": SCHEMA_VERSION,
         "capability": capability,
@@ -194,12 +237,65 @@ def write_execution_evidence(
         "domain_evidence": domain_paths,
         "tool_scad_project_version": __version__,
     }
+    if producer_timing is not None:
+        payload["producer_execution"] = producer_timing
+
     output = execution_root / "execution.json"
     output.write_text(
         json.dumps(payload, indent=2, sort_keys=True) + "\n",
         encoding="utf-8",
     )
     return output
+
+
+def _orchestration_navigation_lines(output_root: Path) -> list[str]:
+    orchestration_root = output_root / "orchestration"
+    lines = [
+        "## Orchestration/materialization evidence",
+        "",
+        "Current-run orchestration evidence explains why capabilities were selected, whether Moon executed or hydrated them, and how long current materialization and snapshot preparation took.",
+        "Producer execution evidence above remains the authority for the work that originally created cached output.",
+        "",
+    ]
+
+    if not orchestration_root.is_dir():
+        lines.extend(
+            [
+                "- Current orchestration evidence is attached by the publication layer.",
+                "- A later cache hydration may therefore have a current materialization revision that differs from the retained producer `source_revision`.",
+                "",
+            ]
+        )
+        return lines
+
+    known = (
+        ("run-context.json", "Run context and snapshot-preparation timing"),
+        ("impact-decision.json", "Moon impact decision"),
+        ("affected-task-ids.json", "Affected Moon task ids"),
+        ("scad-ci-plan.json", "SCAD execution/materialization plan"),
+    )
+    for name, label in known:
+        path = orchestration_root / name
+        if path.is_file():
+            lines.append(f"- [{label}]({_relative(output_root, path)})")
+
+    invocation_root = orchestration_root / "moon-invocations"
+    if invocation_root.is_dir():
+        for invocation in sorted(path for path in invocation_root.iterdir() if path.is_dir()):
+            task = invocation.name.replace("consumer_", "consumer:", 1)
+            materialization = invocation / "materialization.json"
+            moon_log = invocation / "moon.log"
+            if materialization.is_file():
+                lines.append(
+                    f"- [{task} materialization]({_relative(output_root, materialization)}) — current execute/cache/hydrate result and duration."
+                )
+            if moon_log.is_file():
+                lines.append(
+                    f"  - [{task} raw Moon/producer log]({_relative(output_root, moon_log)})"
+                )
+
+    lines.append("")
+    return lines
 
 
 def evidence_navigation_lines(
@@ -228,7 +324,7 @@ def evidence_navigation_lines(
             log = execution.parent / "execution.log"
             lines.append(
                 f"- [{execution_id} execution]({_relative(output_root, execution)}) — "
-                "capability, producer source revision, exact owner revision and result."
+                "capability, producer source revision, exact owner revision, result and producer timing when available."
             )
             if log.is_file():
                 lines.append(
@@ -251,14 +347,7 @@ def evidence_navigation_lines(
     else:
         lines.append("- No structured domain reports are present for this output.")
 
-    lines.extend([
-        "",
-        "## Orchestration/materialization evidence",
-        "",
-        "The publication layer may add `orchestration/materialization.json` for the current source revision/context and `orchestration/moon.log` for Moon's execute/cache/hydrate decision.",
-        "After cache hydration, that current materialization revision may intentionally differ from the producer `source_revision` above.",
-        "",
-    ])
+    lines.extend(["", *_orchestration_navigation_lines(output_root)])
     if include_publication_context:
         lines.extend([
             "## Publication context",

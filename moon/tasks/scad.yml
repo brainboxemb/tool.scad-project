@@ -1,7 +1,7 @@
 tasks:
   scad.docs:
     description: Build SCAD design documentation.
-    command: 'bash tools/tool.scad-project/scad-project.sh design-build'
+    command: 'python tools/tool.scad-project/scripts/run_scad_capability.py design-build'
     inputs:
       - 'project.yml'
       - 'project.scad.yml'
@@ -9,6 +9,7 @@ tasks:
       - 'tools/tool.scad-project/scad-project.sh'
       - 'tools/tool.scad-project/pyproject.toml'
       - 'tools/tool.scad-project/src/**/*.py'
+      - 'tools/tool.scad-project/scripts/run_scad_capability.py'
     outputs:
       - 'bld/design/**'
       - 'bld/evidence/executions/scad-docs/**'
@@ -17,7 +18,7 @@ tasks:
 
   scad.build:
     description: Build configured presentation/render/export output.
-    command: 'bash tools/tool.scad-project/scad-project.sh build'
+    command: 'python tools/tool.scad-project/scripts/run_scad_capability.py build'
     inputs:
       - 'project.yml'
       - 'project.scad.yml'
@@ -25,6 +26,7 @@ tasks:
       - 'tools/tool.scad-project/scad-project.sh'
       - 'tools/tool.scad-project/pyproject.toml'
       - 'tools/tool.scad-project/src/**/*.py'
+      - 'tools/tool.scad-project/scripts/run_scad_capability.py'
     outputs:
       - 'bld/png/**'
       - 'bld/stl/**'
@@ -34,7 +36,7 @@ tasks:
 
   scad.verify:
     description: Run SCAD project verification.
-    command: 'bash tools/tool.scad-project/scad-project.sh verify'
+    command: 'python tools/tool.scad-project/scripts/run_scad_capability.py verify'
     inputs:
       - 'project.yml'
       - 'project.scad.yml'
@@ -42,6 +44,7 @@ tasks:
       - 'tools/tool.scad-project/scad-project.sh'
       - 'tools/tool.scad-project/pyproject.toml'
       - 'tools/tool.scad-project/src/**/*.py'
+      - 'tools/tool.scad-project/scripts/run_scad_capability.py'
     outputs:
       - 'vrf/out/**'
     options:
