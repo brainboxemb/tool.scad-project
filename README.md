@@ -55,8 +55,12 @@ dependencies:
     type: git-submodule
     url: https://github.com/brainboxemb/tool.scad-project.git
     path: tools/tool.scad-project
-    ref: <immutable-tag-or-full-commit>
+    ref: v0.14.x
 ```
+
+The dependency ref is the human-readable immutable release contract. The git submodule
+records the exact commit resolved for that release; consumer reusable-workflow callers use
+the same semantic release ref instead of duplicating the opaque commit SHA.
 
 `project.scad.yml` contains SCAD-domain intent, for example:
 
@@ -138,7 +142,9 @@ scad-project repo-update
 ```
 
 The generic tool moves dependency gitlinks. `workflow-sync` is SCAD-specific and aligns
-consumer reusable-workflow calls with the exact checked-out `tool.scad-project` commit.
+consumer reusable-workflow calls with the configured `tool.scad-project` release ref from
+`project.yml`. The gitlink remains the exact resolved commit; the workflow caller stays
+human-readable as the same released version.
 
 ## Core commands
 
@@ -333,7 +339,7 @@ jobs:
     permissions:
       contents: write
       packages: read
-    uses: brainboxemb/tool.scad-project/.github/workflows/project-production.yml@<exact-tool-commit>
+    uses: brainboxemb/tool.scad-project/.github/workflows/project-production.yml@v0.14.x
     with:
       cache_namespace: my-repository-scad-production-v2
 ```
@@ -348,6 +354,15 @@ The coordinated Release workflow keeps its separate preflight, Build, Verify and
 jobs. Preflight uses the same SCAD project planner as normal production to select the
 runtime image and applicable SCons cache paths, while complete Build/Verification
 artifacts remain mandatory cross-job hand-off.
+
+Release-request parsing, validation and request-branch cleanup are owned by the reusable
+workflow. A consumer release caller therefore remains small:
+
+```yaml
+jobs:
+  release:
+    uses: brainboxemb/tool.scad-project/.github/workflows/project-release.yml@v0.14.x
+```
 
 The reusable Build and Verify workflows remain available for explicit domain execution
 and for Release.
