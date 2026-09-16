@@ -60,11 +60,8 @@ def test_main_uses_production_branch_defaults(tmp_path: Path):
         "GITHUB_REF_TYPE": "branch",
         "GITHUB_REF_NAME": "main",
     }
-    assert resolve_publication_target(ctx, "build", env).branch == "prod/build"
-    assert (
-        resolve_publication_target(ctx, "verification", env).branch
-        == "prod/verification"
-    )
+    assert resolve_publication_target(ctx, "build", env).branch == "prod/bld"
+    assert resolve_publication_target(ctx, "verification", env).branch == "prod/vrf"
 
 
 def test_explicit_production_branch_configuration_still_works(tmp_path: Path):
@@ -130,9 +127,9 @@ def test_pull_request_publishes_to_pr_scoped_branches(tmp_path: Path):
     verification = resolve_publication_target(ctx, "verification", env)
     assert build.context == "pull_request"
     assert build.publish is True
-    assert build.branch == "dev/pr-42/build"
+    assert build.branch == "dev/pr-42/bld"
     assert build.source_ref == "feature/example"
-    assert verification.branch == "dev/pr-42/verification"
+    assert verification.branch == "dev/pr-42/vrf"
 
 
 def test_pull_request_number_falls_back_to_merge_ref(tmp_path: Path):
@@ -143,7 +140,7 @@ def test_pull_request_number_falls_back_to_merge_ref(tmp_path: Path):
         "GITHUB_REF_NAME": "42/merge",
         "GITHUB_HEAD_REF": "feature/example",
     }
-    assert resolve_publication_target(ctx, "build", env).branch == "dev/pr-42/build"
+    assert resolve_publication_target(ctx, "build", env).branch == "dev/pr-42/bld"
 
 
 def test_pull_request_without_number_remains_artifact_only(tmp_path: Path):
@@ -164,8 +161,8 @@ def test_pr_branch_prefix_is_configurable(tmp_path: Path):
     ctx = context(tmp_path)
     ctx.config["publication"]["development"]["pr_branch_prefix"] = "preview/pr"
     assert pull_request_publication_branches(ctx, 7) == (
-        "preview/pr-7/build",
-        "preview/pr-7/verification",
+        "preview/pr-7/bld",
+        "preview/pr-7/vrf",
     )
 
 
@@ -206,12 +203,12 @@ def test_coordinated_release_uses_immutable_versioned_branches(tmp_path: Path):
     verification = resolve_publication_target(ctx, "verification", env)
 
     assert build.context == "release"
-    assert build.branch == "rel/v1.2.3/build"
+    assert build.branch == "rel/v1.2.3/bld"
     assert build.publish is True
     assert build.immutable is True
     assert build.source_ref_type == "tag"
     assert build.source_ref == "v1.2.3"
-    assert verification.branch == "rel/v1.2.3/verification"
+    assert verification.branch == "rel/v1.2.3/vrf"
     assert verification.immutable is True
 
 
@@ -219,7 +216,7 @@ def test_release_branch_prefix_is_configurable(tmp_path: Path):
     ctx = context(tmp_path)
     ctx.config["publication"]["release"]["branch_prefix"] = "release"
     target = resolve_release_publication_target(ctx, "build", "v2.0.0")
-    assert target.branch == "release/v2.0.0/build"
+    assert target.branch == "release/v2.0.0/bld"
 
 
 def test_release_version_must_match_configured_pattern(tmp_path: Path):
@@ -271,7 +268,7 @@ def test_publication_info_contains_pr_source_provenance(tmp_path: Path):
         submodule_info="dsg/ext/lib.demo : deadbeef",
     )
     assert "Publication context : pull_request" in info
-    assert "Publication branch  : dev/pr-42/build" in info
+    assert "Publication branch  : dev/pr-42/bld" in info
     assert "Ref                 : feature/example" in info
     assert "Commit              : abc123" in info
     assert "Workflow run        : https://github.com/brainboxemb/demo/actions/runs/99" in info
@@ -298,7 +295,7 @@ def test_release_provenance_uses_exact_source_sha_override(tmp_path: Path):
     info = publication_info_text(ctx, "build", env)
 
     assert "Publication context : release" in info
-    assert "Publication branch  : rel/v1.2.3/build" in info
+    assert "Publication branch  : rel/v1.2.3/bld" in info
     assert "Ref type            : tag" in info
     assert "Ref                 : v1.2.3" in info
     assert "Commit              : release-source-sha" in info
@@ -315,7 +312,7 @@ def test_write_publication_info_to_build_root(tmp_path: Path, monkeypatch):
 
     assert output == tmp_path / "bld" / "publication-info.txt"
     assert output.is_file()
-    assert "Publication branch  : prod/build" in output.read_text(encoding="utf-8")
+    assert "Publication branch  : prod/bld" in output.read_text(encoding="utf-8")
 
 
 def test_publication_info_uses_package_version_outside_reusable_workflow(
@@ -335,7 +332,7 @@ def test_publication_info_uses_package_version_outside_reusable_workflow(
 def test_cleanup_removes_existing_pr_publication_branches(tmp_path: Path, monkeypatch):
     ctx = context(tmp_path)
     commands: list[list[str]] = []
-    existing = {"dev/pr-42/build", "dev/pr-42/verification"}
+    existing = {"dev/pr-42/bld", "dev/pr-42/vrf"}
     monkeypatch.setattr(
         publish_module,
         "_remote_branch_exists",
@@ -349,10 +346,10 @@ def test_cleanup_removes_existing_pr_publication_branches(tmp_path: Path, monkey
 
     removed = cleanup_pull_request_publication(ctx, 42)
 
-    assert removed == ("dev/pr-42/build", "dev/pr-42/verification")
+    assert removed == ("dev/pr-42/bld", "dev/pr-42/vrf")
     assert [command[-2:] for command in commands] == [
-        ["--delete", "dev/pr-42/build"],
-        ["--delete", "dev/pr-42/verification"],
+        ["--delete", "dev/pr-42/bld"],
+        ["--delete", "dev/pr-42/vrf"],
     ]
 
 
@@ -384,7 +381,7 @@ def test_immutable_snapshot_refuses_existing_release_branch(
     with pytest.raises(RuntimeError, match="Immutable release publication branch"):
         publish_module._publish_snapshot(
             source,
-            "rel/v1.2.3/build",
+            "rel/v1.2.3/bld",
             "release",
             immutable=True,
         )
@@ -405,14 +402,14 @@ def test_immutable_snapshot_never_force_pushes(tmp_path: Path, monkeypatch):
 
     publish_module._publish_snapshot(
         source,
-        "rel/v1.2.3/build",
+        "rel/v1.2.3/bld",
         "release",
         immutable=True,
     )
 
     push = next(command for command in commands if command[:2] == ["git", "push"])
     assert "--force" not in push
-    assert push[-1] == "HEAD:rel/v1.2.3/build"
+    assert push[-1] == "HEAD:rel/v1.2.3/bld"
 
 
 def test_mutable_snapshot_force_replaces_target(tmp_path: Path, monkeypatch):
@@ -429,11 +426,11 @@ def test_mutable_snapshot_force_replaces_target(tmp_path: Path, monkeypatch):
 
     publish_module._publish_snapshot(
         source,
-        "prod/build",
+        "prod/bld",
         "production",
         immutable=False,
     )
 
     push = next(command for command in commands if command[:2] == ["git", "push"])
     assert "--force" in push
-    assert push[-1] == "HEAD:prod/build"
+    assert push[-1] == "HEAD:prod/bld"
