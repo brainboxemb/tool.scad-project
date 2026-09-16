@@ -132,6 +132,7 @@ jobs:
 
           echo "source_sha=$source_sha" >> "$GITHUB_OUTPUT"
           echo "base_sha=$base_sha" >> "$GITHUB_OUTPUT"
+          echo "SCAD_PROJECT_SOURCE_SHA=$source_sha" >> "$GITHUB_ENV"
           echo "SCAD impact range: $base_sha -> $source_sha"
 
       - name: Checkout exact source for host orchestration

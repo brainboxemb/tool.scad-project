@@ -5,7 +5,8 @@ The reusable workflow keeps one hosted job and one Docker runtime, performs one
 released Moon impact query before runtime acquisition, makes the exact base SCAD
 tool gitlink available for shallow base/head comparison, consumes the SCAD-owned
 execution plan, restores only configured SCons caches, retains compact evidence
-instead of full normal output artifacts, finishes current-run information on the
+instead of full normal output artifacts, preserves the resolved exact source SHA
+for host-side publication provenance, finishes current-run information on the
 host, stages durable orchestration/run-context evidence through the SCAD owner
 helper, and overlaps isolated Build/Verification publishers without another runner.
 
@@ -56,6 +57,20 @@ def test_production_workflow_fetches_only_the_exact_base_scad_tool_gitlink():
     assert '"$BASE_SHA"' in text
     assert "tools/tool.scad-project" in text
     assert "fetch-depth: 0" not in text
+
+
+def test_production_workflow_exports_exact_source_for_host_publication_provenance():
+    text = WORKFLOW.read_text(encoding="utf-8")
+
+    source_validation = text.index("source_sha must resolve to an exact 40-character commit SHA")
+    source_export = text.index('echo "SCAD_PROJECT_SOURCE_SHA=$source_sha" >> "$GITHUB_ENV"')
+    checkout = text.index("Checkout exact source for host orchestration")
+    build_publication = text.index("scad-project publication-info-build")
+    verification_publication = text.index("scad-project publication-info-verification")
+
+    assert source_validation < source_export < checkout
+    assert source_export < build_publication < verification_publication
+    assert text.count('SCAD_PROJECT_SOURCE_SHA=$source_sha') == 1
 
 
 def test_production_workflow_starts_at_most_one_capability_appropriate_runtime():
