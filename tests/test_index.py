@@ -28,7 +28,7 @@ def context(tmp_path: Path) -> ProjectContext:
             "publication": {
                 "production": {
                     "source_branch": "main",
-                    "build_branch": "prod/build",
+                    "build_branch": "prod/bld",
                 },
                 "release": {"branch_prefix": "rel", "tag_pattern": "v*"},
             },
@@ -86,7 +86,7 @@ def test_build_index_describes_mutable_production_branch(tmp_path: Path, monkeyp
     text = output.read_text(encoding="utf-8")
 
     assert "Context: `production`" in text
-    assert "Generated branch: `prod/build`" in text
+    assert "Generated branch: `prod/bld`" in text
     assert "mutable snapshot" in text
     assert "\nbuild\n    generated" not in text
 
@@ -100,5 +100,5 @@ def test_build_index_describes_immutable_release_branch(tmp_path: Path, monkeypa
 
     assert "Context: `release`" in text
     assert "Source: tag `v0.1.0`" in text
-    assert "Generated branch: `rel/v0.1.0/build`" in text
+    assert "Generated branch: `rel/v0.1.0/bld`" in text
     assert "immutable release snapshot" in text
