@@ -1,11 +1,16 @@
 """Durable SCAD workflow timing evidence.
 
 Checks:
-- contiguous phase transitions retain UTC boundaries and exact millisecond durations;
-- the first transition can bootstrap from the workflow start recorded before checkout;
-- invalid phase ordering fails instead of silently rewriting evidence;
-- family-specific snapshot timing appends snapshot preparation and total-to-snapshot
-  duration without mutating the base workflow timing file.
+Contiguous phase transitions retain UTC boundaries and exact millisecond durations;
+the first transition can bootstrap from the workflow start recorded before checkout;
+invalid phase ordering fails instead of silently rewriting evidence; and family-specific
+snapshot timing appends snapshot preparation and total-to-snapshot duration without
+mutating the base workflow timing file.
+
+Testing approach:
+Use temporary timing files and explicit UTC boundaries so phase ordering, durations,
+closed/open phase transitions and snapshot copies can be asserted deterministically
+without depending on wall-clock time.
 """
 
 from __future__ import annotations
