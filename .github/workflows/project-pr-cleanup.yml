@@ -62,8 +62,8 @@ jobs:
             exit 1
           fi
 
-          for KIND in build verification; do
-            BRANCH="${PREFIX}-${PR_NUMBER}/${KIND}"
+          for SUFFIX in bld vrf; do
+            BRANCH="${PREFIX}-${PR_NUMBER}/${SUFFIX}"
             if git ls-remote --exit-code --heads origin "refs/heads/${BRANCH}" >/dev/null 2>&1; then
               git push origin --delete "$BRANCH"
               echo "Removed pull-request publication branch: $BRANCH"
