@@ -16,6 +16,12 @@ from .config import ProjectContext
 from .process import run_checked
 
 
+_TECHNICAL_SUFFIXES = {
+    "build": "bld",
+    "verification": "vrf",
+}
+
+
 @dataclass(frozen=True)
 class PublicationTarget:
     """Resolved publication destination for one generated output kind."""
@@ -34,8 +40,15 @@ def _publication_config(context: ProjectContext) -> dict:
 
 
 def _validate_kind(kind: str) -> None:
-    if kind not in {"build", "verification"}:
+    if kind not in _TECHNICAL_SUFFIXES:
         raise RuntimeError(f"Unsupported publication kind: {kind}")
+
+
+def _technical_suffix(kind: str) -> str:
+    """Return the stable technical namespace for a human-facing publication kind."""
+
+    _validate_kind(kind)
+    return _TECHNICAL_SUFFIXES[kind]
 
 
 def _pull_request_number(environ: dict[str, str]) -> int | None:
@@ -60,7 +73,7 @@ def _pull_request_number(environ: dict[str, str]) -> int | None:
 def _pull_request_branch(context: ProjectContext, kind: str, pr_number: int) -> str:
     """Return the mutable generated branch for one pull request and output kind."""
 
-    _validate_kind(kind)
+    suffix = _technical_suffix(kind)
     publication = _publication_config(context)
     development = publication.get("development", {}) or {}
     prefix = str(development.get("pr_branch_prefix", "dev/pr")).strip("/")
@@ -68,7 +81,7 @@ def _pull_request_branch(context: ProjectContext, kind: str, pr_number: int) -> 
         raise RuntimeError("publication.development.pr_branch_prefix must not be empty")
     if pr_number < 1:
         raise RuntimeError("pull-request number must be a positive integer")
-    return f"{prefix}-{pr_number}/{kind}"
+    return f"{prefix}-{pr_number}/{suffix}"
 
 
 def pull_request_publication_branches(
@@ -90,7 +103,7 @@ def resolve_release_publication_target(
 ) -> PublicationTarget:
     """Resolve one immutable versioned release publication destination."""
 
-    _validate_kind(kind)
+    suffix = _technical_suffix(kind)
     publication = _publication_config(context)
     tags = publication.get("tags", {}) or {}
     release = publication.get("release", {}) or {}
@@ -107,7 +120,7 @@ def resolve_release_publication_target(
 
     return PublicationTarget(
         context="release",
-        branch=f"{prefix}/{version}/{kind}",
+        branch=f"{prefix}/{version}/{suffix}",
         publish=True,
         source_ref_type="tag",
         source_ref=version,
@@ -122,7 +135,7 @@ def resolve_publication_target(
 ) -> PublicationTarget:
     """Resolve production/development/release/tag/PR publication context."""
 
-    _validate_kind(kind)
+    suffix = _technical_suffix(kind)
 
     env = environ or os.environ
     publication = _publication_config(context)
@@ -139,12 +152,12 @@ def resolve_publication_target(
         f"{kind}_branch",
         publication.get(
             f"{kind}_branch",
-            "prod/build" if kind == "build" else "prod/verification",
+            f"prod/{suffix}",
         ),
     )
     development_branch = development.get(
         f"{kind}_branch",
-        "dev/build" if kind == "build" else "dev/verification",
+        f"dev/{suffix}",
     )
     production_source = production.get("source_branch", "main")
 
@@ -195,7 +208,7 @@ def resolve_publication_target(
             )
 
         # Development publication belongs to the pull request so parallel work cannot
-        # race on one shared dev/build or dev/verification branch. Projects can opt in
+        # race on one shared dev/bld or dev/vrf branch. Projects can opt in
         # to the legacy shared branch while migrating.
         if bool(development.get("publish_branch_pushes", False)):
             return PublicationTarget(

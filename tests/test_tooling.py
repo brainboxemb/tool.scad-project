@@ -180,7 +180,8 @@ def test_pull_request_publication_workflow_policy():
 
     assert "pr_branch_prefix:" in cleanup_text
     assert "default: dev/pr" in cleanup_text
-    assert "${PREFIX}-${PR_NUMBER}/${KIND}" in cleanup_text
+    assert "for SUFFIX in bld vrf; do" in cleanup_text
+    assert "${PREFIX}-${PR_NUMBER}/${SUFFIX}" in cleanup_text
     assert "git push origin --delete" in cleanup_text
     assert "github.event.pull_request.merged == true" in cleanup_text
     assert "tools/tool.scad-project" not in cleanup_text

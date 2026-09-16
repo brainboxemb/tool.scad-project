@@ -90,8 +90,8 @@ def test_release_notes_include_changelog_and_immutable_browse_links(tmp_path: Pa
 
     assert "### Added\n\n- Release feature." in notes
     assert f"Source commit: `{SOURCE_SHA}`" in notes
-    assert "https://github.com/brainboxemb/demo/tree/rel/v0.2.0/build" in notes
-    assert "https://github.com/brainboxemb/demo/tree/rel/v0.2.0/verification" in notes
+    assert "https://github.com/brainboxemb/demo/tree/rel/v0.2.0/bld" in notes
+    assert "https://github.com/brainboxemb/demo/tree/rel/v0.2.0/vrf" in notes
     assert "SHA256SUMS.txt" in notes
 
 

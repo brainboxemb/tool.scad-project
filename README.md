@@ -287,14 +287,18 @@ cache.
 
 ## Publication
 
+Human-facing lifecycle names remain **Build** and **Verification**. Stable technical
+workspace and publication identifiers use the compact portfolio convention `bld` and
+`vrf`; see [`docs/publication-namespaces.md`](docs/publication-namespaces.md).
+
 Recommended policy keeps generated content off the source branch:
 
 ```yaml
 publication:
   production:
     source_branch: main
-    build_branch: prod/build
-    verification_branch: prod/verification
+    build_branch: prod/bld
+    verification_branch: prod/vrf
   development:
     pr_branch_prefix: dev/pr
   release:
@@ -303,9 +307,21 @@ publication:
     changelog: CHANGELOG.md
 ```
 
+Default persistent publication therefore uses:
+
+```text
+dev/pr-N/bld
+dev/pr-N/vrf
+prod/bld
+prod/vrf
+rel/vX.Y.Z/bld
+rel/vX.Y.Z/vrf
+```
+
 Normal production publishes mutable `prod/*` snapshots. Pull requests may publish
 isolated `dev/pr-N/*` previews. Coordinated releases create immutable snapshots/assets
-from one exact source commit.
+from one exact source commit. Explicit custom branch overrides remain supported for
+compatibility; historical branches using older suffixes remain historical evidence.
 
 Every generated snapshot includes `publication-info.txt` with current source, tooling and
 runtime context. Source-derived Moon capability output does not use PR/ref/run/publication

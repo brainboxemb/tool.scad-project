@@ -72,7 +72,7 @@ def seed_release_provenance(tmp_path: Path, *, version: str = "v0.1.0") -> None:
             [
                 "Publication context : release",
                 "Publication kind    : build",
-                f"Publication branch  : rel/{version}/build",
+                f"Publication branch  : rel/{version}/bld",
                 "Ref type            : tag",
                 f"Ref                 : {version}",
                 f"Commit              : {SOURCE_SHA}",
@@ -86,7 +86,7 @@ def seed_release_provenance(tmp_path: Path, *, version: str = "v0.1.0") -> None:
             [
                 "Publication context : release",
                 "Publication kind    : verification",
-                f"Publication branch  : rel/{version}/verification",
+                f"Publication branch  : rel/{version}/vrf",
                 "Ref type            : tag",
                 f"Ref                 : {version}",
                 f"Commit              : {SOURCE_SHA}",
@@ -204,13 +204,13 @@ def test_publish_release_branches_preflights_and_publishes_both(
 
     branches = publish_release_branches(context(tmp_path), "v0.1.0", SOURCE_SHA)
 
-    assert checked == ["rel/v0.1.0/build", "rel/v0.1.0/verification"]
+    assert checked == ["rel/v0.1.0/bld", "rel/v0.1.0/vrf"]
     assert published == [
-        ("rel/v0.1.0/build", True),
-        ("rel/v0.1.0/verification", True),
+        ("rel/v0.1.0/bld", True),
+        ("rel/v0.1.0/vrf", True),
     ]
-    assert branches.build_branch == "rel/v0.1.0/build"
-    assert branches.verification_branch == "rel/v0.1.0/verification"
+    assert branches.build_branch == "rel/v0.1.0/bld"
+    assert branches.verification_branch == "rel/v0.1.0/vrf"
 
 
 def test_publish_release_branches_refuses_any_existing_release_branch(
@@ -223,7 +223,7 @@ def test_publish_release_branches_refuses_any_existing_release_branch(
     monkeypatch.setattr(
         release_module,
         "_remote_branch_exists",
-        lambda cwd, branch: branch.endswith("/verification"),
+        lambda cwd, branch: branch.endswith("/vrf"),
     )
     monkeypatch.setattr(
         release_module,
@@ -265,7 +265,7 @@ def test_verification_publish_failure_rolls_back_new_build_branch(
 
     def publish_snapshot(source_root, branch, message, *, immutable=False):
         calls.append(branch)
-        if branch.endswith("/verification"):
+        if branch.endswith("/vrf"):
             raise RuntimeError("verification push failed")
 
     monkeypatch.setattr(release_module, "_publish_snapshot", publish_snapshot)
@@ -278,7 +278,7 @@ def test_verification_publish_failure_rolls_back_new_build_branch(
     with pytest.raises(RuntimeError, match="verification push failed"):
         publish_release_branches(context(tmp_path), "v0.1.0", SOURCE_SHA)
 
-    assert calls == ["rel/v0.1.0/build", "rel/v0.1.0/verification"]
+    assert calls == ["rel/v0.1.0/bld", "rel/v0.1.0/vrf"]
     assert rollback == [
-        ["git", "push", "origin", "--delete", "rel/v0.1.0/build"]
+        ["git", "push", "origin", "--delete", "rel/v0.1.0/bld"]
     ]

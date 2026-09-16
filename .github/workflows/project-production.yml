@@ -17,12 +17,12 @@ on:
         description: Generated-output branch suffix for Build publication
         required: false
         type: string
-        default: build
+        default: bld
       verification_branch_suffix:
         description: Generated-output branch suffix for Verification publication
         required: false
         type: string
-        default: verification
+        default: vrf
       publish:
         description: Publish changed Build and Verification output families
         required: false
