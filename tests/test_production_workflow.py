@@ -6,13 +6,15 @@ released Moon impact query before runtime acquisition, makes the exact base SCAD
 tool gitlink available for shallow base/head comparison, consumes the SCAD-owned
 execution plan, restores only configured SCons caches, retains compact evidence
 instead of full normal output artifacts, finishes current-run information on the
-host, and overlaps isolated Build/Verification publishers without another runner.
+host, stages durable orchestration/run-context evidence through the SCAD owner
+helper, and overlaps isolated Build/Verification publishers without another runner.
 
 Testing approach:
 Parse the workflow job boundary and inspect the reusable workflow source for the
 pinned cross-repository contracts and explicit structural/resource invariants.
 The base-gitlink helper itself has an integration-style shallow Git regression
-test in test_fetch_base_gitlink_commit.py.
+test in test_fetch_base_gitlink_commit.py; orchestration content is qualified in
+test_orchestration_observability.py.
 """
 
 from pathlib import Path
@@ -85,13 +87,19 @@ def test_normal_production_retains_only_compact_orchestration_artifact():
     assert "scad-verification-publication\n          if-no-files-found" not in text
 
 
-def test_current_run_finishing_happens_after_moon_on_host():
+def test_current_run_finishing_and_staging_happen_after_moon_on_host():
     text = WORKFLOW.read_text(encoding="utf-8")
 
     runtime = text.index("Execute or hydrate required SCAD capabilities in one Docker process")
     build_index = text.index("scad-project build-index")
     publication_info = text.index("scad-project publication-info-build")
-    assert runtime < build_index < publication_info
+    staging = text.index("scripts/stage_publication.py")
+    publisher = text.index("Publish changed Build and Verification families concurrently on this runner")
+    assert runtime < build_index < publication_info < staging < publisher
+    assert text.count("scripts/stage_publication.py") == 2
+    assert '--source-sha "$SOURCE_SHA"' in text
+    assert '--base-sha "$BASE_SHA"' in text
+    assert "add_orchestration()" not in text
     assert "GITHUB_RUN_ID" not in text.split("docker run --rm", 1)[1].split("'\n", 1)[0]
 
 
