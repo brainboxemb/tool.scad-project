@@ -2,6 +2,13 @@
 
 Functional changes to released `tool.scad-project` versions.
 
+## v0.14.8
+
+### Fixed
+
+- Publish `tool.scad-project` semantic release tags as lightweight refs that point directly at the already-qualified release commit, allowing nested reusable workflows to resolve through cross-repository `@vX.Y.Z` calls.
+- Add regression coverage for the lightweight release-tag contract exposed by final Migration-005 template release qualification.
+
 ## v0.14.7
 
 ### Fixed
