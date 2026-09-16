@@ -56,6 +56,7 @@ snapshot, after Moon execution or hydration:
 
 ```text
 orchestration/
+  timings.json
   run-context.json
   impact-decision.json
   affected-task-ids.json
@@ -71,10 +72,26 @@ These files deliberately describe different layers:
 - producer `execution.json`: when the retained CAD output was originally produced;
 - `moon-invocations/<task>/materialization.json`: when the current source revision
   executed or hydrated that producer result and how long that materialization took;
+- `timings.json`: the current normal-production path from preflight/planning through
+  cache restore, runtime pull, capability materialization, cache save, host finishing
+  and family-specific snapshot preparation, plus total elapsed time to the prepared
+  snapshot;
 - `run-context.json`: repository/run identity plus the current publication-family
   snapshot-preparation interval and duration;
 - `moon.log`: full current Moon task output, including raw SCons/OpenSCAD producer
   output when the task actually executed.
+
+The workflow timing phases are intentionally coarse and contiguous. They answer
+"where did this run spend time?" without timestamping every OpenSCAD output line or
+inventing a second logging framework. Detailed CAD timing remains in the raw Moon/
+producer log and domain reports.
+
+A generated Build/Verification snapshot stops timing when that immutable snapshot is
+ready. The subsequent remote generated-branch push cannot truthfully be embedded in
+the snapshot before it happens. Normal CI therefore finishes a `publication` phase in
+the compact orchestration evidence after the push; that final CI evidence is retained
+longer than the transient Actions log, while the generated branch permanently retains
+the build-centric phases through snapshot preparation.
 
 After hydration it is valid and expected for current materialization/source revision
 to differ from the retained producer revision. Publication/finalization must not
@@ -92,9 +109,10 @@ distinguishes:
 - publication context.
 
 The publication staging helper refreshes this map after current orchestration files
-exist, so generated output links directly to `run-context.json`, impact/plan evidence,
-each task's `materialization.json` and each raw `moon.log`. Evidence is not duplicated
-merely to make it easier to find.
+exist, so generated output links directly to `timings.json`, `run-context.json`,
+impact/plan evidence, each task's `materialization.json` and each raw `moon.log`.
+It also renders a compact human-readable workflow timing table from `timings.json`.
+Evidence is not duplicated merely to make it easier to find.
 
 ## Local and production behavior
 
@@ -103,6 +121,10 @@ owner revisions cannot be resolved, persistent execution evidence is skipped wit
 warning rather than making the CAD action itself Git-only. Producer timing is supplied
 by the shared Moon capability wrapper; a direct local CLI invocation may therefore
 omit that optional timing object.
+
+Workflow-phase timing is a shared production-orchestration concern rather than a
+requirement for local CLI use. It is created only when the production planner selects
+runtime work.
 
 Persistent CI/publication consumers are stricter: their acceptance checks must require
 the expected `execution.json`/`execution.log` files and validate the common schema.
