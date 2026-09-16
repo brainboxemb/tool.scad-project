@@ -163,6 +163,17 @@ jobs:
           test -f tools/tool.scad-project/moon/tasks/scad.yml
           echo "SCAD task policy: $(git -C tools/tool.scad-project rev-parse HEAD)"
 
+      - name: Make exact base SCAD task policy revision available
+        timeout-minutes: 2
+        shell: bash
+        env:
+          BASE_SHA: ${{ steps.range.outputs.base_sha }}
+        run: |
+          set -euo pipefail
+          bash tools/tool.scad-project/scripts/fetch_base_gitlink_commit.sh \
+            "$BASE_SHA" \
+            tools/tool.scad-project
+
       - name: Query affected Moon tasks once
         id: affected
         uses: brainboxemb/tool.git-project/moon/affected@v0.2.8
