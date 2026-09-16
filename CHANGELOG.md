@@ -2,6 +2,13 @@
 
 Functional changes to released `tool.scad-project` versions.
 
+## v0.14.10
+
+### Fixed
+
+- Correct released owner guidance to use canonical `dev/pr-N/{bld,vrf}`, `prod/{bld,vrf}` and `rel/vX.Y.Z/{bld,vrf}` technical publication namespaces, matching the already-qualified v0.14.9 runtime/default behavior.
+- Add regression coverage preventing released `AGENTS.md` from drifting back to legacy `build` / `verification` publication branch examples.
+
 ## v0.14.9
 
 ### Changed
