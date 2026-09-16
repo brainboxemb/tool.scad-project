@@ -3,13 +3,15 @@
 Checks:
 Producer execution evidence records the timing context supplied by the shared
 Moon capability wrapper. Publication staging keeps current preflight and raw
-Moon invocation evidence, writes current-run/snapshot-preparation timing, and
-refreshes generated README navigation with direct links to the retained files.
+Moon invocation evidence, writes current-run/snapshot-preparation timing plus
+durable workflow timing, and refreshes generated README navigation with direct
+links to the retained files.
 
 Testing approach:
 Use temporary output/preflight trees, deterministic producer timing and the real
 publication-staging helper. Assertions distinguish producer execution timing,
-current Moon materialization evidence and current snapshot-preparation timing.
+current Moon materialization evidence, workflow-phase timing and current
+snapshot-preparation timing.
 """
 
 from __future__ import annotations
@@ -96,6 +98,31 @@ def test_publication_staging_preserves_current_logs_and_links_them(
     (preflight / "decision.json").write_text('{"status":"success"}\n', encoding="utf-8")
     (preflight / "affected-task-ids.json").write_text('["consumer:scad.build"]\n', encoding="utf-8")
     (preflight / "scad-ci-plan.json").write_text('{"run_runtime":true}\n', encoding="utf-8")
+    (preflight / "workflow-timings.json").write_text(
+        json.dumps(
+            {
+                "schema": "brainboxemb.scad-workflow-timings",
+                "schema_version": 1,
+                "workflow_started_at": "2026-09-16T07:00:00.000Z",
+                "phases": [
+                    {
+                        "name": "preflight_and_plan",
+                        "started_at": "2026-09-16T07:00:00.000Z",
+                        "finished_at": "2026-09-16T07:00:01.250Z",
+                        "duration_ms": 1250,
+                    },
+                    {
+                        "name": "materialization",
+                        "started_at": "2026-09-16T07:00:01.250Z",
+                        "finished_at": "2026-09-16T07:00:02.000Z",
+                        "duration_ms": 750,
+                    },
+                ],
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
 
     invocation = workspace / ".moon" / "invocations" / "consumer_scad.build"
     invocation.mkdir(parents=True)
@@ -140,6 +167,24 @@ def test_publication_staging_preserves_current_logs_and_links_them(
     assert (orchestration / "impact-decision.json").is_file()
     assert (orchestration / "affected-task-ids.json").is_file()
     assert (orchestration / "scad-ci-plan.json").is_file()
+    timings = json.loads((orchestration / "timings.json").read_text(encoding="utf-8"))
+    assert timings["publication_family"] == "build"
+    assert timings["phases"][:2] == [
+        {
+            "name": "preflight_and_plan",
+            "started_at": "2026-09-16T07:00:00.000Z",
+            "finished_at": "2026-09-16T07:00:01.250Z",
+            "duration_ms": 1250,
+        },
+        {
+            "name": "materialization",
+            "started_at": "2026-09-16T07:00:01.250Z",
+            "finished_at": "2026-09-16T07:00:02.000Z",
+            "duration_ms": 750,
+        },
+    ]
+    assert timings["phases"][-1]["name"] == "snapshot_preparation"
+    assert isinstance(timings["total_to_snapshot_ms"], int)
     assert (
         orchestration
         / "moon-invocations"
@@ -154,6 +199,8 @@ def test_publication_staging_preserves_current_logs_and_links_them(
     ).is_file()
 
     readme = (staging_root / "README.md").read_text(encoding="utf-8")
+    assert "orchestration/timings.json" in readme
+    assert "### Current workflow timing" in readme
     assert "orchestration/run-context.json" in readme
     assert "orchestration/impact-decision.json" in readme
     assert "consumer_scad.build/materialization.json" in readme
