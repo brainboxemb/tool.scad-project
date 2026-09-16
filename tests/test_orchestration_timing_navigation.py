@@ -1,8 +1,14 @@
 """Generated output navigation for durable orchestration timings.
 
-Checks that a published timings.json is linked from the generated README and is
-rendered as a compact phase table without replacing the detailed Moon invocation
+Checks:
+A published `timings.json` is linked from the generated README and rendered as a
+compact phase table without replacing the detailed Moon materialization and raw-log
 links.
+
+Testing approach:
+Build a minimal generated-output tree with deterministic timing JSON plus one Moon
+invocation, refresh the real evidence navigation, and assert the human-facing table,
+total timing, direct raw-log link and snapshot/publication boundary text.
 """
 
 from __future__ import annotations
