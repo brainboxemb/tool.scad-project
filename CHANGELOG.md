@@ -2,6 +2,13 @@
 
 Functional changes to released `tool.scad-project` versions.
 
+## v0.14.7
+
+### Fixed
+
+- Preserve the resolved exact production source SHA through host-side Build/Verification finishing so `publication-info.txt` records the actual assessed and produced source revision instead of GitHub's synthetic pull-request merge SHA.
+- Add production-workflow regression coverage that requires exact source provenance to be exported before checkout and host publication finishing.
+
 ## v0.14.6
 
 ### Added
