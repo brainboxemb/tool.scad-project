@@ -2,6 +2,17 @@
 
 Functional changes to released `tool.scad-project` versions.
 
+## v0.14.6
+
+### Added
+
+- Persist coarse current-run production phase timings from preflight/planning through snapshot preparation and expose them as `orchestration/timings.json` plus a readable generated-output timing table.
+- Retain post-snapshot generated-branch publication timing in compact CI orchestration evidence and extend that compact evidence retention to 90 days.
+
+### Changed
+
+- Keep detailed Moon/SCons/OpenSCAD logs and per-capability materialization timings as the lower-level evidence while making workflow-level timing directly navigable from generated Build and Verification output.
+
 ## v0.14.5
 
 ### Fixed
