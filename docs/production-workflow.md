@@ -205,9 +205,9 @@ Release preflight uses the same SCAD planner to derive:
 - normal SCons cache applicability;
 - Verification-SCons cache applicability.
 
-Those decisions are passed explicitly into the release Build/Verify reusable workflows. Release does not use the normal-CI artifact-retention policy.
+Those decisions are passed explicitly into the release Build/Verify reusable workflows. Release-request parsing/validation and request-branch cleanup are owned by the shared release workflow as well, so consumers do not duplicate that shell orchestration. Release does not use the normal-CI artifact-retention policy.
 
-## Thin consumer caller
+## Thin consumer callers
 
 The normal caller no longer supplies aggregate/affected Moon tasks or duplicated output-root policy. A typical caller is:
 
@@ -217,12 +217,24 @@ jobs:
     permissions:
       contents: write
       packages: read
-    uses: brainboxemb/tool.scad-project/.github/workflows/project-production.yml@<exact-tool-commit>
+    uses: brainboxemb/tool.scad-project/.github/workflows/project-production.yml@v0.14.x
     with:
       cache_namespace: my-repository-scad-production-v2
 ```
 
-The reusable workflow ref must match the exact checked-out `tool.scad-project` gitlink; `scad-project workflow-sync` maintains that alignment.
+The coordinated release caller is similarly thin:
+
+```yaml
+jobs:
+  release:
+    permissions:
+      actions: read
+      contents: write
+      packages: read
+    uses: brainboxemb/tool.scad-project/.github/workflows/project-release.yml@v0.14.x
+```
+
+The semantic reusable-workflow ref must match the configured `tool.scad-project` release ref in `project.yml`; `scad-project workflow-sync` maintains that alignment. The parent repository gitlink remains the exact resolved commit for the release, so readability and exact source identity have separate, non-duplicated roles.
 
 ## Qualification expectations
 
@@ -238,4 +250,5 @@ Before a release of this lifecycle, owner tests plus reference-consumer evidence
 8. OpenSCAD-only and full/dual projects select the correct v0.5.0 image;
 9. complete normal Build/Verification Actions artifacts are not duplicated;
 10. same-host Build/Verification publication remains isolated and correct;
-11. the coordinated release artifact hand-off still works.
+11. the coordinated release artifact hand-off still works;
+12. consumer production/release callers remain on the same released semantic tool ref as `project.yml`.

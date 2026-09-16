@@ -1,29 +1,39 @@
-"""Generic repository-tool delegation
+"""Generic repository-tool delegation.
 
 Checks:
 Repository bootstrap/status/update operations are delegated to the pinned
 `tool.git-project` checkout instead of being reimplemented by the SCAD tool. After a
 generic update, SCAD reusable Build, Verify, Production and Release workflow callers
-are aligned to the exact checked-out `tool.scad-project` commit.
+are aligned to the configured `tool.scad-project` ref instead of an opaque checked-out
+commit SHA.
 
 Testing approach:
-Tests create small temporary repository layouts and replace command execution or Git SHA
-lookup with deterministic test doubles. They inspect the exact delegated command and the
-workflow-file rewrite without contacting GitHub or changing real submodules.
+Tests create small temporary repository layouts and replace command execution with
+deterministic test doubles. They inspect the exact delegated command and workflow-file
+rewrite without contacting GitHub or changing real submodules.
 """
 
 from pathlib import Path
-from types import SimpleNamespace
 
+from scad_project import __version__
 import scad_project.repository as repository
 from scad_project.config import ProjectContext
 
 
-def _context(tmp_path: Path) -> ProjectContext:
+def _context(tmp_path: Path, *, tool_ref: str | None = None) -> ProjectContext:
+    ref = tool_ref or f"v{__version__}"
     return ProjectContext(
         tmp_path,
         tmp_path / "project.scad.yml",
-        {"project": {"name": "demo"}},
+        {
+            "project": {"name": "demo"},
+            "tooling": {
+                "tool_scad_project": {
+                    "path": "tools/tool.scad-project",
+                    "ref": ref,
+                }
+            },
+        },
         repository_config={"project": {"name": "demo"}},
     )
 
@@ -70,7 +80,7 @@ def test_repo_update_runs_generic_update_before_scad_workflow_sync(tmp_path, mon
     assert events == [("generic", "update"), ("scad", "workflow-sync")]
 
 
-def test_workflow_sync_pins_scad_workflows_to_checked_out_sha(tmp_path, monkeypatch):
+def test_workflow_sync_uses_configured_semantic_tool_ref(tmp_path):
     workflow_dir = tmp_path / ".github" / "workflows"
     workflow_dir.mkdir(parents=True)
     workflow = workflow_dir / "ci.yml"
@@ -87,21 +97,9 @@ def test_workflow_sync_pins_scad_workflows_to_checked_out_sha(tmp_path, monkeypa
 """,
         encoding="utf-8",
     )
-    tool_root = tmp_path / "tools" / "tool.scad-project"
-    tool_root.mkdir(parents=True)
 
-    sha = "a" * 40
-    monkeypatch.setattr(
-        repository.subprocess,
-        "run",
-        lambda *args, **kwargs: SimpleNamespace(
-            returncode=0,
-            stdout=sha + "\n",
-            stderr="",
-        ),
-    )
-
-    changed = repository.sync_workflow_refs(_context(tmp_path))
+    ref = f"v{__version__}"
+    changed = repository.sync_workflow_refs(_context(tmp_path, tool_ref=ref))
     text = workflow.read_text(encoding="utf-8")
 
     assert changed == [workflow]
@@ -111,5 +109,21 @@ def test_workflow_sync_pins_scad_workflows_to_checked_out_sha(tmp_path, monkeypa
         "project-production",
         "project-release",
     ):
-        assert f"{name}.yml@{sha}" in text
+        assert f"{name}.yml@{ref}" in text
     assert "@old" not in text
+
+
+def test_workflow_sync_preserves_explicit_development_ref(tmp_path):
+    workflow_dir = tmp_path / ".github" / "workflows"
+    workflow_dir.mkdir(parents=True)
+    workflow = workflow_dir / "ci.yml"
+    workflow.write_text(
+        "jobs:\n  scad:\n    uses: brainboxemb/tool.scad-project/.github/workflows/project-production.yml@old\n",
+        encoding="utf-8",
+    )
+
+    repository.sync_workflow_refs(_context(tmp_path, tool_ref="feature/test-release"))
+
+    assert "project-production.yml@feature/test-release" in workflow.read_text(
+        encoding="utf-8"
+    )

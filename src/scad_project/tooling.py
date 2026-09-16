@@ -58,7 +58,7 @@ def _checked_out_tool_sha(context: ProjectContext) -> str | None:
     return value if FULL_SHA_RE.fullmatch(value) else None
 
 
-def _workflow_ref_errors(context: ProjectContext, tool_sha: str) -> list[str]:
+def _workflow_ref_errors(context: ProjectContext, expected_ref: str) -> list[str]:
     workflow_dir = context.root / ".github" / "workflows"
     if not workflow_dir.is_dir():
         return []
@@ -68,17 +68,17 @@ def _workflow_ref_errors(context: ProjectContext, tool_sha: str) -> list[str]:
         text = path.read_text(encoding="utf-8")
         for match in WORKFLOW_USE_RE.finditer(text):
             ref = match.group(2)
-            if ref != tool_sha:
+            if ref != expected_ref:
                 errors.append(
                     "reusable workflow ref mismatch: "
                     f"{path.relative_to(context.root)} uses {ref}, "
-                    f"checked-out tool is {tool_sha}"
+                    f"project.yml expects {expected_ref}"
                 )
     return errors
 
 
 def tooling_errors(context: ProjectContext) -> list[str]:
-    """Check the configured tool policy, checked-out gitlink and workflow callers."""
+    """Check configured tool policy, checked-out gitlink and workflow callers."""
 
     errors: list[str] = []
     expected = configured_tool_ref(context)
@@ -93,12 +93,11 @@ def tooling_errors(context: ProjectContext) -> list[str]:
             f"project.yml expects {expected}, checked out {tool_sha}"
         )
 
-    if tool_sha:
-        errors.extend(_workflow_ref_errors(context, tool_sha))
+    expected_workflow_ref = _tag(expected) if SEMVER_TAG_RE.fullmatch(expected) else expected
+    errors.extend(_workflow_ref_errors(context, expected_workflow_ref))
 
-    # Release tags still provide a useful package/workflow-version invariant.
-    # Full-SHA and branch policies are locked/proven by tool.git-project plus
-    # the checked-out gitlink/workflow checks above.
+    # Release tags provide the package/workflow-version invariant. The gitlink
+    # remains the exact Git content pointer while consumer YAML stays readable.
     if SEMVER_TAG_RE.fullmatch(expected):
         expected_tag = _tag(expected)
         running_tag = _tag(__version__)
