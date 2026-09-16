@@ -4,7 +4,9 @@ on:
   workflow_call:
 
 permissions:
-  contents: read
+  actions: read
+  contents: write
+  packages: read
 
 jobs:
   resolve:
