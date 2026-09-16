@@ -1,7 +1,7 @@
 tasks:
   scad.docs:
     description: Build SCAD design documentation.
-    command: 'python tools/tool.scad-project/scripts/run_scad_capability.py design-build'
+    command: 'python3 tools/tool.scad-project/scripts/run_scad_capability.py design-build'
     inputs:
       - 'project.yml'
       - 'project.scad.yml'
@@ -18,7 +18,7 @@ tasks:
 
   scad.build:
     description: Build configured presentation/render/export output.
-    command: 'python tools/tool.scad-project/scripts/run_scad_capability.py build'
+    command: 'python3 tools/tool.scad-project/scripts/run_scad_capability.py build'
     inputs:
       - 'project.yml'
       - 'project.scad.yml'
@@ -36,7 +36,7 @@ tasks:
 
   scad.verify:
     description: Run SCAD project verification.
-    command: 'python tools/tool.scad-project/scripts/run_scad_capability.py verify'
+    command: 'python3 tools/tool.scad-project/scripts/run_scad_capability.py verify'
     inputs:
       - 'project.yml'
       - 'project.scad.yml'
