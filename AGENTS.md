@@ -271,20 +271,21 @@ When possible:
 6. mark ready only when implementation/evidence are reviewable;
 7. merge only after required checks/review.
 
-Generated PR previews use `dev/pr-N/build` and `dev/pr-N/verification`.
+Generated PR previews use `dev/pr-N/bld` and `dev/pr-N/vrf`.
 Never guess a future PR number or reuse an unrelated issue number.
 
 ## Publication lifecycle
 
 General policy:
 
-- `main` / configured production branch -> mutable `prod/build` and
-  `prod/verification` snapshots;
-- open pull request `#N` -> isolated mutable `dev/pr-N/build` and
-  `dev/pr-N/verification` previews;
+- `main` / configured production branch -> mutable `prod/bld` and
+  `prod/vrf` snapshots;
+- open pull request `#N` -> isolated mutable `dev/pr-N/bld` and
+  `dev/pr-N/vrf` previews;
 - ordinary feature-branch pushes -> no shared development publication by
   default;
-- coordinated releases -> immutable release snapshots/tags/bundles.
+- coordinated releases -> immutable `rel/vX.Y.Z/bld` and
+  `rel/vX.Y.Z/vrf` snapshots/tags/bundles.
 
 Every generated snapshot contains `publication-info.txt` with source, tooling
 and runtime provenance.
