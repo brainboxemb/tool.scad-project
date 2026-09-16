@@ -4,13 +4,15 @@ on:
   workflow_call:
     inputs:
       version:
-        description: Immutable release version, e.g. v0.1.0
-        required: true
+        description: Optional immutable release version, e.g. v0.1.0; release-request callers may leave this empty
+        required: false
         type: string
+        default: ''
       source_sha:
-        description: Exact 40-character source commit SHA to release
-        required: true
+        description: Optional exact 40-character source commit SHA; release-request callers may leave this empty
+        required: false
         type: string
+        default: ''
       build_path:
         description: Generated build root used by the project
         required: false
@@ -21,6 +23,13 @@ on:
         required: false
         type: string
         default: vrf/out
+    outputs:
+      version:
+        description: Resolved immutable release version
+        value: ${{ jobs.resolve.outputs.version }}
+      source_sha:
+        description: Resolved exact release source commit
+        value: ${{ jobs.resolve.outputs.source_sha }}
 
 permissions:
   actions: read
@@ -28,7 +37,59 @@ permissions:
   packages: read
 
 jobs:
+  resolve:
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    outputs:
+      version: ${{ steps.release.outputs.version }}
+      source_sha: ${{ steps.release.outputs.source_sha }}
+
+    steps:
+      - name: Resolve release request
+        id: release
+        shell: bash
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          INPUT_VERSION: ${{ inputs.version }}
+          INPUT_SOURCE_SHA: ${{ inputs.source_sha }}
+          REF_NAME: ${{ github.ref_name }}
+          ACTOR: ${{ github.actor }}
+          REPOSITORY_OWNER: ${{ github.repository_owner }}
+        run: |
+          set -euo pipefail
+
+          version="$INPUT_VERSION"
+          source_sha="$INPUT_SOURCE_SHA"
+
+          if [[ "$EVENT_NAME" == "push" && "$REF_NAME" == release-request/* ]]; then
+            if [[ "$ACTOR" != "$REPOSITORY_OWNER" ]]; then
+              echo "ERROR: release-request branches may only be created by $REPOSITORY_OWNER" >&2
+              exit 1
+            fi
+
+            request="${REF_NAME#release-request/}"
+            IFS='/' read -r version source_sha extra <<< "$request"
+            if [[ -z "$version" || -z "$source_sha" || -n "${extra:-}" ]]; then
+              echo "ERROR: release request branch must be release-request/vX.Y.Z/<40-char-sha>" >&2
+              exit 1
+            fi
+          fi
+
+          if [[ ! "$version" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "ERROR: version must match vX.Y.Z" >&2
+            exit 1
+          fi
+          if [[ ! "$source_sha" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "ERROR: source_sha must be an exact 40-character commit SHA" >&2
+            exit 1
+          fi
+
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "source_sha=$source_sha" >> "$GITHUB_OUTPUT"
+          echo "Release request: $version @ $source_sha"
+
   preflight:
+    needs: resolve
     runs-on: ubuntu-latest
     timeout-minutes: 5
     outputs:
@@ -41,17 +102,17 @@ jobs:
       use_verification_scons_cache: ${{ steps.scad-plan.outputs.use_verification_scons_cache }}
 
     env:
-      RELEASE_VERSION: ${{ inputs.version }}
-      RELEASE_SOURCE_SHA: ${{ inputs.source_sha }}
-      SCAD_PROJECT_RELEASE_VERSION: ${{ inputs.version }}
-      SCAD_PROJECT_SOURCE_SHA: ${{ inputs.source_sha }}
+      RELEASE_VERSION: ${{ needs.resolve.outputs.version }}
+      RELEASE_SOURCE_SHA: ${{ needs.resolve.outputs.source_sha }}
+      SCAD_PROJECT_RELEASE_VERSION: ${{ needs.resolve.outputs.version }}
+      SCAD_PROJECT_SOURCE_SHA: ${{ needs.resolve.outputs.source_sha }}
 
     steps:
       - name: Checkout exact release source and pinned submodules
         timeout-minutes: 2
         uses: actions/checkout@v4
         with:
-          ref: ${{ inputs.source_sha }}
+          ref: ${{ needs.resolve.outputs.source_sha }}
           submodules: true
           fetch-depth: 0
 
@@ -108,18 +169,9 @@ jobs:
         run: |
           set -euo pipefail
 
-          if [[ ! "${RELEASE_VERSION}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-            echo "ERROR: release version must match vX.Y.Z" >&2
-            exit 1
-          fi
-          if [[ ! "${RELEASE_SOURCE_SHA}" =~ ^[0-9a-f]{40}$ ]]; then
-            echo "ERROR: source_sha must be an exact 40-character commit SHA" >&2
-            exit 1
-          fi
-
           ACTUAL_SHA="$(git rev-parse HEAD)"
-          if [[ "${ACTUAL_SHA}" != "${RELEASE_SOURCE_SHA}" ]]; then
-            echo "ERROR: checked-out source ${ACTUAL_SHA} != requested ${RELEASE_SOURCE_SHA}" >&2
+          if [[ "$ACTUAL_SHA" != "$RELEASE_SOURCE_SHA" ]]; then
+            echo "ERROR: checked-out source $ACTUAL_SHA != requested $RELEASE_SOURCE_SHA" >&2
             exit 1
           fi
 
@@ -133,23 +185,23 @@ jobs:
           print(production.get("source_branch", "main"))
           PY
           )"
-          git check-ref-format --branch "${PRODUCTION_BRANCH}" >/dev/null
+          git check-ref-format --branch "$PRODUCTION_BRANCH" >/dev/null
           git fetch --no-tags origin \
             "+refs/heads/${PRODUCTION_BRANCH}:refs/remotes/origin/${PRODUCTION_BRANCH}"
           PRODUCTION_SHA="$(git rev-parse "refs/remotes/origin/${PRODUCTION_BRANCH}")"
-          if [[ "${RELEASE_SOURCE_SHA}" != "${PRODUCTION_SHA}" ]]; then
-            echo "ERROR: release source ${RELEASE_SOURCE_SHA} must equal current ${PRODUCTION_BRANCH} HEAD ${PRODUCTION_SHA}" >&2
+          if [[ "$RELEASE_SOURCE_SHA" != "$PRODUCTION_SHA" ]]; then
+            echo "ERROR: release source $RELEASE_SOURCE_SHA must equal current $PRODUCTION_BRANCH HEAD $PRODUCTION_SHA" >&2
             exit 1
           fi
-          echo "production_branch=${PRODUCTION_BRANCH}" >> "$GITHUB_OUTPUT"
+          echo "production_branch=$PRODUCTION_BRANCH" >> "$GITHUB_OUTPUT"
 
           git fetch --tags --force origin
           if git rev-parse -q --verify "refs/tags/${RELEASE_VERSION}" >/dev/null; then
-            echo "ERROR: release tag already exists: ${RELEASE_VERSION}" >&2
+            echo "ERROR: release tag already exists: $RELEASE_VERSION" >&2
             exit 1
           fi
-          if gh release view "${RELEASE_VERSION}" >/dev/null 2>&1; then
-            echo "ERROR: GitHub Release already exists: ${RELEASE_VERSION}" >&2
+          if gh release view "$RELEASE_VERSION" >/dev/null 2>&1; then
+            echo "ERROR: GitHub Release already exists: $RELEASE_VERSION" >&2
             exit 1
           fi
 
@@ -167,51 +219,51 @@ jobs:
               handle.write(f"verification_branch={branches.verification_branch}\n")
           PY
 
-          BUILD_BRANCH="$(grep '^build_branch=' "${GITHUB_OUTPUT}" | tail -1 | cut -d= -f2-)"
-          VERIFICATION_BRANCH="$(grep '^verification_branch=' "${GITHUB_OUTPUT}" | tail -1 | cut -d= -f2-)"
+          BUILD_BRANCH="$(grep '^build_branch=' "$GITHUB_OUTPUT" | tail -1 | cut -d= -f2-)"
+          VERIFICATION_BRANCH="$(grep '^verification_branch=' "$GITHUB_OUTPUT" | tail -1 | cut -d= -f2-)"
           if [[ -n "$(git ls-remote --heads origin "refs/heads/${BUILD_BRANCH}")" ]]; then
-            echo "ERROR: immutable release branch already exists: ${BUILD_BRANCH}" >&2
+            echo "ERROR: immutable release branch already exists: $BUILD_BRANCH" >&2
             exit 1
           fi
           if [[ -n "$(git ls-remote --heads origin "refs/heads/${VERIFICATION_BRANCH}")" ]]; then
-            echo "ERROR: immutable release branch already exists: ${VERIFICATION_BRANCH}" >&2
+            echo "ERROR: immutable release branch already exists: $VERIFICATION_BRANCH" >&2
             exit 1
           fi
 
           scad-project release-notes \
-            --version "${RELEASE_VERSION}" \
-            --source-sha "${RELEASE_SOURCE_SHA}" \
-            --repository "${GITHUB_REPOSITORY}" \
-            --output "${RUNNER_TEMP}/release-notes-preflight.md"
-          echo "Release preflight OK: ${RELEASE_VERSION} @ ${RELEASE_SOURCE_SHA} from ${PRODUCTION_BRANCH}"
+            --version "$RELEASE_VERSION" \
+            --source-sha "$RELEASE_SOURCE_SHA" \
+            --repository "$GITHUB_REPOSITORY" \
+            --output "$RUNNER_TEMP/release-notes-preflight.md"
+          echo "Release preflight OK: $RELEASE_VERSION @ $RELEASE_SOURCE_SHA from $PRODUCTION_BRANCH"
 
   build:
-    needs: preflight
+    needs: [resolve, preflight]
     uses: $/.github/workflows/project-build.yml
     with:
       artifact_name: scad-project-release-build
       publish: false
-      source_ref: ${{ inputs.source_sha }}
-      release_version: ${{ inputs.version }}
-      source_sha: ${{ inputs.source_sha }}
+      source_ref: ${{ needs.resolve.outputs.source_sha }}
+      release_version: ${{ needs.resolve.outputs.version }}
+      source_sha: ${{ needs.resolve.outputs.source_sha }}
       runtime_image: ${{ needs.preflight.outputs.runtime_image }}
       use_scons_cache: ${{ needs.preflight.outputs.use_scons_cache == 'true' }}
 
   verify:
-    needs: preflight
+    needs: [resolve, preflight]
     uses: $/.github/workflows/project-verify.yml
     with:
       artifact_name: scad-project-release-verification
       publish: false
       verification_path: ${{ inputs.verification_path }}
-      source_ref: ${{ inputs.source_sha }}
-      release_version: ${{ inputs.version }}
-      source_sha: ${{ inputs.source_sha }}
+      source_ref: ${{ needs.resolve.outputs.source_sha }}
+      release_version: ${{ needs.resolve.outputs.version }}
+      source_sha: ${{ needs.resolve.outputs.source_sha }}
       runtime_image: ${{ needs.preflight.outputs.runtime_image }}
       use_verification_scons_cache: ${{ needs.preflight.outputs.use_verification_scons_cache == 'true' }}
 
   finalize:
-    needs: [preflight, build, verify]
+    needs: [resolve, preflight, build, verify]
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
@@ -220,18 +272,18 @@ jobs:
       packages: read
 
     env:
-      RELEASE_VERSION: ${{ inputs.version }}
-      RELEASE_SOURCE_SHA: ${{ inputs.source_sha }}
+      RELEASE_VERSION: ${{ needs.resolve.outputs.version }}
+      RELEASE_SOURCE_SHA: ${{ needs.resolve.outputs.source_sha }}
       PRODUCTION_BRANCH: ${{ needs.preflight.outputs.production_branch }}
-      SCAD_PROJECT_RELEASE_VERSION: ${{ inputs.version }}
-      SCAD_PROJECT_SOURCE_SHA: ${{ inputs.source_sha }}
+      SCAD_PROJECT_RELEASE_VERSION: ${{ needs.resolve.outputs.version }}
+      SCAD_PROJECT_SOURCE_SHA: ${{ needs.resolve.outputs.source_sha }}
 
     steps:
       - name: Checkout exact release source and pinned submodules
         timeout-minutes: 2
         uses: actions/checkout@v4
         with:
-          ref: ${{ inputs.source_sha }}
+          ref: ${{ needs.resolve.outputs.source_sha }}
           submodules: true
           fetch-depth: 0
 
@@ -279,18 +331,18 @@ jobs:
           git fetch --no-tags origin \
             "+refs/heads/${PRODUCTION_BRANCH}:refs/remotes/origin/${PRODUCTION_BRANCH}"
           PRODUCTION_SHA="$(git rev-parse "refs/remotes/origin/${PRODUCTION_BRANCH}")"
-          if [[ "${RELEASE_SOURCE_SHA}" != "${PRODUCTION_SHA}" ]]; then
-            echo "ERROR: ${PRODUCTION_BRANCH} advanced after preflight: expected ${RELEASE_SOURCE_SHA}, now ${PRODUCTION_SHA}" >&2
+          if [[ "$RELEASE_SOURCE_SHA" != "$PRODUCTION_SHA" ]]; then
+            echo "ERROR: $PRODUCTION_BRANCH advanced after preflight: expected $RELEASE_SOURCE_SHA, now $PRODUCTION_SHA" >&2
             exit 1
           fi
 
           git fetch --tags --force origin
           if git rev-parse -q --verify "refs/tags/${RELEASE_VERSION}" >/dev/null; then
-            echo "ERROR: release tag appeared after preflight: ${RELEASE_VERSION}" >&2
+            echo "ERROR: release tag appeared after preflight: $RELEASE_VERSION" >&2
             exit 1
           fi
-          if gh release view "${RELEASE_VERSION}" >/dev/null 2>&1; then
-            echo "ERROR: GitHub Release appeared after preflight: ${RELEASE_VERSION}" >&2
+          if gh release view "$RELEASE_VERSION" >/dev/null 2>&1; then
+            echo "ERROR: GitHub Release appeared after preflight: $RELEASE_VERSION" >&2
             exit 1
           fi
 
@@ -299,7 +351,7 @@ jobs:
         run: |
           set -euo pipefail
           scad-project release-package \
-            --version "${RELEASE_VERSION}" \
+            --version "$RELEASE_VERSION" \
             --output-dir .release
 
       - name: Verify release checksums
@@ -313,9 +365,9 @@ jobs:
         run: |
           set -euo pipefail
           scad-project release-notes \
-            --version "${RELEASE_VERSION}" \
-            --source-sha "${RELEASE_SOURCE_SHA}" \
-            --repository "${GITHUB_REPOSITORY}" \
+            --version "$RELEASE_VERSION" \
+            --source-sha "$RELEASE_SOURCE_SHA" \
+            --repository "$GITHUB_REPOSITORY" \
             --output .release/RELEASE_NOTES.md
 
       - name: Publish immutable release branches
@@ -324,16 +376,16 @@ jobs:
         run: |
           set -euo pipefail
           scad-project release-publish-branches \
-            --version "${RELEASE_VERSION}" \
-            --source-sha "${RELEASE_SOURCE_SHA}"
+            --version "$RELEASE_VERSION" \
+            --source-sha "$RELEASE_SOURCE_SHA"
 
       - name: Create annotated release tag
         id: create-tag
         timeout-minutes: 2
         run: |
           set -euo pipefail
-          git tag -a "${RELEASE_VERSION}" "${RELEASE_SOURCE_SHA}" \
-            -m "${GITHUB_REPOSITORY} ${RELEASE_VERSION}"
+          git tag -a "$RELEASE_VERSION" "$RELEASE_SOURCE_SHA" \
+            -m "$GITHUB_REPOSITORY $RELEASE_VERSION"
           git push origin "refs/tags/${RELEASE_VERSION}"
 
       - name: Create GitHub Release and upload assets
@@ -343,9 +395,9 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          gh release create "${RELEASE_VERSION}" \
+          gh release create "$RELEASE_VERSION" \
             --verify-tag \
-            --title "${RELEASE_VERSION}" \
+            --title "$RELEASE_VERSION" \
             --notes-file .release/RELEASE_NOTES.md \
             .release/*.zip \
             .release/SHA256SUMS.txt
@@ -359,8 +411,30 @@ jobs:
           VERIFICATION_BRANCH: ${{ needs.preflight.outputs.verification_branch }}
         run: |
           set +e
-          gh release delete "${RELEASE_VERSION}" --yes >/dev/null 2>&1
+          gh release delete "$RELEASE_VERSION" --yes >/dev/null 2>&1
           git push origin ":refs/tags/${RELEASE_VERSION}" >/dev/null 2>&1
-          git push origin --delete "${BUILD_BRANCH}" >/dev/null 2>&1
-          git push origin --delete "${VERIFICATION_BRANCH}" >/dev/null 2>&1
+          git push origin --delete "$BUILD_BRANCH" >/dev/null 2>&1
+          git push origin --delete "$VERIFICATION_BRANCH" >/dev/null 2>&1
           echo "Rolled back any refs created by the incomplete release finalization."
+
+  cleanup-request:
+    if: ${{ always() && github.event_name == 'push' && startsWith(github.ref_name, 'release-request/') }}
+    needs: [resolve, preflight, build, verify, finalize]
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout release request branch
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Remove release request branch
+        shell: bash
+        env:
+          REQUEST_BRANCH: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          git push origin --delete "$REQUEST_BRANCH" || true
