@@ -92,16 +92,17 @@ jobs:
           echo "release_sha=${RELEASE_SHA}" >> "$GITHUB_OUTPUT"
           echo "Release request validated: ${VERSION} @ ${RELEASE_SHA}"
 
-      - name: Create annotated release tag
+      - name: Create lightweight release tag
         timeout-minutes: 2
         env:
           VERSION: ${{ steps.release.outputs.version }}
           RELEASE_SHA: ${{ steps.release.outputs.release_sha }}
         run: |
           set -euo pipefail
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git tag -a "${VERSION}" "${RELEASE_SHA}" -m "tool.scad-project ${VERSION}"
+          # Lightweight tool tags deliberately resolve directly to the qualified
+          # source commit. GitHub cannot compile nested reusable workflows from an
+          # annotated cross-repository workflow ref, while exact SHA refs work.
+          git tag "${VERSION}" "${RELEASE_SHA}"
           git push origin "refs/tags/${VERSION}"
 
       - name: Dispatch tests on released tag
