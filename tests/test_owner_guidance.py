@@ -1,3 +1,14 @@
+"""Protect released publication-namespace guidance.
+
+Checks:
+- canonical `bld` / `vrf` preview, production and release examples remain present;
+- legacy `build` / `verification` publication branch examples do not return.
+
+Testing approach:
+- inspect the repository-owned `AGENTS.md` text directly because that file is the
+  durable guidance pinned into current-generation consumer repositories.
+"""
+
 from pathlib import Path
 
 
