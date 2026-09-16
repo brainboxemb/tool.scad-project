@@ -1,6 +1,6 @@
 """Bridge generic repository operations to tool.git-project.
 
-Generic Git/submodule behaviour is deliberately not implemented here.  This
+Generic Git/submodule behaviour is deliberately not implemented here. This
 module only invokes the pinned generic tool and performs SCAD-specific workflow
 alignment after a dependency change.
 """
@@ -10,18 +10,17 @@ from __future__ import annotations
 import os
 from pathlib import Path
 import re
-import subprocess
 
 from .config import ProjectContext
 from .process import run_checked
 
 
 GIT_TOOL_PATH = "tools/tool.git-project"
-SCAD_TOOL_PATH = "tools/tool.scad-project"
 WORKFLOW_USE_RE = re.compile(
     r"(brainboxemb/tool\.scad-project/\.github/workflows/"
     r"(?:project-build|project-verify|project-production|project-release)\.yml)@([^\s\"']+)"
 )
+SEMVER_TOOL_REF_RE = re.compile(r"^v\d+\.\d+\.\d+$")
 
 
 def _generic_tool_argv(context: ProjectContext, command: str) -> list[str]:
@@ -62,41 +61,42 @@ def run_generic_repository_command(context: ProjectContext, command: str) -> Non
     run_checked(_generic_tool_argv(context, command), cwd=context.root)
 
 
-def _checked_out_scad_tool_sha(context: ProjectContext) -> str:
-    tool_root = context.path(SCAD_TOOL_PATH)
-    result = subprocess.run(
-        ["git", "-C", str(tool_root), "rev-parse", "HEAD"],
-        cwd=context.root,
-        text=True,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-    )
-    if result.returncode != 0:
-        detail = result.stderr.strip() or result.stdout.strip()
+def configured_scad_tool_ref(context: ProjectContext) -> str:
+    """Return the released semantic tool ref exposed by project configuration."""
+
+    tooling = context.config.get("tooling", {}) or {}
+    tool = tooling.get("tool_scad_project")
+    value = tool.get("ref") if isinstance(tool, dict) else None
+    ref = str(value).strip() if value else ""
+    if not ref:
+        raise RuntimeError("Missing tooling tool.scad-project ref")
+    if not SEMVER_TOOL_REF_RE.fullmatch(ref):
         raise RuntimeError(
-            "Cannot resolve checked-out tool.scad-project commit: " + detail
+            "tool.scad-project workflow callers require a released semantic ref "
+            f"(vX.Y.Z), got {ref!r}"
         )
-    return result.stdout.strip()
+    return ref
 
 
 def sync_workflow_refs(context: ProjectContext) -> list[Path]:
-    """Pin SCAD reusable-workflow callers to the checked-out tool commit.
+    """Align SCAD reusable-workflow callers to the configured semantic release.
 
-    Git dependency movement belongs to tool.git-project.  Workflow caller
-    alignment is SCAD-specific because GitHub reusable workflows are part of the
-    public tool.scad-project contract and must use the exact checked-out commit.
+    The submodule gitlink remains Git's exact immutable content pointer. Consumer
+    workflow YAML stays human-readable and follows the released semantic ref from
+    project.yml. The tool's validation layer separately checks that the running
+    package/workflow version agrees with that configured release.
     """
 
     workflow_dir = context.root / ".github" / "workflows"
     if not workflow_dir.is_dir():
         return []
 
-    tool_sha = _checked_out_scad_tool_sha(context)
+    tool_ref = configured_scad_tool_ref(context)
     changed: list[Path] = []
     for path in sorted([*workflow_dir.glob("*.yml"), *workflow_dir.glob("*.yaml")]):
         text = path.read_text(encoding="utf-8")
         updated = WORKFLOW_USE_RE.sub(
-            lambda match: f"{match.group(1)}@{tool_sha}",
+            lambda match: f"{match.group(1)}@{tool_ref}",
             text,
         )
         if updated != text:
@@ -104,9 +104,9 @@ def sync_workflow_refs(context: ProjectContext) -> list[Path]:
             changed.append(path)
 
     for path in changed:
-        print(f"Updated SCAD workflow ref: {path.relative_to(context.root)}")
+        print(f"Updated SCAD workflow ref: {path.relative_to(context.root)} -> {tool_ref}")
     if not changed:
-        print(f"SCAD workflow refs already aligned to {tool_sha[:12]}")
+        print(f"SCAD workflow refs already aligned to {tool_ref}")
     return changed
 
 
