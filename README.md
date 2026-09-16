@@ -361,6 +361,10 @@ workflow. A consumer release caller therefore remains small:
 ```yaml
 jobs:
   release:
+    permissions:
+      actions: read
+      contents: write
+      packages: read
     uses: brainboxemb/tool.scad-project/.github/workflows/project-release.yml@v0.14.x
 ```
 
