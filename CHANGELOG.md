@@ -2,6 +2,24 @@
 
 Functional changes to released `tool.scad-project` versions.
 
+## v0.14.4
+
+### Added
+
+- Add durable orchestration evidence that keeps producer execution timing, current Moon materialization timing and snapshot-preparation timing distinct, while exposing the retained raw Moon/producer logs directly from generated-output navigation.
+- Add shallow-upgrade regression coverage and an exact base-gitlink fetch helper so affected-task evaluation can compare a consumer whose `tool.scad-project` gitlink changed between base and head.
+
+### Changed
+
+- Move release-request branch parsing, validation and cleanup into the shared release workflow so consumer release workflows can remain thin trigger/permission/reusable-workflow callers.
+- Align consumer reusable SCAD workflow calls to the configured semantic `tool.scad-project` release ref while retaining the parent gitlink as the exact resolved source identity.
+- Make `workflow-sync` and tooling validation preserve and enforce that semantic released workflow ref instead of rewriting consumers to an opaque commit SHA.
+
+### Fixed
+
+- Prevent shallow base-to-head affected queries from falling back conservatively with `bad object` when the base revision references an older `tool.scad-project` gitlink commit that is not present in the shallow submodule checkout.
+- Restore durable, human-navigable access to the complete current orchestration logs and step durations after earlier evidence compaction made those details difficult to find once GitHub Actions logs expired.
+
 ## v0.14.3
 
 ### Fixed
