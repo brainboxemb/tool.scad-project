@@ -20,7 +20,6 @@ WORKFLOW_USE_RE = re.compile(
     r"(brainboxemb/tool\.scad-project/\.github/workflows/"
     r"(?:project-build|project-verify|project-production|project-release)\.yml)@([^\s\"']+)"
 )
-SEMVER_TOOL_REF_RE = re.compile(r"^v\d+\.\d+\.\d+$")
 
 
 def _generic_tool_argv(context: ProjectContext, command: str) -> list[str]:
@@ -62,7 +61,7 @@ def run_generic_repository_command(context: ProjectContext, command: str) -> Non
 
 
 def configured_scad_tool_ref(context: ProjectContext) -> str:
-    """Return the released semantic tool ref exposed by project configuration."""
+    """Return the tool ref exposed by project configuration."""
 
     tooling = context.config.get("tooling", {}) or {}
     tool = tooling.get("tool_scad_project")
@@ -70,21 +69,17 @@ def configured_scad_tool_ref(context: ProjectContext) -> str:
     ref = str(value).strip() if value else ""
     if not ref:
         raise RuntimeError("Missing tooling tool.scad-project ref")
-    if not SEMVER_TOOL_REF_RE.fullmatch(ref):
-        raise RuntimeError(
-            "tool.scad-project workflow callers require a released semantic ref "
-            f"(vX.Y.Z), got {ref!r}"
-        )
     return ref
 
 
 def sync_workflow_refs(context: ProjectContext) -> list[Path]:
-    """Align SCAD reusable-workflow callers to the configured semantic release.
+    """Align SCAD reusable-workflow callers to the configured tool ref.
 
-    The submodule gitlink remains Git's exact immutable content pointer. Consumer
-    workflow YAML stays human-readable and follows the released semantic ref from
-    project.yml. The tool's validation layer separately checks that the running
-    package/workflow version agrees with that configured release.
+    Released consumers use a semantic release tag such as ``v0.14.4`` so the
+    workflow YAML stays readable and agrees with project.yml. The submodule
+    gitlink remains Git's exact immutable content pointer. Development consumers
+    may still configure an explicit non-release ref; workflow-sync follows the
+    configured ref rather than silently replacing it with an opaque commit SHA.
     """
 
     workflow_dir = context.root / ".github" / "workflows"
