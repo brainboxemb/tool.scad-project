@@ -26,6 +26,16 @@ SCHEMA_VERSION = 1
 OWNER = "brainboxemb/tool.scad-project"
 _REVISION_RE = re.compile(r"^[0-9A-Fa-f]{40,64}$")
 _NAVIGATION_MARKER = "<!-- scad-project-evidence-navigation -->"
+_TIMING_PHASE_LABELS = {
+    "preflight_and_plan": "Preflight + execution plan",
+    "cache_restore": "Cache restore",
+    "runtime_pull": "Runtime pull",
+    "materialization": "Capability materialization",
+    "cache_save": "Cache save",
+    "finishing": "Validation + finishing",
+    "snapshot_preparation": "Snapshot preparation",
+    "publication": "Generated-output publication",
+}
 
 
 def _git_head(path: Path) -> str | None:
@@ -248,6 +258,50 @@ def write_execution_evidence(
     return output
 
 
+def _format_duration(duration: Any) -> str:
+    if not isinstance(duration, int) or isinstance(duration, bool) or duration < 0:
+        return "unknown"
+    if duration < 1000:
+        return f"{duration} ms"
+    return f"{duration / 1000:.3f} s"
+
+
+def _workflow_timing_table(output_root: Path, timings: Path) -> list[str]:
+    try:
+        payload = json.loads(timings.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return []
+    phases = payload.get("phases")
+    if not isinstance(phases, list) or not phases:
+        return []
+
+    lines = [
+        "",
+        "### Current workflow timing",
+        "",
+        "| Phase | Duration |",
+        "| --- | ---: |",
+    ]
+    for phase in phases:
+        if not isinstance(phase, dict):
+            continue
+        name = str(phase.get("name", "unknown"))
+        label = _TIMING_PHASE_LABELS.get(name, name.replace("_", " ").title())
+        lines.append(f"| {label} | {_format_duration(phase.get('duration_ms'))} |")
+    if "total_to_snapshot_ms" in payload:
+        lines.append(
+            f"| **Total to prepared snapshot** | **{_format_duration(payload.get('total_to_snapshot_ms'))}** |"
+        )
+    lines.extend(
+        [
+            "",
+            "The table stops when this generated snapshot is ready. The remote branch push happens afterwards; detailed per-capability timings remain in the materialization files below.",
+            "",
+        ]
+    )
+    return lines
+
+
 def _orchestration_navigation_lines(output_root: Path) -> list[str]:
     orchestration_root = output_root / "orchestration"
     lines = [
@@ -269,6 +323,7 @@ def _orchestration_navigation_lines(output_root: Path) -> list[str]:
         return lines
 
     known = (
+        ("timings.json", "Workflow phase timings"),
         ("run-context.json", "Run context and snapshot-preparation timing"),
         ("impact-decision.json", "Moon impact decision"),
         ("affected-task-ids.json", "Affected Moon task ids"),
@@ -278,6 +333,10 @@ def _orchestration_navigation_lines(output_root: Path) -> list[str]:
         path = orchestration_root / name
         if path.is_file():
             lines.append(f"- [{label}]({_relative(output_root, path)})")
+
+    timings = orchestration_root / "timings.json"
+    if timings.is_file():
+        lines.extend(_workflow_timing_table(output_root, timings))
 
     invocation_root = orchestration_root / "moon-invocations"
     if invocation_root.is_dir():
