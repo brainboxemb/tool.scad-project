@@ -1,15 +1,17 @@
-"""SCAD consumer update wrappers
+"""SCAD consumer update wrappers.
 
 Checks:
 Consumer update launchers stay thin: they invoke the SCAD `repo-update` command and do
 not contain their own YAML parser, ref resolver or Git-submodule update implementation.
 The SCAD repository bridge remains responsible only for invoking `tool.git-project` and
-for exact-SHA alignment of Build, Verify and Release reusable workflow callers.
+for aligning Build, Verify, Production and Release reusable workflow callers with the
+configured `tool.scad-project` ref from project configuration.
 
 Testing approach:
 The tests inspect the launcher and bridge source files as text. This is a policy-level
 boundary test: generic Git implementation keywords are rejected from the consumer
-wrappers while the three SCAD reusable workflow names must remain covered by the bridge.
+wrappers while all SCAD reusable workflow names and the configured-ref alignment path
+must remain covered by the bridge.
 """
 
 from pathlib import Path
@@ -25,6 +27,7 @@ CONSUMER_UPDATERS = (
 REUSABLE_PROJECT_WORKFLOWS = (
     "project-build",
     "project-verify",
+    "project-production",
     "project-release",
 )
 
@@ -58,9 +61,12 @@ def test_workflow_sync_covers_all_reusable_project_workflows():
         assert workflow in text
 
 
-def test_workflow_sync_uses_checked_out_tool_commit():
+def test_workflow_sync_uses_configured_tool_ref_not_checked_out_sha():
     text = (ROOT / "src" / "scad_project" / "repository.py").read_text(
         encoding="utf-8"
     )
-    assert '"rev-parse", "HEAD"' in text
-    assert "tool_sha" in text
+    assert "configured_scad_tool_ref" in text
+    assert 'tool.get("ref")' in text
+    assert "@{tool_ref}" in text
+    assert '"rev-parse", "HEAD"' not in text
+    assert "tool_sha" not in text
