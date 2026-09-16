@@ -24,11 +24,11 @@ openscad:
 publication:
   production:
     source_branch: main
-    build_branch: prod/build
-    verification_branch: prod/verification
+    build_branch: prod/bld
+    verification_branch: prod/vrf
 
   development:
-    # An open PR #42 publishes to dev/pr-42/build and dev/pr-42/verification.
+    # An open PR #42 publishes to dev/pr-42/bld and dev/pr-42/vrf.
     # Ordinary feature-branch pushes are artifact-only by default.
     pr_branch_prefix: dev/pr
 
