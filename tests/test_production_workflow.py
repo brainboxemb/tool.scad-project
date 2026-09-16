@@ -24,6 +24,7 @@ import yaml
 
 
 WORKFLOW = Path(".github/workflows/project-production.yml")
+CLEANUP_WORKFLOW = Path(".github/workflows/project-pr-cleanup.yml")
 
 
 def test_production_workflow_uses_one_host_orchestrator_job():
@@ -33,6 +34,18 @@ def test_production_workflow_uses_one_host_orchestrator_job():
     job = data["jobs"]["production"]
     assert job["runs-on"] == "ubuntu-24.04"
     assert "container" not in job
+
+
+def test_production_workflow_uses_compact_publication_namespace_defaults():
+    data = yaml.safe_load(WORKFLOW.read_text(encoding="utf-8"))
+    inputs = data[True]["workflow_call"]["inputs"]
+
+    assert inputs["build_branch_suffix"]["default"] == "bld"
+    assert inputs["verification_branch_suffix"]["default"] == "vrf"
+
+    cleanup = CLEANUP_WORKFLOW.read_text(encoding="utf-8")
+    assert "for SUFFIX in bld vrf; do" in cleanup
+    assert "for KIND in build verification; do" not in cleanup
 
 
 def test_production_workflow_uses_one_moon_impact_query_and_v028_contract():
