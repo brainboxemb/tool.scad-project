@@ -234,7 +234,7 @@ def test_workflow_timeouts_are_bounded():
             "steps": {
                 "Checkout release workflow ref with full history": 2,
                 "Resolve and validate release request": 2,
-                "Create annotated release tag": 2,
+                "Create lightweight release tag": 2,
                 "Dispatch tests on released tag": 2,
                 "Remove release request branch": 2,
             },
