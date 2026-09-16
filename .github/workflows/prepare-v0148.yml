@@ -1,16 +1,19 @@
 name: Prepare v0.14.8 release
 
 on:
-  push:
+  pull_request:
     branches:
-      - feature/release-v0.14.8
+      - main
+    types:
+      - opened
+      - synchronize
 
 permissions:
   contents: write
 
 jobs:
   prepare:
-    if: github.event.head_commit.message == 'Add temporary v0.14.8 release-prep helper'
+    if: github.head_ref == 'feature/release-v0.14.8'
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
