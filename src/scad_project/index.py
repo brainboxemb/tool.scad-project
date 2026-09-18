@@ -11,7 +11,7 @@ from .publish import resolve_publication_target
 
 KNOWN_SECTIONS = (
     ("design", "Design documentation", "design/README.md"),
-    ("png", "PNG renders", "png/README.md"),
+    ("png", "PNG renders", "png/00-README.md"),
     ("stl", "STL exports", "stl/"),
 )
 
@@ -56,7 +56,7 @@ def write_png_index(png_root: Path) -> Path:
     else:
         lines.extend(["No PNG renders are present.", ""])
 
-    output = png_root / "README.md"
+    output = png_root / "00-README.md"
     output.write_text("\n".join(lines), encoding="utf-8")
     return output
 

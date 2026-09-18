@@ -43,9 +43,9 @@ def test_build_index_links_only_existing_sections(tmp_path: Path):
     output = write_build_index(context(tmp_path))
     text = output.read_text(encoding="utf-8")
     assert "Design documentation" in text
-    assert "[PNG renders](png/README.md)" in text
+    assert "[PNG renders](png/00-README.md)" in text
     assert "STL exports" not in text
-    assert (tmp_path / "bld/png/README.md").is_file()
+    assert (tmp_path / "bld/png/00-README.md").is_file()
 
 
 def test_png_index_lists_generated_images_deterministically(tmp_path: Path):
@@ -72,7 +72,7 @@ def test_png_index_handles_empty_directory(tmp_path: Path):
     output = write_png_index(png_root)
     text = output.read_text(encoding="utf-8")
 
-    assert output == png_root / "README.md"
+    assert output == png_root / "00-README.md"
     assert "No PNG renders are present." in text
 
 
