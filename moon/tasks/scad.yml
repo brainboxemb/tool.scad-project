@@ -29,7 +29,9 @@ tasks:
       - 'tools/tool.scad-project/scripts/run_scad_capability.py'
     outputs:
       - 'bld/png/**'
+      - 'bld/svg/**'
       - 'bld/stl/**'
+      - 'bld/drawing/**'
       - 'bld/evidence/executions/scad-build/**'
     options:
       cache: true

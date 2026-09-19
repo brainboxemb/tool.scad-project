@@ -2,6 +2,39 @@
 
 Functional changes to released `tool.scad-project` versions.
 
+## v0.15.0
+
+### Added
+
+- Add a project-owned `drawing:` producer contract with explicit command,
+  inputs and outputs. The first output is the canonical SVG; optional PNG/PDF
+  siblings remain producer-owned publication artifacts.
+- Execute the same drawing producer through direct and SCons build engines.
+- Include declared drawing inputs, transitive dependencies of declared SCAD
+  inputs, command argv and all declared outputs in SCons target/cache identity.
+- Select the dedicated
+  `ghcr.io/brainboxemb/scad-toolchain-drawing:v0.6.1` runtime automatically
+  when drawing production is configured.
+
+### Changed
+
+- Advance all SCAD runtime profiles to externally qualified
+  `docker.scad-toolchain v0.6.1`
+  (`test-v0.6.1-toolchain-v0.6.1`).
+- Rotate runtime-sensitive SCons cache namespaces from v0.5.3 to v0.6.1.
+- Expose `bld/svg/**` and `bld/drawing/**` as stable `scad.build` Moon
+  outputs.
+- Advance the reusable workflow/tool release line to v0.15.0.
+
+### Boundary
+
+- The runtime image owns generic OpenSCAD/Python/drawsvg/Inkscape executables.
+- `tool.scad-project` owns runtime selection, producer orchestration and cache
+  semantics.
+- Consumer repositories own drawing source, layout and visual conventions.
+- PythonSCAD + drawing remains an explicit unsupported combination until a
+  qualified runtime profile provides both capabilities.
+
 ## v0.14.15
 
 ### Fixed

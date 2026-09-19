@@ -16,9 +16,10 @@ from .config import ProjectContext, load_context, validate_config
 
 SCAD_CAPABILITIES = ("scad.docs", "scad.build", "scad.verify")
 BUILD_PUBLICATION_CAPABILITIES = ("scad.docs", "scad.build")
-TOOLCHAIN_VERSION = "v0.5.3"
+TOOLCHAIN_VERSION = "v0.6.1"
 RUNTIME_IMAGES = {
     "openscad": f"ghcr.io/brainboxemb/scad-toolchain-openscad:{TOOLCHAIN_VERSION}",
+    "drawing": f"ghcr.io/brainboxemb/scad-toolchain-drawing:{TOOLCHAIN_VERSION}",
     "full": f"ghcr.io/brainboxemb/scad-toolchain:{TOOLCHAIN_VERSION}",
 }
 
@@ -106,6 +107,7 @@ def _configured_capabilities(context: ProjectContext) -> tuple[str, ...]:
         or paths.get("render_roots")
         or paths.get("export_root")
         or (config.get("builds", []) or [])
+        or config.get("drawing") is not None
     ):
         values.append("scad.build")
 
@@ -187,7 +189,17 @@ def build_ci_plan(context: ProjectContext) -> CiPlan:
     pythonscad = context.config.get("pythonscad")
     if pythonscad is not None and not isinstance(pythonscad, dict):
         raise CiPolicyError("pythonscad must be a mapping when configured")
-    runtime_profile = "full" if pythonscad is not None else "openscad"
+    drawing = context.config.get("drawing")
+    if drawing is not None and pythonscad is not None:
+        raise CiPolicyError(
+            "drawing and pythonscad cannot currently share one runtime profile"
+        )
+    if drawing is not None:
+        runtime_profile = "drawing"
+    elif pythonscad is not None:
+        runtime_profile = "full"
+    else:
+        runtime_profile = "openscad"
 
     build_engine = str(
         (context.config.get("build_engine", {}) or {}).get("engine", "direct")

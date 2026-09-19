@@ -20,6 +20,25 @@ def _project_path(root: Path, value: str) -> Path:
 def _execute_target(spec: dict, root: Path, execution_log: Path) -> int:
     source = _project_path(root, spec["source"])
     output = _project_path(root, spec["output"])
+
+    if spec.get("kind") == "drawing":
+        outputs = [
+            _project_path(root, str(value))
+            for value in spec.get("outputs", [spec["output"]])
+        ]
+        for drawing_output in outputs:
+            drawing_output.parent.mkdir(parents=True, exist_ok=True)
+            drawing_output.unlink(missing_ok=True)
+        run_checked([str(value) for value in spec["command"]], cwd=root)
+        for drawing_output in outputs:
+            _require_output(drawing_output)
+
+        execution_log.parent.mkdir(parents=True, exist_ok=True)
+        with execution_log.open("a", encoding="utf-8") as handle:
+            handle.write(spec["output"] + "\n")
+        print(f"SCons built: {output.relative_to(root)}")
+        return 0
+
     common = [str(value) for value in spec.get("common_flags", [])]
     render_flags = [str(value) for value in spec.get("render_flags", ["--render"])]
     definitions = [
@@ -126,12 +145,23 @@ search_paths = [Path(value).resolve() for value in manifest.get("search_paths", 
 
 nodes = []
 for spec in manifest["targets"]:
-    source_path = _project_path(project_root, spec["source"])
-    dependencies = scan_openscad_dependencies(
-        source_path,
-        search_paths=search_paths,
-    )
-    source_nodes = [str(source_path), *[str(path) for path in dependencies]]
+    if spec.get("kind") == "drawing":
+        source_nodes = [
+            str(_project_path(project_root, str(value)))
+            for value in spec.get("sources", spec.get("inputs", []))
+        ]
+        target_paths = [
+            str(_project_path(project_root, str(value)))
+            for value in spec.get("outputs", [spec["output"]])
+        ]
+    else:
+        source_path = _project_path(project_root, spec["source"])
+        dependencies = scan_openscad_dependencies(
+            source_path,
+            search_paths=search_paths,
+        )
+        source_nodes = [str(source_path), *[str(path) for path in dependencies]]
+        target_paths = [str(_project_path(project_root, spec["output"]))]
 
     # Telemetry-only runtime fields must not participate in SCons' target
     # signature. Otherwise the transition from an absent output to an existing
@@ -144,7 +174,7 @@ for spec in manifest["targets"]:
     spec_json = json.dumps(action_spec, sort_keys=True, separators=(",", ":"))
 
     target_node = Command(
-        str(_project_path(project_root, spec["output"])),
+        target_paths,
         source_nodes,
         _action,
         TARGET_SPEC=spec_json,

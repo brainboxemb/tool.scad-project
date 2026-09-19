@@ -261,3 +261,123 @@ def test_scons_render_format_change_uses_distinct_cache_target(tmp_path):
     restored = json.loads(report_path.read_text(encoding="utf-8"))
     assert restored["targets"][0]["output"] == "bld/svg/drawing.svg"
     assert restored["targets"][0]["outcome"] == "CACHE_RESTORED"
+
+
+def test_scons_manifest_tracks_drawing_command_inputs_and_outputs(tmp_path, monkeypatch):
+    producer = tmp_path / "dsg" / "drawing" / "build.py"
+    source = tmp_path / "dsg" / "openscad" / "profile.scad"
+    helper = tmp_path / "dsg" / "openscad" / "helper.scad"
+    producer.parent.mkdir(parents=True)
+    source.parent.mkdir(parents=True)
+    producer.write_text("# producer\n", encoding="utf-8")
+    helper.write_text("module helper() { square(1); }\n", encoding="utf-8")
+    source.write_text("include <helper.scad>\nhelper();\n", encoding="utf-8")
+
+    context = ProjectContext(
+        tmp_path,
+        tmp_path / "project.yml",
+        {
+            "project": {"name": "demo"},
+            "paths": {"design_root": "dsg", "build_root": "bld"},
+            "openscad": {"image_size": [800, 600]},
+            "externals": [],
+            "build_engine": {"engine": "scons"},
+            "drawing": {
+                "command": ["python3", "dsg/drawing/build.py"],
+                "inputs": [
+                    "dsg/drawing/build.py",
+                    "dsg/openscad/profile.scad",
+                ],
+                "outputs": [
+                    "bld/drawing/profile.svg",
+                    "bld/drawing/profile.png",
+                    "bld/drawing/profile.pdf",
+                ],
+            },
+        },
+    )
+    monkeypatch.setattr(build_engine, "_backend_signature", lambda: "backend-test")
+
+    targets = build_engine.direct_build._build_targets(context, (800, 600))
+    manifest = build_engine._write_manifest(
+        context,
+        targets,
+        common=[],
+        render_flags=["--render"],
+        watermark_text=None,
+    )
+    payload = json.loads(manifest.read_text(encoding="utf-8"))
+    drawing = payload["targets"][0]
+
+    assert drawing["kind"] == "drawing"
+    assert drawing["command"] == ["python3", "dsg/drawing/build.py"]
+    assert drawing["output"] == "bld/drawing/profile.svg"
+    assert drawing["outputs"] == [
+        "bld/drawing/profile.svg",
+        "bld/drawing/profile.png",
+        "bld/drawing/profile.pdf",
+    ]
+    assert drawing["sources"] == [
+        "dsg/drawing/build.py",
+        "dsg/openscad/profile.scad",
+        "dsg/openscad/helper.scad",
+    ]
+
+
+def test_scons_engine_runs_one_multi_output_drawing_producer(tmp_path):
+    if shutil.which("scons") is None:
+        pytest.skip("SCons is not installed")
+
+    producer = tmp_path / "dsg" / "drawing" / "build.py"
+    producer.parent.mkdir(parents=True)
+    producer.write_text(
+        """from pathlib import Path
+for value in (
+    "bld/drawing/profile.svg",
+    "bld/drawing/profile.png",
+    "bld/drawing/profile.pdf",
+):
+    path = Path(value)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text("drawing", encoding="utf-8")
+""",
+        encoding="utf-8",
+    )
+
+    context = ProjectContext(
+        tmp_path,
+        tmp_path / "project.yml",
+        {
+            "project": {"name": "demo"},
+            "paths": {"design_root": "dsg", "build_root": "bld"},
+            "openscad": {"image_size": [800, 600]},
+            "externals": [],
+            "build_engine": {"engine": "scons"},
+            "drawing": {
+                "command": ["python3", "dsg/drawing/build.py"],
+                "inputs": ["dsg/drawing/build.py"],
+                "outputs": [
+                    "bld/drawing/profile.svg",
+                    "bld/drawing/profile.png",
+                    "bld/drawing/profile.pdf",
+                ],
+            },
+        },
+    )
+
+    build_engine.build_project(context)
+
+    for suffix in ("svg", "png", "pdf"):
+        assert (tmp_path / "bld" / "drawing" / f"profile.{suffix}").is_file()
+
+    report = json.loads(
+        (
+            tmp_path
+            / ".cache"
+            / "scad-project"
+            / "state"
+            / "last-build.json"
+        ).read_text(encoding="utf-8")
+    )
+    assert report["targets"][0]["output"] == "bld/drawing/profile.svg"
+    assert report["targets"][0]["outcome"] == "BUILT"

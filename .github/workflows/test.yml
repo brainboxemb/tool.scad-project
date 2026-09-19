@@ -16,7 +16,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     container:
-      image: ghcr.io/brainboxemb/scad-toolchain:v0.5.3
+      image: ghcr.io/brainboxemb/scad-toolchain:v0.6.1
     env:
       PYTHONDONTWRITEBYTECODE: '1'
 

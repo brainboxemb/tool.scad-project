@@ -106,8 +106,8 @@ verification:
 
     assert plan.capabilities == ("scad.docs", "scad.verify")
     assert plan.runtime_profile == "full"
-    assert plan.toolchain_version == "v0.5.3"
-    assert plan.runtime_image == "ghcr.io/brainboxemb/scad-toolchain:v0.5.3"
+    assert plan.toolchain_version == "v0.6.1"
+    assert plan.runtime_image == "ghcr.io/brainboxemb/scad-toolchain:v0.6.1"
     assert plan.build_engine == "direct"
     assert plan.use_scons_cache is False
     assert plan.use_verification_scons_cache is False
@@ -117,8 +117,8 @@ def test_openscad_scons_presentation_project_plan(tmp_path: Path):
     plan = _hub_plan(tmp_path)
 
     assert plan.runtime_profile == "openscad"
-    assert plan.toolchain_version == "v0.5.3"
-    assert plan.runtime_image == "ghcr.io/brainboxemb/scad-toolchain-openscad:v0.5.3"
+    assert plan.toolchain_version == "v0.6.1"
+    assert plan.runtime_image == "ghcr.io/brainboxemb/scad-toolchain-openscad:v0.6.1"
     assert plan.build_engine == "scons"
     assert plan.use_scons_cache is True
     assert plan.use_verification_scons_cache is False
@@ -340,3 +340,55 @@ openscad: {}
 
     plan = build_ci_plan(load_context(tmp_path))
     assert plan.capabilities == ("scad.docs", "scad.build")
+
+
+def test_drawing_project_selects_dedicated_runtime_and_build_capability(tmp_path: Path):
+    _write_repository(
+        tmp_path,
+        profile="""paths:
+  design_root: .
+  build_root: bld
+openscad: {}
+drawing:
+  command: [python3, dsg/drawing/build.py]
+  inputs:
+    - dsg/drawing/build.py
+  outputs:
+    - bld/drawing/profile.svg
+    - bld/drawing/profile.png
+    - bld/drawing/profile.pdf
+""",
+        capabilities=["scad.docs", "scad.build"],
+    )
+
+    plan = build_ci_plan(load_context(tmp_path))
+
+    assert plan.runtime_profile == "drawing"
+    assert plan.toolchain_version == "v0.6.1"
+    assert (
+        plan.runtime_image
+        == "ghcr.io/brainboxemb/scad-toolchain-drawing:v0.6.1"
+    )
+
+
+def test_drawing_and_pythonscad_combination_is_rejected(tmp_path: Path):
+    _write_repository(
+        tmp_path,
+        profile="""paths:
+  design_root: .
+  build_root: bld
+openscad: {}
+pythonscad: {}
+drawing:
+  command: [python3, dsg/drawing/build.py]
+  inputs: [dsg/drawing/build.py]
+  outputs: [bld/drawing/profile.svg]
+""",
+        capabilities=["scad.docs", "scad.build"],
+    )
+
+    with pytest.raises(
+        CiPolicyError,
+        match="drawing and pythonscad cannot currently share one runtime profile",
+    ):
+        build_ci_plan(load_context(tmp_path))

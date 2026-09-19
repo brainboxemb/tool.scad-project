@@ -1,4 +1,4 @@
-"""Build configured OpenSCAD PNG, STL and explicit SVG outputs."""
+"""Build configured OpenSCAD outputs and optional project-owned drawings."""
 
 from __future__ import annotations
 
@@ -263,6 +263,31 @@ def _explicit_targets(
     return targets
 
 
+def _drawing_target(context: ProjectContext) -> dict[str, Any] | None:
+    drawing = context.config.get("drawing")
+    if drawing is None:
+        return None
+    if not isinstance(drawing, dict):
+        raise RuntimeError("drawing must be a mapping")
+
+    command = [str(value) for value in drawing.get("command", [])]
+    inputs = [context.path(str(value)) for value in drawing.get("inputs", [])]
+    outputs = [context.path(str(value)) for value in drawing.get("outputs", [])]
+    if not command or not inputs or not outputs:
+        raise RuntimeError(
+            "drawing requires non-empty command, inputs and outputs declarations"
+        )
+
+    return {
+        "kind": "drawing",
+        "source": inputs[0],
+        "inputs": inputs,
+        "output": outputs[0],
+        "outputs": outputs,
+        "command": command,
+    }
+
+
 def _build_targets(
     context: ProjectContext,
     default_image_size: tuple[int, int],
@@ -299,6 +324,20 @@ def _build_targets(
     for target in _explicit_targets(context, default_image_size):
         by_output[target["output"]] = target
 
+    drawing = _drawing_target(context)
+    if drawing is not None:
+        conflicts = [
+            output
+            for output in drawing["outputs"]
+            if output in by_output
+        ]
+        if conflicts:
+            names = ", ".join(str(path) for path in conflicts)
+            raise RuntimeError(
+                f"Drawing output conflicts with an OpenSCAD build target: {names}"
+            )
+        by_output[drawing["output"]] = drawing
+
     return list(by_output.values())
 
 
@@ -317,6 +356,17 @@ def build_project(context: ProjectContext) -> None:
     for target in _build_targets(context, default_image_size):
         source: Path = target["source"]
         output: Path = target["output"]
+
+        if target.get("kind") == "drawing":
+            outputs = [Path(path) for path in target["outputs"]]
+            for drawing_output in outputs:
+                drawing_output.parent.mkdir(parents=True, exist_ok=True)
+                drawing_output.unlink(missing_ok=True)
+            run_checked([str(value) for value in target["command"]], cwd=context.root)
+            for drawing_output in outputs:
+                _require_output(drawing_output)
+            continue
+
         definitions = [
             item
             for definition in target.get("definitions", [])

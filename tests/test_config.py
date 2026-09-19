@@ -223,3 +223,78 @@ def test_render_roots_reject_invalid_values(tmp_path: Path):
         },
     )
     assert "paths.render_roots must contain path strings" in validate_config(ctx)
+
+
+def test_project_owned_drawing_contract_is_valid(tmp_path: Path):
+    ctx = ProjectContext(
+        tmp_path,
+        tmp_path / "project.yml",
+        {
+            "project": {"name": "demo"},
+            "paths": {"design_root": "dsg", "build_root": "bld"},
+            "externals": [],
+            "drawing": {
+                "command": ["python3", "dsg/drawing/build.py"],
+                "inputs": [
+                    "dsg/drawing/build.py",
+                    "dsg/openscad/profile.scad",
+                ],
+                "outputs": [
+                    "bld/drawing/profile.svg",
+                    "bld/drawing/profile.png",
+                    "bld/drawing/profile.pdf",
+                ],
+            },
+        },
+    )
+
+    assert validate_config(ctx) == []
+
+
+def test_drawing_requires_canonical_svg_and_build_root_outputs(tmp_path: Path):
+    ctx = ProjectContext(
+        tmp_path,
+        tmp_path / "project.yml",
+        {
+            "project": {"name": "demo"},
+            "paths": {"design_root": "dsg", "build_root": "bld"},
+            "externals": [],
+            "drawing": {
+                "command": ["python3", "dsg/drawing/build.py"],
+                "inputs": ["dsg/drawing/build.py"],
+                "outputs": [
+                    "outside/profile.png",
+                    "bld/drawing/profile.svg",
+                ],
+            },
+        },
+    )
+
+    errors = validate_config(ctx)
+    assert "drawing.outputs[0] must be the canonical .svg drawing" in errors
+    assert (
+        "drawing output must stay under paths.build_root: outside/profile.png"
+        in errors
+    )
+
+
+def test_drawing_output_cannot_escape_build_root_with_parent_segments(tmp_path: Path):
+    ctx = ProjectContext(
+        tmp_path,
+        tmp_path / "project.yml",
+        {
+            "project": {"name": "demo"},
+            "paths": {"design_root": "dsg", "build_root": "bld"},
+            "externals": [],
+            "drawing": {
+                "command": ["python3", "dsg/drawing/build.py"],
+                "inputs": ["dsg/drawing/build.py"],
+                "outputs": ["bld/../outside.svg"],
+            },
+        },
+    )
+
+    assert (
+        "drawing output must stay under paths.build_root: bld/../outside.svg"
+        in validate_config(ctx)
+    )

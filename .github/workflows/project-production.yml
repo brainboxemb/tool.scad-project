@@ -76,8 +76,8 @@ jobs:
       source_sha: ${{ steps.range.outputs.source_sha }}
       base_sha: ${{ steps.range.outputs.base_sha }}
     env:
-      SCAD_PROJECT_WORKFLOW_VERSION: v0.14.15
-      SCAD_TOOLCHAIN_VERSION: v0.5.3
+      SCAD_PROJECT_WORKFLOW_VERSION: v0.15.0
+      SCAD_TOOLCHAIN_VERSION: v0.6.1
       SCAD_WORKFLOW_TIMINGS: .moon/preflight/workflow-timings.json
       PYTHONDONTWRITEBYTECODE: '1'
 
@@ -307,9 +307,9 @@ jobs:
         uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
         with:
           path: .cache/scad-project/scons
-          key: scad-production-build-scons-v2-${{ runner.os }}-${{ github.repository_id }}-v0.5.3-${{ env.SCAD_PROJECT_TOOL_SHA }}-${{ github.run_id }}-${{ github.run_attempt }}
+          key: scad-production-build-scons-v2-${{ runner.os }}-${{ github.repository_id }}-v0.6.1-${{ env.SCAD_PROJECT_TOOL_SHA }}-${{ github.run_id }}-${{ github.run_attempt }}
           restore-keys: |
-            scad-production-build-scons-v2-${{ runner.os }}-${{ github.repository_id }}-v0.5.3-${{ env.SCAD_PROJECT_TOOL_SHA }}-
+            scad-production-build-scons-v2-${{ runner.os }}-${{ github.repository_id }}-v0.6.1-${{ env.SCAD_PROJECT_TOOL_SHA }}-
 
       - name: Restore configured Verification SCons cache
         id: verification-cache
@@ -317,9 +317,9 @@ jobs:
         uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
         with:
           path: .cache/scad-project/verification-scons
-          key: scad-production-verification-scons-v2-${{ runner.os }}-${{ github.repository_id }}-v0.5.3-${{ env.SCAD_PROJECT_TOOL_SHA }}-${{ github.run_id }}-${{ github.run_attempt }}
+          key: scad-production-verification-scons-v2-${{ runner.os }}-${{ github.repository_id }}-v0.6.1-${{ env.SCAD_PROJECT_TOOL_SHA }}-${{ github.run_id }}-${{ github.run_attempt }}
           restore-keys: |
-            scad-production-verification-scons-v2-${{ runner.os }}-${{ github.repository_id }}-v0.5.3-${{ env.SCAD_PROJECT_TOOL_SHA }}-
+            scad-production-verification-scons-v2-${{ runner.os }}-${{ github.repository_id }}-v0.6.1-${{ env.SCAD_PROJECT_TOOL_SHA }}-
 
       - name: Pull capability-appropriate SCAD runtime
         if: steps.plan.outputs.run_runtime == 'true'
