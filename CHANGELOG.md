@@ -2,6 +2,20 @@
 
 Functional changes to released `tool.scad-project` versions.
 
+## v0.14.15
+
+### Fixed
+
+- Make the SCons design-documentation index use the same specification-first
+  structure as the direct backend: Specifications, Design documents, then
+  Externals.
+- Add regression coverage so both backends keep the shared documentation model.
+
+### Boundary
+
+- Documentation index generation only; render, geometry and cache semantics are
+  unchanged.
+
 ## v0.14.14
 
 ### Added

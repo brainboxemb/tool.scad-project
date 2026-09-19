@@ -148,17 +148,39 @@ def _write_report(context: ProjectContext, manifest: Path) -> dict[str, Any]:
 
 def _write_index(stage: Path, documents: list[_design.DesignDocument]) -> None:
     lines = [
-        "# Design documentation",
+        "# SCAD engineering documentation",
         "",
-        "Generated from source `design.md` files.",
-        "",
-        "## Project",
+        "Generated from source `specification.md` and `design.md` files.",
         "",
     ]
 
-    project_docs = [document for document in documents if document.scope == "project"]
-    if project_docs:
-        for document in project_docs:
+    project_docs = [
+        document for document in documents
+        if document.scope == "project"
+    ]
+    project_specs = [
+        document for document in project_docs
+        if document.document_type == "specification"
+    ]
+    project_designs = [
+        document for document in project_docs
+        if document.document_type == "design"
+    ]
+
+    lines += ["## Specifications", ""]
+    if project_specs:
+        for document in project_specs:
+            link = Path("project") / document.relative_path
+            lines.append(
+                f"- [{document.relative_path.as_posix()}]"
+                f"({link.as_posix()})"
+            )
+    else:
+        lines.append("- No project specification documents found.")
+
+    lines += ["", "## Design documents", ""]
+    if project_designs:
+        for document in project_designs:
             link = Path("project") / document.relative_path
             lines.append(
                 f"- [{document.relative_path.as_posix()}]"
@@ -168,7 +190,10 @@ def _write_index(stage: Path, documents: list[_design.DesignDocument]) -> None:
         lines.append("- No project design documents found.")
 
     lines += ["", "## Externals", ""]
-    external_docs = [document for document in documents if document.scope == "external"]
+    external_docs = [
+        document for document in documents
+        if document.scope == "external"
+    ]
     if external_docs:
         for document in external_docs:
             assert document.external_name

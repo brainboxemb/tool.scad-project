@@ -310,3 +310,10 @@ When adding or changing generic SCAD behavior:
 5. validate against a representative current consumer where appropriate;
 6. update meta cross-project evidence without copying volatile implementation
    details there.
+
+## Specification/design index parity
+
+The direct and SCons design backends must expose the same generated documentation
+structure. Project `specification/specification.md` documents are listed before
+component `design/design.md` documents; backend choice must not change the
+reader-facing engineering-documentation model.
