@@ -200,6 +200,19 @@ Optional `render.yml` and `export.yml` files beside entrypoints define variants,
 sizes and output-name patterns. Explicit `builds:` mappings remain available for
 exceptional source/output mappings.
 
+Explicit builds may also export true 2D OpenSCAD geometry as SVG:
+
+```yaml
+builds:
+  - name: receiver-drawing
+    source: dsg/openscad/drawing/receiver.scad
+    output: bld/svg/receiver.svg
+```
+
+SVG does not change the directory conventions above and does not introduce a
+generic drawing policy. The consumer owns the 2D drawing source/layout; the
+shared tool only treats `.svg` as another supported OpenSCAD output format.
+
 ## Selective SCons build engine
 
 SCons is an optional fine-grained backend behind the normal SCAD commands:

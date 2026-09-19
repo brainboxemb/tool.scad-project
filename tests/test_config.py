@@ -144,3 +144,45 @@ def test_directory_build_paths_reject_empty_values(tmp_path: Path):
     errors = validate_config(ctx)
     assert "paths.render_root must be a non-empty path string" in errors
     assert "paths.export_root must be a non-empty path string" in errors
+
+
+def test_explicit_svg_build_output_is_valid(tmp_path: Path):
+    ctx = ProjectContext(
+        tmp_path,
+        tmp_path / "project.yml",
+        {
+            "project": {"name": "demo"},
+            "paths": {"design_root": "dsg", "build_root": "bld"},
+            "externals": [],
+            "builds": [
+                {
+                    "name": "receiver-drawing",
+                    "source": "dsg/openscad/drawing/receiver.scad",
+                    "output": "bld/svg/receiver.svg",
+                }
+            ],
+        },
+    )
+    assert validate_config(ctx) == []
+
+
+def test_unknown_explicit_build_output_extension_is_rejected(tmp_path: Path):
+    ctx = ProjectContext(
+        tmp_path,
+        tmp_path / "project.yml",
+        {
+            "project": {"name": "demo"},
+            "paths": {"design_root": "dsg", "build_root": "bld"},
+            "externals": [],
+            "builds": [
+                {
+                    "name": "receiver-drawing",
+                    "source": "dsg/openscad/drawing/receiver.scad",
+                    "output": "bld/drawing/receiver.dxf",
+                }
+            ],
+        },
+    )
+    assert validate_config(ctx) == [
+        "Unsupported build output extension: bld/drawing/receiver.dxf"
+    ]

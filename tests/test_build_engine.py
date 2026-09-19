@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+import shutil
 
 import pytest
 
@@ -172,3 +173,37 @@ def test_report_uses_structured_outcomes(tmp_path):
         "BUILT",
         "CURRENT",
     ]
+
+
+def test_scons_engine_builds_explicit_svg_output(tmp_path):
+    if shutil.which("scons") is None or shutil.which("openscad") is None:
+        pytest.skip("SCons/OpenSCAD runtime is not installed")
+
+    source = tmp_path / "dsg" / "drawing" / "receiver.scad"
+    source.parent.mkdir(parents=True)
+    source.write_text("square([10, 6]);\n", encoding="utf-8")
+
+    context = ProjectContext(
+        tmp_path,
+        tmp_path / "project.yml",
+        {
+            "project": {"name": "demo"},
+            "paths": {"design_root": "dsg", "build_root": "bld"},
+            "openscad": {"image_size": [800, 600]},
+            "externals": [],
+            "build_engine": {"engine": "scons"},
+            "builds": [
+                {
+                    "name": "receiver-drawing",
+                    "source": "dsg/drawing/receiver.scad",
+                    "output": "bld/svg/receiver.svg",
+                }
+            ],
+        },
+    )
+
+    build_engine.build_project(context)
+
+    output = tmp_path / "bld" / "svg" / "receiver.svg"
+    assert output.is_file()
+    assert "<svg" in output.read_text(encoding="utf-8").lower()

@@ -2,6 +2,25 @@
 
 Functional changes to released `tool.scad-project` versions.
 
+## v0.14.12
+
+### Added
+
+- Allow explicit `builds:` mappings to emit 2D OpenSCAD `.svg` outputs.
+- Support the same SVG target path through both the direct and SCons build
+  engines, with regression coverage including a real SCons/OpenSCAD SVG export.
+
+### Boundary
+
+- Directory-based render/export conventions remain PNG/STL only. SVG is an
+  explicit-output capability; consumer projects own technical-drawing source,
+  layout and annotation policy.
+
+### Fixed
+
+- Correct the v0.14.11 runtime qualification reference to the actual unchanged
+  external suite record `test-v0.5.1-toolchain-v0.5.3`.
+
 ## v0.14.11
 
 ### Changed
@@ -17,7 +36,7 @@ Functional changes to released `tool.scad-project` versions.
 ### Verification
 
 - Runtime qualification:
-  `docker.scad-toolchain.test@test-v0.5.3-toolchain-v0.5.3`.
+  `docker.scad-toolchain.test@test-v0.5.1-toolchain-v0.5.3`.
 - Owner CI must be green on this release source before the immutable
   `tool.scad-project v0.14.11` tag is created.
 

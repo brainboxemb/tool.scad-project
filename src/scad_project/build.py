@@ -1,4 +1,4 @@
-"""Build OpenSCAD PNG and STL outputs from configured directories or legacy entries."""
+"""Build configured OpenSCAD PNG, STL and explicit SVG outputs."""
 
 from __future__ import annotations
 
@@ -318,7 +318,7 @@ def build_project(context: ProjectContext) -> None:
                 if render_output != output:
                     render_output.unlink(missing_ok=True)
 
-        elif output.suffix.lower() == ".stl":
+        elif output.suffix.lower() in {".stl", ".svg"}:
             if output.exists():
                 output.unlink()
             args = [

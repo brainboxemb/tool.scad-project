@@ -76,7 +76,7 @@ def _execute_target(spec: dict, root: Path, execution_log: Path) -> int:
             if render_output != output:
                 render_output.unlink(missing_ok=True)
 
-    elif output.suffix.lower() == ".stl":
+    elif output.suffix.lower() in {".stl", ".svg"}:
         if output.exists():
             output.unlink()
         run_checked(
