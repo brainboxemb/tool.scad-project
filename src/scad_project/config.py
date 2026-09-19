@@ -340,14 +340,9 @@ def validate_config(context: ProjectContext) -> list[str]:
                 paths = c.get("paths", {}) or {}
                 build_root = paths.get("build_root") if isinstance(paths, dict) else None
                 if isinstance(build_root, str) and build_root.strip():
-                    build_path = Path(build_root)
+                    build_path = context.path(build_root)
                     for output in drawing_outputs:
-                        output_path = Path(output)
-                        if output_path.is_absolute():
-                            errors.append(
-                                f"drawing output must stay under paths.build_root: {output}"
-                            )
-                            continue
+                        output_path = context.path(output)
                         try:
                             output_path.relative_to(build_path)
                         except ValueError:

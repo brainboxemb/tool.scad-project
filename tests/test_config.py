@@ -276,3 +276,25 @@ def test_drawing_requires_canonical_svg_and_build_root_outputs(tmp_path: Path):
         "drawing output must stay under paths.build_root: outside/profile.png"
         in errors
     )
+
+
+def test_drawing_output_cannot_escape_build_root_with_parent_segments(tmp_path: Path):
+    ctx = ProjectContext(
+        tmp_path,
+        tmp_path / "project.yml",
+        {
+            "project": {"name": "demo"},
+            "paths": {"design_root": "dsg", "build_root": "bld"},
+            "externals": [],
+            "drawing": {
+                "command": ["python3", "dsg/drawing/build.py"],
+                "inputs": ["dsg/drawing/build.py"],
+                "outputs": ["bld/../outside.svg"],
+            },
+        },
+    )
+
+    assert (
+        "drawing output must stay under paths.build_root: bld/../outside.svg"
+        in validate_config(ctx)
+    )
