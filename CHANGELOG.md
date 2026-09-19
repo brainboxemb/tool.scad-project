@@ -2,6 +2,34 @@
 
 Functional changes to released `tool.scad-project` versions.
 
+## Unreleased
+
+### Fixed
+
+- Make consumer repository updates Python-free: the root update wrappers call the pinned native `tool.git-project` updater directly and synchronize SCAD reusable-workflow refs natively from the configured `tool.scad-project` dependency ref.
+- Avoid the Windows Microsoft Store Python execution-alias failure when a consumer only wants to update repository dependencies.
+
+
+## v0.15.1
+
+### Fixed
+
+- Make the canonical consumer `update-repo.ps1` and `update-repo.sh` path
+  Python-free again. Generic dependency movement now delegates directly to the
+  pinned native `tool.git-project` scripts, preserving Git as the only runtime
+  prerequisite for basic repository update.
+- Keep SCAD-specific reusable-workflow alignment in the updater with a minimal
+  native read of the configured `tool.scad-project` dependency ref.
+- Avoid the misleading Windows Microsoft Store Python-alias failure when a
+  consumer only wants to update repository dependencies.
+
+### Verification
+
+- Add policy coverage for both canonical updater copies.
+- Add an executable POSIX consumer test that proves generic-tool delegation and
+  workflow-ref synchronization from `v0.15.0` to `v0.15.1` without invoking
+  the Python SCAD CLI.
+
 ## v0.15.0
 
 ### Added
