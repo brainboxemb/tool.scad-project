@@ -23,7 +23,8 @@ import shutil
 import pytest
 
 from scad_project.config import ProjectContext
-from scad_project.design_scons import build_design
+from scad_project.design import DesignDocument
+from scad_project.design_scons import _write_index, build_design
 
 
 pytestmark = pytest.mark.skipif(
@@ -268,3 +269,33 @@ def test_design_svg_uses_distinct_scons_cache_target(tmp_path: Path):
     build_design(context)
     third = _report(tmp_path)
     assert third["targets"][0]["outcome"] == "BUILT"
+
+
+def test_scons_index_lists_specifications_before_design_documents(tmp_path: Path):
+    stage = tmp_path / "stage"
+    stage.mkdir()
+
+    documents = [
+        DesignDocument(
+            source_file=tmp_path / "specification.md",
+            scope="project",
+            relative_path=Path("specification/specification.md"),
+            document_type="specification",
+        ),
+        DesignDocument(
+            source_file=tmp_path / "design.md",
+            scope="project",
+            relative_path=Path("components/example/design/design.md"),
+            document_type="design",
+        ),
+    ]
+
+    _write_index(stage, documents)
+
+    text = (stage / "README.md").read_text(encoding="utf-8")
+    assert text.startswith("# SCAD engineering documentation\n")
+    assert "Generated from source `specification.md` and `design.md` files." in text
+    assert text.index("## Specifications") < text.index("## Design documents")
+    assert text.index("specification/specification.md") < text.index(
+        "components/example/design/design.md"
+    )
