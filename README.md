@@ -298,16 +298,26 @@ builds:
 
 ## Design documentation
 
-A component can keep its explanation next to the geometry:
+A project may define a shared specification for an interface/product contract,
+then keep component implementation design documents next to their geometry:
 
 ```text
-dsg/openscad/components/example/
-  example.scad
-  design/
-    design.md
+dsg/openscad/
+  specification/
+    specification.md
+  components/
+    example/
+      example.scad
+      design/
+        design.md
 ```
 
-The source `design.md` is authoritative. `scad-project design-build`
+`specification/specification.md` and `design/design.md` use the same render
+declarations. Generated documentation lists project specifications first, then
+component design documents. This keeps **what the interface must be** separate
+from **how each component realizes it**.
+
+The source Markdown files are authoritative. `scad-project design-build`
 copies the document into the generated design tree, renders its declared
 figures and replaces each render declaration with a normal Markdown image
 reference:
@@ -388,7 +398,7 @@ design.md
   scad-render (format: svg)         -> img/*.svg
 ```
 
-`design.include_externals: false` suppresses generated external design docs
+`design.include_externals: false` suppresses generated external specification/design docs
 while keeping external CAD source available to builds.
 
 ## Selective SCons build engine

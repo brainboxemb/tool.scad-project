@@ -1,6 +1,6 @@
 """Generate design documentation using OpenSCAD or PythonSCAD render backends.
 
-Source ``design.md`` files remain authoritative and are never modified.
+Source ``design.md`` and ``specification.md`` files remain authoritative and are never modified.
 ``scad-render-defaults`` and ``scad-render`` describe render intent; the render
 engine is selected explicitly when needed or inferred from the source suffix.
 
@@ -56,6 +56,7 @@ class DesignDocument:
     scope: str
     relative_path: Path
     external_name: str | None = None
+    document_type: str = "design"
 
 
 @dataclass(frozen=True)
@@ -100,8 +101,27 @@ def _inside(path: Path, parent: Path) -> bool:
         return False
 
 
+def _documentation_candidates(root: Path) -> list[tuple[str, Path]]:
+    """Return specifications before implementation design documents."""
+
+    return [
+        *[
+            ("specification", path)
+            for path in sorted(root.rglob("specification/specification.md"))
+        ],
+        *[
+            ("design", path)
+            for path in sorted(root.rglob("design/design.md"))
+        ],
+    ]
+
+
 def discover_design_documents(context: ProjectContext) -> list[DesignDocument]:
-    """Discover project and external ``design/design.md`` files.
+    """Discover project/external specification and design documents.
+
+    Project specifications are intentionally returned before implementation
+    design documents so generated indexes lead with the contract and then the
+    component-level realization.
 
     Configured external checkouts are excluded from project discovery and are
     added separately so generated paths retain the external repository name.
@@ -118,7 +138,7 @@ def discover_design_documents(context: ProjectContext) -> list[DesignDocument]:
         if not design_root.exists():
             continue
 
-        for path in sorted(design_root.rglob("design/design.md")):
+        for document_type, path in _documentation_candidates(design_root):
             resolved = path.resolve()
             if any(_inside(resolved, external_root) for external_root in external_roots):
                 continue
@@ -128,6 +148,7 @@ def discover_design_documents(context: ProjectContext) -> list[DesignDocument]:
                     source_file=resolved,
                     scope="project",
                     relative_path=resolved.relative_to(design_root.resolve()),
+                    document_type=document_type,
                 )
             )
 
@@ -136,13 +157,14 @@ def discover_design_documents(context: ProjectContext) -> list[DesignDocument]:
         if not root.exists():
             continue
 
-        for path in sorted(root.rglob("design/design.md")):
+        for document_type, path in _documentation_candidates(root):
             documents.append(
                 DesignDocument(
                     source_file=path.resolve(),
                     scope="external",
                     external_name=external.name,
                     relative_path=path.resolve().relative_to(root.resolve()),
+                    document_type=document_type,
                 )
             )
 
@@ -759,17 +781,34 @@ def build_design(context: ProjectContext) -> None:
                 warnings.append(message)
 
         lines = [
-            "# Design documentation",
+            "# SCAD engineering documentation",
             "",
-            "Generated from source `design.md` files.",
-            "",
-            "## Project",
+            "Generated from source `specification.md` and `design.md` files.",
             "",
         ]
 
         project_docs = [d for d in documents if d.scope == "project"]
-        if project_docs:
-            for document in project_docs:
+        project_specs = [
+            d for d in project_docs if d.document_type == "specification"
+        ]
+        project_designs = [
+            d for d in project_docs if d.document_type == "design"
+        ]
+
+        lines += ["## Specifications", ""]
+        if project_specs:
+            for document in project_specs:
+                link = Path("project") / document.relative_path
+                lines.append(
+                    f"- [{document.relative_path.as_posix()}]"
+                    f"({link.as_posix()})"
+                )
+        else:
+            lines.append("- No project specification documents found.")
+
+        lines += ["", "## Design documents", ""]
+        if project_designs:
+            for document in project_designs:
                 link = Path("project") / document.relative_path
                 lines.append(
                     f"- [{document.relative_path.as_posix()}]"
