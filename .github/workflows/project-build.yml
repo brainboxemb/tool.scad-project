@@ -51,7 +51,7 @@ jobs:
       image: ${{ inputs.runtime_image }}
 
     env:
-      SCAD_PROJECT_WORKFLOW_VERSION: v0.14.12
+      SCAD_PROJECT_WORKFLOW_VERSION: v0.14.13
       SCAD_TOOLCHAIN_IMAGE: ${{ inputs.runtime_image }}
       SCAD_TOOLCHAIN_VERSION: v0.5.3
       SCAD_PROJECT_RELEASE_VERSION: ${{ inputs.release_version }}

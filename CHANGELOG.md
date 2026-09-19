@@ -2,6 +2,33 @@
 
 Functional changes to released `tool.scad-project` versions.
 
+## v0.14.13
+
+### Added
+
+- Add `format: png | svg` to directory `render.yml` declarations, with PNG as
+  the backward-compatible default and per-profile override support.
+- Add `paths.render_roots` so consumers can keep separate 3D and 2D render
+  source directories while preserving legacy `render_root`.
+- Add the same PNG/SVG format contract to `scad-render-defaults` and
+  `scad-render` declarations in `design.md`; generated Markdown links to the
+  actual output extension.
+
+### Changed
+
+- Treat SVG as true 2D OpenSCAD output: no raster render flags, camera/image-size
+  arguments or watermarking.
+- Make directory and design SCons manifests format-sensitive. PNG/SVG outputs
+  use distinct target paths/cache identities, and raster-only inputs no longer
+  invalidate SVG targets.
+- Extend CI capability detection to recognize `render_roots`.
+
+### Verification
+
+- Owner tests cover direct PNG/SVG routing, per-profile format override,
+  multi-root discovery, design.md SVG validation/command construction and
+  actual SCons cache restore/rebuild behavior for SVG.
+
 ## v0.14.12
 
 ### Added
