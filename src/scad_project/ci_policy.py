@@ -16,7 +16,7 @@ from .config import ProjectContext, load_context, validate_config
 
 SCAD_CAPABILITIES = ("scad.docs", "scad.build", "scad.verify")
 BUILD_PUBLICATION_CAPABILITIES = ("scad.docs", "scad.build")
-TOOLCHAIN_VERSION = "v0.5.0"
+TOOLCHAIN_VERSION = "v0.5.1"
 RUNTIME_IMAGES = {
     "openscad": f"ghcr.io/brainboxemb/scad-toolchain-openscad:{TOOLCHAIN_VERSION}",
     "full": f"ghcr.io/brainboxemb/scad-toolchain:{TOOLCHAIN_VERSION}",

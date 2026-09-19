@@ -109,8 +109,8 @@ The planner derives and validates:
 Runtime selection is based on project intent, never repository names:
 
 ```text
-OpenSCAD-only -> ghcr.io/brainboxemb/scad-toolchain-openscad:v0.5.0
-PythonSCAD configured -> ghcr.io/brainboxemb/scad-toolchain:v0.5.0
+OpenSCAD-only -> ghcr.io/brainboxemb/scad-toolchain-openscad:v0.5.1
+PythonSCAD configured -> ghcr.io/brainboxemb/scad-toolchain:v0.5.1
 ```
 
 ## Affected work versus publication-safe materialization
@@ -247,7 +247,7 @@ Before a release of this lifecycle, owner tests plus reference-consumer evidence
 5. Moon can hydrate unchanged whole capabilities;
 6. direct projects perform no SCons transport;
 7. SCons projects retain only useful SCons cache paths;
-8. OpenSCAD-only and full/dual projects select the correct v0.5.0 image;
+8. OpenSCAD-only and full/dual projects select the correct v0.5.1 image;
 9. complete normal Build/Verification Actions artifacts are not duplicated;
 10. same-host Build/Verification publication remains isolated and correct;
 11. the coordinated release artifact hand-off still works;
