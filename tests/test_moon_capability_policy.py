@@ -37,7 +37,9 @@ def test_shared_capability_outputs_do_not_require_optional_engine_state() -> Non
     ]
     assert tasks["scad.build"]["outputs"] == [
         "bld/png/**",
+        "bld/svg/**",
         "bld/stl/**",
+        "bld/drawing/**",
         "bld/evidence/executions/scad-build/**",
     ]
     assert tasks["scad.verify"]["outputs"] == ["vrf/out/**"]

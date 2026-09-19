@@ -37,7 +37,7 @@ on:
         description: Qualified SCAD runtime image selected from project configuration
         required: false
         type: string
-        default: ghcr.io/brainboxemb/scad-toolchain:v0.5.3
+        default: ghcr.io/brainboxemb/scad-toolchain:v0.6.1
       use_verification_scons_cache:
         description: Restore/save Verification SCons objects only when verification render/export targets exist
         required: false
@@ -56,9 +56,9 @@ jobs:
       image: ${{ inputs.runtime_image }}
 
     env:
-      SCAD_PROJECT_WORKFLOW_VERSION: v0.14.15
+      SCAD_PROJECT_WORKFLOW_VERSION: v0.15.0
       SCAD_TOOLCHAIN_IMAGE: ${{ inputs.runtime_image }}
-      SCAD_TOOLCHAIN_VERSION: v0.5.3
+      SCAD_TOOLCHAIN_VERSION: v0.6.1
       SCAD_PROJECT_RELEASE_VERSION: ${{ inputs.release_version }}
       SCAD_PROJECT_SOURCE_SHA: ${{ inputs.source_sha || github.sha }}
       SCAD_PROJECT_PR_NUMBER: ${{ github.event.pull_request.number || '' }}

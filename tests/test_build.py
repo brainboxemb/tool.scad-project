@@ -432,3 +432,53 @@ profiles:
 
     assert (tmp_path / "bld" / "svg" / "drawing.svg").is_file()
     assert not (tmp_path / "bld" / "png" / "drawing.png").exists()
+
+
+def test_direct_build_runs_project_owned_drawing_producer_once(tmp_path, monkeypatch):
+    producer = tmp_path / "dsg" / "drawing" / "build.py"
+    source = tmp_path / "dsg" / "openscad" / "profile.scad"
+    producer.parent.mkdir(parents=True)
+    source.parent.mkdir(parents=True)
+    producer.write_text("# drawing producer\n", encoding="utf-8")
+    source.write_text("square([10, 6]);\n", encoding="utf-8")
+
+    outputs = [
+        tmp_path / "bld" / "drawing" / "profile.svg",
+        tmp_path / "bld" / "drawing" / "profile.png",
+        tmp_path / "bld" / "drawing" / "profile.pdf",
+    ]
+    ctx = ProjectContext(
+        tmp_path,
+        tmp_path / "project.yml",
+        {
+            "project": {"name": "demo"},
+            "paths": {"design_root": "dsg", "build_root": "bld"},
+            "externals": [],
+            "drawing": {
+                "command": ["python3", "dsg/drawing/build.py"],
+                "inputs": [
+                    "dsg/drawing/build.py",
+                    "dsg/openscad/profile.scad",
+                ],
+                "outputs": [
+                    "bld/drawing/profile.svg",
+                    "bld/drawing/profile.png",
+                    "bld/drawing/profile.pdf",
+                ],
+            },
+        },
+    )
+
+    calls = []
+
+    def fake_run(args, *, cwd):
+        calls.append(args)
+        for output in outputs:
+            output.parent.mkdir(parents=True, exist_ok=True)
+            output.write_bytes(b"drawing")
+
+    monkeypatch.setattr(build_module, "run_checked", fake_run)
+    build_module.build_project(ctx)
+
+    assert calls == [["python3", "dsg/drawing/build.py"]]
+    assert all(output.is_file() for output in outputs)

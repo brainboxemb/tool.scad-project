@@ -98,6 +98,29 @@ def _target_spec(
     backend_signature: str,
 ) -> dict[str, Any]:
     output = Path(target["output"])
+    if target.get("kind") == "drawing":
+        return {
+            "kind": "drawing",
+            "source": _relative_or_absolute(context.root, target["source"]),
+            "output": _relative_or_absolute(context.root, output),
+            "outputs": [
+                _relative_or_absolute(context.root, Path(value))
+                for value in target["outputs"]
+            ],
+            "inputs": [
+                _relative_or_absolute(context.root, Path(value))
+                for value in target["inputs"]
+            ],
+            "command": [str(value) for value in target["command"]],
+            "format": "drawing",
+            "image_size": None,
+            "definitions": [],
+            "common_flags": [],
+            "render_flags": [],
+            "watermark_text": None,
+            "backend_signature": backend_signature,
+        }
+
     output_format = str(target.get("format") or output.suffix.lstrip(".")).lower()
     raster = output_format == "png"
     return {
@@ -121,15 +144,33 @@ def _target_sources(
 ) -> list[str]:
     """Resolve the OpenSCAD source/dependency set recorded in telemetry."""
 
-    source = Path(str(spec["source"]))
-    if not source.is_absolute():
-        source = context.root / source
-    source = source.resolve()
-    dependencies = scan_openscad_dependencies(
-        source,
-        search_paths=[Path(value).resolve() for value in search_paths],
-    )
-    ordered = [source, *dependencies]
+    if spec.get("kind") == "drawing":
+        ordered: list[Path] = []
+        for value in spec.get("inputs", []):
+            source = Path(str(value))
+            if not source.is_absolute():
+                source = context.root / source
+            source = source.resolve()
+            ordered.append(source)
+            if source.suffix.lower() == ".scad":
+                ordered.extend(
+                    scan_openscad_dependencies(
+                        source,
+                        search_paths=[
+                            Path(value).resolve() for value in search_paths
+                        ],
+                    )
+                )
+    else:
+        source = Path(str(spec["source"]))
+        if not source.is_absolute():
+            source = context.root / source
+        source = source.resolve()
+        dependencies = scan_openscad_dependencies(
+            source,
+            search_paths=[Path(value).resolve() for value in search_paths],
+        )
+        ordered = [source, *dependencies]
     result: list[str] = []
     seen: set[str] = set()
     for path in ordered:

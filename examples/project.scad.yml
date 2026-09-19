@@ -27,6 +27,19 @@ openscad:
   # override both with its own `size: [width, height]`.
   design_image_size: [640, 480]
 
+# Optional project-owned technical-drawing producer. Declaring this selects the
+# dedicated drawing runtime with Python/drawsvg/Inkscape. The first output is
+# the canonical SVG; PNG/PDF are optional publication siblings.
+# drawing:
+#   command: [python3, dsg/drawing/build.py]
+#   inputs:
+#     - dsg/drawing/build.py
+#     - dsg/openscad/specification/profile.scad
+#   outputs:
+#     - bld/drawing/profile.svg
+#     - bld/drawing/profile.png
+#     - bld/drawing/profile.pdf
+
 publication:
   production:
     source_branch: main

@@ -189,8 +189,9 @@ different purposes:
 
 | Source/control | Purpose | Normal output |
 | --- | --- | --- |
-| render roots + `render.yml` | presentation renders and 2D vector drawings | `bld/png/*.png` or `bld/svg/*.svg` |
+| render roots + `render.yml` | presentation renders and simple 2D vector exports | `bld/png/*.png` or `bld/svg/*.svg` |
 | export root + `export.yml` | printable/manufacturing geometry | `bld/stl/*.stl` |
+| project `drawing` producer | composed technical drawing sheets | canonical `bld/drawing/*.svg` plus optional PNG/PDF |
 | component `design/design.md` | generated design documentation with embedded renders | `bld/design/.../design.md` + `img/*.png` or `img/*.svg` |
 
 PNG is the default render format. SVG is an opt-in 2D OpenSCAD output format.
@@ -295,6 +296,55 @@ builds:
     source: dsg/openscad/drawing/receiver.scad
     output: bld/svg/receiver.svg
 ```
+
+## Project-owned technical drawings
+
+A composed engineering drawing is different from a raw OpenSCAD SVG export.
+Projects that need sheet layout, dimensions, labels, title blocks and optional
+PNG/PDF publication can declare one project-owned drawing producer:
+
+```yaml
+drawing:
+  command:
+    - python3
+    - dsg/drawing/build.py
+  inputs:
+    - dsg/drawing/build.py
+    - dsg/openscad/specification/mating_profiles.scad
+  outputs:
+    - bld/drawing/mating-profiles.svg
+    - bld/drawing/mating-profiles.png
+    - bld/drawing/mating-profiles.pdf
+```
+
+The first output is the canonical SVG and is mandatory. Additional declared
+outputs may be SVG, PNG or PDF. All drawing outputs must stay below
+`paths.build_root`.
+
+The command is executed once from the project root and owns the actual drawing
+implementation. A normal consumer can therefore keep a readable code-driven
+pipeline such as:
+
+```text
+OpenSCAD geometry/projections
+    -> project Python + drawsvg
+    -> canonical SVG
+    -> Python invokes Inkscape
+    -> optional PNG / PDF
+```
+
+`tool.scad-project` does not contain a drawing template and does not duplicate
+drawsvg/Inkscape behavior. It validates the producer contract, selects the
+dedicated drawing runtime and checks that every declared output was produced.
+
+With the direct build engine the producer runs once per build. With SCons,
+`drawing.inputs`, the command and all declared outputs participate in target
+identity; declared `.scad` inputs also receive normal transitive OpenSCAD
+dependency scanning. Python helper modules or other producer inputs should be
+listed explicitly.
+
+The current runtime family does not combine PythonSCAD and the drawing profile,
+so configuring both `pythonscad:` and `drawing:` is rejected explicitly.
 
 ## Design documentation
 
@@ -526,7 +576,7 @@ values as cache identity.
 1. resolve exact source/base;
 2. ask released `tool.git-project v0.2.8` once for Moon's complete affected-task set;
 3. stop before Python planner/image/SCons work when no SCAD capability is affected;
-4. validate project intent and select the appropriate `docker.scad-toolchain v0.5.3`
+4. validate project intent and select the appropriate `docker.scad-toolchain v0.6.1`
    runtime profile;
 5. restore only applicable Moon/SCons cache paths;
 6. execute or hydrate required coarse capabilities in one Docker process;
@@ -581,18 +631,25 @@ and for Release.
 
 ## Runtime image family
 
-Current SCAD consumers use the released and externally qualified v0.5.3 image
-family. This runtime includes the pinned `openscad-new-dimensions` library to the
-shared OpenSCAD capability set while preserving the existing OpenSCAD/full
-profile split:
+Current SCAD consumers use the released and externally qualified v0.6.1 image
+family. Runtime selection follows configured capabilities:
 
 ```text
 OpenSCAD-focused:
-  ghcr.io/brainboxemb/scad-toolchain-openscad:v0.5.3
+  ghcr.io/brainboxemb/scad-toolchain-openscad:v0.6.1
+
+Technical drawing:
+  ghcr.io/brainboxemb/scad-toolchain-drawing:v0.6.1
+  adds drawsvg 2.4.2 and Inkscape
 
 Full/dual OpenSCAD + PythonSCAD:
-  ghcr.io/brainboxemb/scad-toolchain:v0.5.3
+  ghcr.io/brainboxemb/scad-toolchain:v0.6.1
 ```
+
+The current runtime line no longer carries `openscad-new-dimensions`; composed
+technical-drawing annotations belong to the project-owned Python/SVG layer.
+The immutable external qualification record is
+`docker.scad-toolchain.test@test-v0.6.1-toolchain-v0.6.1`.
 
 The effective runtime is derived from SCAD project configuration rather than repository
 name. `scad-toolchain-info` reports exact runtime/tool versions.

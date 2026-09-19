@@ -294,6 +294,67 @@ def validate_config(context: ProjectContext) -> list[str]:
             if output_root is not None and not isinstance(output_root, str):
                 errors.append("verification.output_root must be a path string")
 
+    drawing = c.get("drawing")
+    drawing_outputs: list[str] = []
+    if drawing is not None:
+        if not isinstance(drawing, dict):
+            errors.append("drawing must be a mapping")
+        else:
+            command = drawing.get("command")
+            if (
+                not isinstance(command, list)
+                or not command
+                or not all(isinstance(item, str) and item.strip() for item in command)
+            ):
+                errors.append("drawing.command must be a non-empty argv list")
+
+            inputs = drawing.get("inputs")
+            if (
+                not isinstance(inputs, list)
+                or not inputs
+                or not all(isinstance(item, str) and item.strip() for item in inputs)
+            ):
+                errors.append("drawing.inputs must be a non-empty list of path strings")
+
+            outputs = drawing.get("outputs")
+            if (
+                not isinstance(outputs, list)
+                or not outputs
+                or not all(isinstance(item, str) and item.strip() for item in outputs)
+            ):
+                errors.append("drawing.outputs must be a non-empty list of path strings")
+            else:
+                drawing_outputs = [str(item) for item in outputs]
+                if len(set(drawing_outputs)) != len(drawing_outputs):
+                    errors.append("drawing.outputs must not contain duplicates")
+                if Path(drawing_outputs[0]).suffix.lower() != ".svg":
+                    errors.append(
+                        "drawing.outputs[0] must be the canonical .svg drawing"
+                    )
+                for output in drawing_outputs:
+                    if Path(output).suffix.lower() not in {".svg", ".png", ".pdf"}:
+                        errors.append(
+                            f"Unsupported drawing output extension: {output}"
+                        )
+
+                paths = c.get("paths", {}) or {}
+                build_root = paths.get("build_root") if isinstance(paths, dict) else None
+                if isinstance(build_root, str) and build_root.strip():
+                    build_path = Path(build_root)
+                    for output in drawing_outputs:
+                        output_path = Path(output)
+                        if output_path.is_absolute():
+                            errors.append(
+                                f"drawing output must stay under paths.build_root: {output}"
+                            )
+                            continue
+                        try:
+                            output_path.relative_to(build_path)
+                        except ValueError:
+                            errors.append(
+                                f"drawing output must stay under paths.build_root: {output}"
+                            )
+
     publication = c.get("publication")
     if publication is not None:
         if not isinstance(publication, dict):
@@ -355,5 +416,9 @@ def validate_config(context: ProjectContext) -> list[str]:
             seen_outputs.add(output)
             if Path(output).suffix.lower() not in {".png", ".stl", ".svg"}:
                 errors.append(f"Unsupported build output extension: {output}")
+
+    for output in drawing_outputs:
+        if output in seen_outputs:
+            errors.append(f"Duplicate build/drawing output: {output}")
 
     return errors
