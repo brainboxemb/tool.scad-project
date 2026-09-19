@@ -343,7 +343,7 @@ def validate_config(context: ProjectContext) -> list[str]:
             if output in seen_outputs:
                 errors.append(f"Duplicate build output: {output}")
             seen_outputs.add(output)
-            if Path(output).suffix.lower() not in {".png", ".stl"}:
+            if Path(output).suffix.lower() not in {".png", ".stl", ".svg"}:
                 errors.append(f"Unsupported build output extension: {output}")
 
     return errors

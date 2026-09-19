@@ -1,9 +1,10 @@
 """Build outputs
 
 Checks:
-PNG and STL outputs follow the project configuration. The tests cover automatic
-render/export discovery, optional PNG watermarking, multi-size profiles and their image
-size, and rejection of a file that is assigned to more than one profile.
+PNG and STL outputs follow the directory conventions, while explicit build mappings can
+also request OpenSCAD SVG output. The tests cover automatic render/export discovery,
+optional PNG watermarking, multi-size profiles and their image size, and rejection of a
+file that is assigned to more than one profile.
 
 Testing approach:
 The tests create small temporary project folders and files. Some tests use pytest's
@@ -285,3 +286,52 @@ def test_directory_profile_rejects_duplicate_file_assignment(tmp_path):
         assert "assigned to more than one profile" in str(exc)
     else:
         raise AssertionError("Expected duplicate profile assignment to fail")
+
+
+def test_explicit_svg_build_uses_plain_openscad_export(tmp_path, monkeypatch):
+    source = tmp_path / "dsg" / "openscad" / "drawing" / "receiver.scad"
+    source.parent.mkdir(parents=True)
+    source.write_text("square([10, 6]);\n", encoding="utf-8")
+
+    ctx = ProjectContext(
+        tmp_path,
+        tmp_path / "project.yml",
+        {
+            "project": {"name": "demo"},
+            "paths": {"design_root": "dsg", "build_root": "bld"},
+            "openscad": {
+                "common_flags": ["--enable=object-function"],
+                "render_flags": ["--render"],
+                "image_size": [800, 600],
+            },
+            "externals": [],
+            "builds": [
+                {
+                    "name": "receiver-drawing",
+                    "source": "dsg/openscad/drawing/receiver.scad",
+                    "output": "bld/svg/receiver.svg",
+                }
+            ],
+        },
+    )
+
+    calls = []
+
+    def fake_run(args, *, cwd):
+        calls.append(args)
+        output = Path(args[args.index("-o") + 1])
+        output.write_text("<svg/>\n", encoding="utf-8")
+
+    monkeypatch.setattr(build_module, "run_checked", fake_run)
+
+    build_module.build_project(ctx)
+
+    output = tmp_path / "bld" / "svg" / "receiver.svg"
+    assert output.read_text(encoding="utf-8") == "<svg/>\n"
+    assert calls == [[
+        "openscad",
+        "--enable=object-function",
+        "-o",
+        str(output),
+        str(source),
+    ]]
