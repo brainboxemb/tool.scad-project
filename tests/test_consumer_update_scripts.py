@@ -1,15 +1,15 @@
-"""SCAD consumer repository update wrappers
+"""Canonical SCAD consumer repository update launchers.
 
 Checks:
-The consumer update launchers stay thin: they invoke the local `tool.scad-project`
-`repo-update` compatibility command and do not reimplement Git dependency parsing,
-submodule registration or ref resolution. That command delegates generic repository
-work to the pinned `tool.git-project` and then synchronizes SCAD workflow callers.
+The bootstrap launchers keep basic dependency update Python-free by invoking the
+pinned native tool.git-project scripts directly. They retain only the
+SCAD-specific reusable-workflow ref synchronization needed after dependency
+movement.
 
 Testing approach:
-The tests inspect the shell and PowerShell launcher text. They require the expected
-SCAD command and reject implementation markers from the removed generic dependency
-manager.
+Inspect the canonical bootstrap shell and PowerShell launchers and reject the
+old Python scad-project compatibility path plus generic Git implementation
+details that belong to tool.git-project.
 """
 
 from pathlib import Path
@@ -22,11 +22,13 @@ SCRIPTS = (
 )
 
 
-def test_consumer_updaters_delegate_to_scad_repo_update():
+def test_consumer_updaters_delegate_directly_to_git_tool_without_python():
     for path in SCRIPTS:
         text = path.read_text(encoding="utf-8")
-        assert "repo-update" in text
-        assert "tools/tool.scad-project" in text
+        assert "tools/tool.git-project" in text
+        assert "tool.scad-project/scad-project" not in text
+        assert "repo-update" not in text
+        assert "python" not in text.lower()
 
 
 def test_consumer_updaters_do_not_reimplement_generic_git_management():
