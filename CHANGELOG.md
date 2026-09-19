@@ -2,6 +2,20 @@
 
 Functional changes to released `tool.scad-project` versions.
 
+## v0.14.14
+
+### Added
+
+- Discover project/external `specification/specification.md` sources beside
+  existing `design/design.md` sources.
+- Generate project documentation indexes with specifications first and
+  component design documents second.
+
+### Boundary
+
+- Specification documents reuse the existing PNG/SVG render pipeline and SCons
+  behavior. No render semantics or geometry behavior changed.
+
 ## v0.14.13
 
 ### Added

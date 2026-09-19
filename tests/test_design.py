@@ -17,6 +17,7 @@ from scad_project.design import (
     DesignDocument,
     DesignRender,
     _render_args,
+    discover_design_documents,
     parse_design_document,
 )
 
@@ -301,3 +302,43 @@ view: profile
         "svg format currently requires engine: openscad" in error
         for error in errors
     )
+
+
+def test_discovery_lists_specification_before_component_design(tmp_path: Path):
+    specification = tmp_path / "specification"
+    component_design = tmp_path / "components" / "example" / "design"
+    specification.mkdir(parents=True)
+    component_design.mkdir(parents=True)
+
+    (specification / "specification.md").write_text(
+        "# Interface specification\n",
+        encoding="utf-8",
+    )
+    (component_design / "design.md").write_text(
+        "# Component design\n",
+        encoding="utf-8",
+    )
+
+    class DiscoveryContext:
+        root = tmp_path
+        config = {
+            "paths": {
+                "design_root": ".",
+                "build_root": "bld",
+            },
+            "externals": [],
+        }
+
+        def path(self, value):
+            return self.root / value
+
+    documents = discover_design_documents(DiscoveryContext())
+
+    assert [item.document_type for item in documents] == [
+        "specification",
+        "design",
+    ]
+    assert [item.relative_path.as_posix() for item in documents] == [
+        "specification/specification.md",
+        "components/example/design/design.md",
+    ]
