@@ -68,7 +68,9 @@ the same semantic release ref instead of duplicating the opaque commit SHA.
 paths:
   design_root: dsg/openscad
   build_root: bld
-  render_root: dsg/openscad/render
+  render_roots:
+    - dsg/openscad/render3d
+    - dsg/openscad/render2d
   export_root: dsg/openscad/export
 
 build_engine:
@@ -179,11 +181,36 @@ capabilities directly so each can be affected/cached independently.
 checks target-level rebuild correctness. See
 [`docs/build-decision-audit.md`](docs/build-decision-audit.md).
 
-## Directory-based builds
+## Build and render model
 
-OpenSCAD build entrypoints can be discovered from configured directories. Existing
-consumers may keep the single `render_root`; consumers that want separate 3D
-presentation and 2D vector source directories can use `render_roots`:
+The normal SCAD project flow has three user-facing output families. They share
+the same project configuration and build/cache machinery, but they have
+different purposes:
+
+| Source/control | Purpose | Normal output |
+| --- | --- | --- |
+| render roots + `render.yml` | presentation renders and 2D vector drawings | `bld/png/*.png` or `bld/svg/*.svg` |
+| export root + `export.yml` | printable/manufacturing geometry | `bld/stl/*.stl` |
+| component `design/design.md` | generated design documentation with embedded renders | `bld/design/.../design.md` + `img/*.png` or `img/*.svg` |
+
+PNG is the default render format. SVG is an opt-in 2D OpenSCAD output format.
+STL remains the export format.
+
+`builds:` entries are an escape hatch for exceptional source/output mappings;
+they are not the normal way to organise project renders.
+
+## Directory-based renders and exports
+
+A project may use one legacy render directory:
+
+```yaml
+paths:
+  render_root: dsg/openscad/render
+  export_root: dsg/openscad/export
+```
+
+or multiple render roots when 3D presentation renders and 2D drawing sources
+should be kept separate:
 
 ```yaml
 paths:
@@ -193,7 +220,12 @@ paths:
   export_root: dsg/openscad/export
 ```
 
-Each render directory may contain its own `render.yml`. Render format defaults to PNG:
+Every `.scad` entrypoint directly inside a configured render root becomes a
+render target. Every `.scad` entrypoint directly inside `export_root` becomes
+an STL target.
+
+A render directory can contain a `render.yml`. Without one, or without an
+explicit `format`, the render format is PNG:
 
 ```yaml
 defaults:
@@ -201,29 +233,61 @@ defaults:
   image_size: [1600, 1000]
 ```
 
-A 2D directory can select SVG instead:
+That produces:
+
+```text
+dsg/openscad/render3d/assembly.scad
+    -> bld/png/assembly.png
+```
+
+A 2D drawing directory can select SVG once for all entrypoints in that
+directory:
 
 ```yaml
+# dsg/openscad/render2d/render.yml
 defaults:
   format: svg
 ```
 
-Profiles may override `format` for individual files. Conceptually:
+That produces:
+
+```text
+dsg/openscad/render2d/receiver-profile.scad
+    -> bld/svg/receiver-profile.svg
+```
+
+Profiles in `render.yml` may override defaults for selected files. For
+example, one file can switch to SVG while the rest remain PNG:
+
+```yaml
+defaults:
+  format: png
+  image_size: [1600, 1000]
+
+profiles:
+  vector-drawing:
+    format: svg
+    files:
+      - receiver-profile.scad
+```
+
+The output-format contract is:
 
 ```text
 render format png -> bld/png/*.png
 render format svg -> bld/svg/*.svg
-export_root/*.scad -> bld/stl/*.stl
+export_root        -> bld/stl/*.stl
 ```
 
-PNG keeps the raster render/camera/image-size/watermark path. SVG is a true 2D
-OpenSCAD export and does not receive those raster-only arguments.
+PNG is a raster presentation render. It uses the configured render flags,
+camera/autofit behaviour, image size and optional watermarking.
 
-Optional `render.yml` and `export.yml` files beside entrypoints define variants and
-output settings. Explicit `builds:` mappings remain available for exceptional
-source/output mappings.
+SVG is a true 2D OpenSCAD export. The SCAD entrypoint must therefore produce
+2D geometry. Raster-only camera, image-size and watermark settings are not
+applied to SVG.
 
-Explicit builds may also export true 2D OpenSCAD geometry as SVG:
+Explicit `builds:` mappings may also target `.png`, `.stl` or `.svg`
+when a project has an exceptional source/output mapping:
 
 ```yaml
 builds:
@@ -232,59 +296,127 @@ builds:
     output: bld/svg/receiver.svg
 ```
 
-SVG does not change the directory conventions above and does not introduce a
-generic drawing policy. The consumer owns the 2D drawing source/layout; the
-shared tool only treats `.svg` as another supported OpenSCAD output format.
-
-## Selective SCons build engine
-
-SCons is an optional fine-grained backend behind the normal SCAD commands:
-
-```yaml
-build_engine:
-  engine: scons
-```
-
-Moon decides/reuses whole capabilities. SCons, when configured, decides/reuses individual
-CAD targets inside a capability.
-
-The normal SCons cache is transported by normal CI only for SCons projects with
-Build/docs capabilities. The separate Verification-SCons cache is transported only when
-the project actually declares verification render/export targets. Direct projects do not
-pay SCons cache restore/save cost simply because SCons is present in the runtime image.
-
-SCons decisions use the outcomes `BUILT`, `CACHE_RESTORED`, `CURRENT` and `ERROR`.
-See [`docs/build-decision-telemetry.md`](docs/build-decision-telemetry.md).
-
 ## Design documentation
 
-Source `design.md` is authoritative; generated documentation goes under:
+A component can keep its explanation next to the geometry:
+
+```text
+dsg/openscad/components/example/
+  example.scad
+  design/
+    design.md
+```
+
+The source `design.md` is authoritative. `scad-project design-build`
+copies the document into the generated design tree, renders its declared
+figures and replaces each render declaration with a normal Markdown image
+reference:
 
 ```text
 bld/design/project/...
 bld/design/ext/<external-name>/...
 ```
 
-Canonical render declarations use `scad-render-defaults` and `scad-render`. Supported
-engines are OpenSCAD and PythonSCAD. Explicit engine selection wins over suffix
-inference.
+### Normal PNG example
 
-Design renders use the same output-format contract. `format` defaults to `png`;
-OpenSCAD design renders may select `format: svg` for true 2D vector output:
+PNG is the default here as well. A typical OpenSCAD design document first
+declares defaults for its component:
 
-```text
-<!-- scad-render
-view: receiver-profile
-format: svg
+```md
+<!-- scad-render-defaults
+engine: openscad
+source: example.scad
+module: example_design
+size: [1200, 800]
 -->
 ```
 
-Generated Markdown links to the resulting `.png` or `.svg` file under `img/`.
-SVG design renders reject raster-only camera and size settings rather than silently
-ignoring them.
+A render block then selects one view:
 
-`design.include_externals: false` suppresses generated external design docs while keeping
-external CAD source available to builds.
+```md
+## Final shape
+
+<!-- scad-render
+view: final
+vpr: [70, 0, 30]
+-->
+```
+
+If no `image:` is supplied, the generated filename is derived from declaration
+order and view name, for example:
+
+```text
+img/01-final.png
+```
+
+For PNG renders, `size`, `vpr`, `vpt` and `vpd` are available. `vpr`
+alone uses autofit; an exact camera may provide `vpr`, `vpt` and `vpd`
+together. A render block may override document defaults.
+
+### SVG variant for a 2D drawing
+
+The same `scad-render` declaration can instead request vector output. The
+drawing source must produce true 2D OpenSCAD geometry:
+
+```md
+## Dimensioned front profile
+
+<!-- scad-render
+engine: openscad
+source: example_drawing.scad
+module: example_front_drawing
+format: svg
+image: 02-dimensioned-front-profile.svg
+-->
+```
+
+The generated document then links to:
+
+```text
+img/02-dimensioned-front-profile.svg
+```
+
+SVG does not use `size`, `vpr`, `vpt` or `vpd`; those fields are rejected
+for SVG instead of being silently ignored. SVG currently requires the OpenSCAD
+engine.
+
+This means PNG and SVG are not two separate documentation systems:
+
+```text
+design.md
+  scad-render (default format: png) -> img/*.png
+  scad-render (format: svg)         -> img/*.svg
+```
+
+`design.include_externals: false` suppresses generated external design docs
+while keeping external CAD source available to builds.
+
+## Selective SCons build engine
+
+SCons is an optional fine-grained backend behind the same normal SCAD commands:
+
+```yaml
+build_engine:
+  engine: scons
+```
+
+Moon decides/reuses whole capabilities. SCons, when configured, decides/reuses
+individual CAD targets inside a capability.
+
+The selected output format is part of target/cache identity. PNG and SVG have
+different output targets and different target specifications; changing a render
+from PNG to SVG cannot restore a cached PNG as if it were current SVG output.
+The same applies to figures generated from `design.md`.
+
+The normal SCons cache is transported by normal CI only for SCons projects with
+Build/docs capabilities. The separate Verification-SCons cache is transported
+only when the project actually declares verification render/export targets.
+Direct projects do not pay SCons cache restore/save cost simply because SCons
+is present in the runtime image.
+
+SCons decisions use the outcomes `BUILT`, `CACHE_RESTORED`, `CURRENT` and
+`ERROR`. See
+[`docs/build-decision-telemetry.md`](docs/build-decision-telemetry.md).
 
 ## Source documentation
 
