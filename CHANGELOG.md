@@ -7,17 +7,17 @@ Functional changes to released `tool.scad-project` versions.
 ### Changed
 
 - Advance the selected shared SCAD runtime from `docker.scad-toolchain v0.5.0`
-  to the immutable, externally qualified `v0.5.1` image family.
+  to the immutable, externally qualified `v0.5.3` image family.
 - Make the runtime's newly qualified `openscad-new-dimensions` capability
   available to normal SCAD consumers through the existing shared runtime path;
   project-specific drawing policy remains consumer-owned.
-- Rotate runtime-sensitive production SCons cache namespaces to `v0.5.1` so
+- Rotate runtime-sensitive production SCons cache namespaces to `v0.5.3` so
   cached build state is never reused across the runtime boundary.
 
 ### Verification
 
 - Runtime qualification:
-  `docker.scad-toolchain.test@test-v0.5.1-toolchain-v0.5.1`.
+  `docker.scad-toolchain.test@test-v0.5.3-toolchain-v0.5.3`.
 - Owner CI must be green on this release source before the immutable
   `tool.scad-project v0.14.11` tag is created.
 

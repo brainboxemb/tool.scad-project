@@ -92,7 +92,7 @@ def test_production_workflow_starts_at_most_one_capability_appropriate_runtime()
     assert text.count("docker run --rm") == 1
     assert "steps.plan.outputs.runtime_image" in text
     assert "ghcr.io/brainboxemb/scad-toolchain:v0.4.1" not in text
-    assert "SCAD_TOOLCHAIN_VERSION: v0.5.1" in text
+    assert "SCAD_TOOLCHAIN_VERSION: v0.5.3" in text
     assert "PYTHONDONTWRITEBYTECODE" in text
     assert "MATERIALIZATION_CAPABILITIES" in text
 

@@ -106,8 +106,8 @@ verification:
 
     assert plan.capabilities == ("scad.docs", "scad.verify")
     assert plan.runtime_profile == "full"
-    assert plan.toolchain_version == "v0.5.1"
-    assert plan.runtime_image == "ghcr.io/brainboxemb/scad-toolchain:v0.5.1"
+    assert plan.toolchain_version == "v0.5.3"
+    assert plan.runtime_image == "ghcr.io/brainboxemb/scad-toolchain:v0.5.3"
     assert plan.build_engine == "direct"
     assert plan.use_scons_cache is False
     assert plan.use_verification_scons_cache is False
@@ -117,8 +117,8 @@ def test_openscad_scons_presentation_project_plan(tmp_path: Path):
     plan = _hub_plan(tmp_path)
 
     assert plan.runtime_profile == "openscad"
-    assert plan.toolchain_version == "v0.5.1"
-    assert plan.runtime_image == "ghcr.io/brainboxemb/scad-toolchain-openscad:v0.5.1"
+    assert plan.toolchain_version == "v0.5.3"
+    assert plan.runtime_image == "ghcr.io/brainboxemb/scad-toolchain-openscad:v0.5.3"
     assert plan.build_engine == "scons"
     assert plan.use_scons_cache is True
     assert plan.use_verification_scons_cache is False
