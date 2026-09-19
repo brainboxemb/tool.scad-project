@@ -115,6 +115,33 @@ def _validate_image_size(value: Any, label: str) -> tuple[int, int]:
     return int(value[0]), int(value[1])
 
 
+def _validate_render_format(value: Any, label: str) -> str:
+    """Normalize a render output format while keeping PNG backward compatible."""
+
+    if value is None:
+        return "png"
+    if not isinstance(value, str) or not value.strip():
+        raise RuntimeError(f"{label} must be 'png' or 'svg'.")
+    normalized = value.strip().lower()
+    if normalized not in {"png", "svg"}:
+        raise RuntimeError(f"{label} must be 'png' or 'svg'.")
+    return normalized
+
+
+def _render_root_values(paths: dict[str, Any]) -> list[str]:
+    """Return legacy/new render roots once, in declaration order."""
+
+    values: list[str] = []
+    legacy = paths.get("render_root")
+    if legacy:
+        values.append(str(legacy))
+    for value in paths.get("render_roots", []) or []:
+        text = str(value)
+        if text not in values:
+            values.append(text)
+    return values
+
+
 def _profile_map(directory_config: dict[str, Any]) -> dict[str, dict[str, Any]]:
     result: dict[str, dict[str, Any]] = {}
     for profile in (directory_config.get("profiles", {}) or {}).values():
@@ -159,8 +186,14 @@ def _directory_targets(
         )
 
     build_root = context.path(context.config["paths"]["build_root"])
-    output_dir = build_root / ("png" if kind == "render" else "stl")
-    extension = ".png" if kind == "render" else ".stl"
+    default_format = (
+        _validate_render_format(
+            defaults.get("format", "png"),
+            f"{source_root / config_name}: defaults.format",
+        )
+        if kind == "render"
+        else "stl"
+    )
 
     default_size = _validate_image_size(
         defaults.get("image_size", default_image_size),
@@ -172,6 +205,16 @@ def _directory_targets(
     for source in entrypoints:
         profile = profiles.get(source.name, {})
         sizes = profile.get("sizes")
+        render_format = (
+            _validate_render_format(
+                profile.get("format", default_format),
+                f"{source_root / config_name}: profile format for {source.name}",
+            )
+            if kind == "render"
+            else "stl"
+        )
+        extension = f".{render_format}"
+        output_dir = build_root / render_format
         image_size = _validate_image_size(
             profile.get("image_size", default_size),
             f"{source_root / config_name}: effective image_size for {source.name}",
@@ -188,6 +231,7 @@ def _directory_targets(
                 {
                     "source": source,
                     "output": output,
+                    "format": render_format,
                     "image_size": image_size,
                     "definitions": definitions,
                 }
@@ -226,13 +270,12 @@ def _build_targets(
     paths = context.config.get("paths", {}) or {}
     targets: list[dict[str, Any]] = []
 
-    render_root = paths.get("render_root")
-    if render_root:
+    for render_root in _render_root_values(paths):
         targets.extend(
             _directory_targets(
                 context,
                 kind="render",
-                source_root_value=str(render_root),
+                source_root_value=render_root,
                 default_image_size=default_image_size,
             )
         )

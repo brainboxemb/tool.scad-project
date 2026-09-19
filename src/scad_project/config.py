@@ -203,6 +203,16 @@ def validate_config(context: ProjectContext) -> list[str]:
             ):
                 errors.append(f"paths.{key} must be a non-empty path string")
 
+        render_roots = paths.get("render_roots")
+        if render_roots is not None:
+            if not isinstance(render_roots, list) or not render_roots:
+                errors.append("paths.render_roots must be a non-empty list")
+            elif not all(
+                isinstance(item, str) and item.strip()
+                for item in render_roots
+            ):
+                errors.append("paths.render_roots must contain path strings")
+
         design_root = paths.get("design_root")
         design_roots = paths.get("design_roots")
         if not design_root and not design_roots:

@@ -237,7 +237,12 @@ def build_design(context: ProjectContext) -> None:
         doc_renders = by_document.get(document.source_file, [])
         for render in doc_renders:
             output = image_dir / render.image
-            render_output = _raw_png_path(output) if watermark_text else output
+            render_watermark = watermark_text if render.format == "png" else None
+            render_output = (
+                _raw_png_path(output)
+                if render_watermark
+                else output
+            )
             output.unlink(missing_ok=True)
             if render_output != output:
                 render_output.unlink(missing_ok=True)
@@ -272,7 +277,8 @@ def build_design(context: ProjectContext) -> None:
                 {
                     "output": _relative_or_absolute(context.root, output),
                     "render_output": _relative_or_absolute(context.root, render_output),
-                    "watermark_text": watermark_text,
+                    "format": render.format,
+                    "watermark_text": render_watermark,
                     "command": [str(value) for value in command],
                     "cwd": _relative_or_absolute(context.root, cwd),
                     "dependencies": _render_dependencies(
