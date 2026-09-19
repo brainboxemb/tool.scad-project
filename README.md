@@ -181,24 +181,47 @@ checks target-level rebuild correctness. See
 
 ## Directory-based builds
 
-OpenSCAD build entrypoints can be discovered from configured directories:
+OpenSCAD build entrypoints can be discovered from configured directories. Existing
+consumers may keep the single `render_root`; consumers that want separate 3D
+presentation and 2D vector source directories can use `render_roots`:
 
 ```yaml
 paths:
-  render_root: dsg/openscad/render
+  render_roots:
+    - dsg/openscad/render3d
+    - dsg/openscad/render2d
   export_root: dsg/openscad/export
 ```
 
-Conceptually:
+Each render directory may contain its own `render.yml`. Render format defaults to PNG:
+
+```yaml
+defaults:
+  format: png
+  image_size: [1600, 1000]
+```
+
+A 2D directory can select SVG instead:
+
+```yaml
+defaults:
+  format: svg
+```
+
+Profiles may override `format` for individual files. Conceptually:
 
 ```text
-render_root/*.scad -> bld/png/*.png
+render format png -> bld/png/*.png
+render format svg -> bld/svg/*.svg
 export_root/*.scad -> bld/stl/*.stl
 ```
 
-Optional `render.yml` and `export.yml` files beside entrypoints define variants, image
-sizes and output-name patterns. Explicit `builds:` mappings remain available for
-exceptional source/output mappings.
+PNG keeps the raster render/camera/image-size/watermark path. SVG is a true 2D
+OpenSCAD export and does not receive those raster-only arguments.
+
+Optional `render.yml` and `export.yml` files beside entrypoints define variants and
+output settings. Explicit `builds:` mappings remain available for exceptional
+source/output mappings.
 
 Explicit builds may also export true 2D OpenSCAD geometry as SVG:
 
@@ -245,6 +268,20 @@ bld/design/ext/<external-name>/...
 Canonical render declarations use `scad-render-defaults` and `scad-render`. Supported
 engines are OpenSCAD and PythonSCAD. Explicit engine selection wins over suffix
 inference.
+
+Design renders use the same output-format contract. `format` defaults to `png`;
+OpenSCAD design renders may select `format: svg` for true 2D vector output:
+
+```text
+<!-- scad-render
+view: receiver-profile
+format: svg
+-->
+```
+
+Generated Markdown links to the resulting `.png` or `.svg` file under `img/`.
+SVG design renders reject raster-only camera and size settings rather than silently
+ignoring them.
 
 `design.include_externals: false` suppresses generated external design docs while keeping
 external CAD source available to builds.

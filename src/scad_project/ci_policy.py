@@ -101,7 +101,12 @@ def _configured_capabilities(context: ProjectContext) -> tuple[str, ...]:
     if paths.get("design_root") or paths.get("design_roots"):
         values.append("scad.docs")
 
-    if paths.get("render_root") or paths.get("export_root") or (config.get("builds", []) or []):
+    if (
+        paths.get("render_root")
+        or paths.get("render_roots")
+        or paths.get("export_root")
+        or (config.get("builds", []) or [])
+    ):
         values.append("scad.build")
 
     verification = config.get("verification", {}) or {}

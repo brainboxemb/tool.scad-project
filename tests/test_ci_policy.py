@@ -322,3 +322,21 @@ def test_non_scad_affected_tasks_do_not_start_scad_runtime(tmp_path: Path):
     assert execution["affected_capabilities"] == []
     assert execution["materialization_capabilities"] == []
     assert execution["run_runtime"] is False
+
+
+def test_render_roots_select_scad_build_capability(tmp_path: Path):
+    _write_repository(
+        tmp_path,
+        profile="""paths:
+  design_root: .
+  build_root: bld
+  render_roots:
+    - openscad/render3d
+    - openscad/render2d
+openscad: {}
+""",
+        capabilities=["scad.docs", "scad.build"],
+    )
+
+    plan = build_ci_plan(load_context(tmp_path))
+    assert plan.capabilities == ("scad.docs", "scad.build")

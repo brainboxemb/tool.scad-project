@@ -108,6 +108,7 @@ def test_manifest_reuses_existing_target_model_and_adds_telemetry(tmp_path, monk
         {
             "source": "dsg/render/part.scad",
             "output": "bld/png/part.png",
+            "format": "png",
             "image_size": [800, 600],
             "definitions": [],
             "common_flags": ["--enable=object-function"],
@@ -207,3 +208,56 @@ def test_scons_engine_builds_explicit_svg_output(tmp_path):
     output = tmp_path / "bld" / "svg" / "receiver.svg"
     assert output.is_file()
     assert "<svg" in output.read_text(encoding="utf-8").lower()
+
+
+def test_scons_render_format_change_uses_distinct_cache_target(tmp_path):
+    if shutil.which("scons") is None or shutil.which("openscad") is None:
+        pytest.skip("SCons/OpenSCAD runtime is not installed")
+
+    render_dir = tmp_path / "dsg" / "render"
+    render_dir.mkdir(parents=True)
+    source = render_dir / "drawing.scad"
+    source.write_text("square([10, 6]);\n", encoding="utf-8")
+    config_file = render_dir / "render.yml"
+
+    context = ProjectContext(
+        tmp_path,
+        tmp_path / "project.yml",
+        {
+            "project": {"name": "demo"},
+            "paths": {
+                "design_root": "dsg",
+                "build_root": "bld",
+                "render_root": "dsg/render",
+            },
+            "openscad": {"image_size": [160, 100]},
+            "externals": [],
+            "build_engine": {"engine": "scons"},
+        },
+    )
+
+    config_file.write_text("defaults:\n  format: png\n", encoding="utf-8")
+    build_engine.build_project(context)
+    assert (tmp_path / "bld" / "png" / "drawing.png").is_file()
+
+    config_file.write_text("defaults:\n  format: svg\n", encoding="utf-8")
+    build_engine.build_project(context)
+    svg = tmp_path / "bld" / "svg" / "drawing.svg"
+    assert svg.is_file()
+
+    report_path = (
+        tmp_path
+        / ".cache"
+        / "scad-project"
+        / "state"
+        / "last-build.json"
+    )
+    changed = json.loads(report_path.read_text(encoding="utf-8"))
+    assert changed["targets"][0]["output"] == "bld/svg/drawing.svg"
+    assert changed["targets"][0]["outcome"] == "BUILT"
+
+    svg.unlink()
+    build_engine.build_project(context)
+    restored = json.loads(report_path.read_text(encoding="utf-8"))
+    assert restored["targets"][0]["output"] == "bld/svg/drawing.svg"
+    assert restored["targets"][0]["outcome"] == "CACHE_RESTORED"

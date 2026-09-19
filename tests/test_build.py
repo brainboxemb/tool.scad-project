@@ -335,3 +335,100 @@ def test_explicit_svg_build_uses_plain_openscad_export(tmp_path, monkeypatch):
         str(output),
         str(source),
     ]]
+
+
+def test_multiple_render_roots_route_png_and_svg_outputs(tmp_path, monkeypatch):
+    render3d = tmp_path / "dsg" / "openscad" / "render3d"
+    render2d = tmp_path / "dsg" / "openscad" / "render2d"
+    render3d.mkdir(parents=True)
+    render2d.mkdir(parents=True)
+
+    (render3d / "assembly.scad").write_text("cube(1);\n", encoding="utf-8")
+    (render2d / "receiver.scad").write_text("square([10, 6]);\n", encoding="utf-8")
+    (render2d / "render.yml").write_text(
+        "defaults:\n  format: svg\n",
+        encoding="utf-8",
+    )
+
+    ctx = ProjectContext(
+        tmp_path,
+        tmp_path / "project.yml",
+        {
+            "project": {"name": "demo"},
+            "paths": {
+                "design_root": "dsg",
+                "build_root": "bld",
+                "render_roots": [
+                    "dsg/openscad/render3d",
+                    "dsg/openscad/render2d",
+                ],
+            },
+            "openscad": {"image_size": [800, 600]},
+            "externals": [],
+        },
+    )
+
+    calls = []
+
+    def fake_run(args, *, cwd):
+        calls.append(args)
+        output = Path(args[args.index("-o") + 1])
+        output.write_text("output\n", encoding="utf-8")
+
+    monkeypatch.setattr(build_module, "run_checked", fake_run)
+    build_module.build_project(ctx)
+
+    assert (tmp_path / "bld" / "png" / "assembly.png").is_file()
+    assert (tmp_path / "bld" / "svg" / "receiver.svg").is_file()
+    svg_call = next(
+        call for call in calls
+        if str(call[call.index("-o") + 1]).endswith(".svg")
+    )
+    assert svg_call[0] == "openscad"
+    assert "--imgsize=800,600" not in svg_call
+    assert "--render" not in svg_call
+
+
+def test_render_profile_can_override_directory_format(tmp_path, monkeypatch):
+    render_dir = tmp_path / "dsg" / "openscad" / "render"
+    render_dir.mkdir(parents=True)
+    (render_dir / "drawing.scad").write_text(
+        "square([8, 4]);\n",
+        encoding="utf-8",
+    )
+    (render_dir / "render.yml").write_text(
+        """defaults:
+  format: png
+profiles:
+  vector:
+    format: svg
+    files:
+      - drawing.scad
+""",
+        encoding="utf-8",
+    )
+
+    ctx = ProjectContext(
+        tmp_path,
+        tmp_path / "project.yml",
+        {
+            "project": {"name": "demo"},
+            "paths": {
+                "design_root": "dsg",
+                "build_root": "bld",
+                "render_root": "dsg/openscad/render",
+            },
+            "openscad": {"image_size": [800, 600]},
+            "externals": [],
+        },
+    )
+
+    def fake_run(args, *, cwd):
+        output = Path(args[args.index("-o") + 1])
+        output.write_text("<svg/>\n", encoding="utf-8")
+
+    monkeypatch.setattr(build_module, "run_checked", fake_run)
+    build_module.build_project(ctx)
+
+    assert (tmp_path / "bld" / "svg" / "drawing.svg").is_file()
+    assert not (tmp_path / "bld" / "png" / "drawing.png").exists()

@@ -186,3 +186,40 @@ def test_unknown_explicit_build_output_extension_is_rejected(tmp_path: Path):
     assert validate_config(ctx) == [
         "Unsupported build output extension: bld/drawing/receiver.dxf"
     ]
+
+
+def test_multiple_render_roots_are_valid(tmp_path: Path):
+    ctx = ProjectContext(
+        tmp_path,
+        tmp_path / "project.yml",
+        {
+            "project": {"name": "demo"},
+            "paths": {
+                "design_root": "dsg",
+                "build_root": "bld",
+                "render_roots": [
+                    "dsg/openscad/render3d",
+                    "dsg/openscad/render2d",
+                ],
+            },
+            "externals": [],
+        },
+    )
+    assert validate_config(ctx) == []
+
+
+def test_render_roots_reject_invalid_values(tmp_path: Path):
+    ctx = ProjectContext(
+        tmp_path,
+        tmp_path / "project.yml",
+        {
+            "project": {"name": "demo"},
+            "paths": {
+                "design_root": "dsg",
+                "build_root": "bld",
+                "render_roots": ["dsg/openscad/render3d", ""],
+            },
+            "externals": [],
+        },
+    )
+    assert "paths.render_roots must contain path strings" in validate_config(ctx)

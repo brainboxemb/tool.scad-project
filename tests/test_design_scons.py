@@ -35,20 +35,32 @@ pytestmark = pytest.mark.skipif(
 )
 
 
-def _component(root: Path, name: str, size: int) -> None:
+def _component(
+    root: Path,
+    name: str,
+    size: int,
+    *,
+    output_format: str = "png",
+) -> None:
     component = root / "dsg" / "components" / name
     design = component / "design"
     design.mkdir(parents=True)
 
+    geometry = (
+        f"square([{size}, {size}]);"
+        if output_format == "svg"
+        else f"cube({size});"
+    )
     (component / f"{name}.scad").write_text(
-        f'module {name}_design(view="final") {{ cube({size}); }}\n',
+        f'module {name}_design(view="final") {{ {geometry} }}\n',
         encoding="utf-8",
     )
+    format_line = "\nformat: svg" if output_format == "svg" else ""
     (design / "design.md").write_text(
         f"""# {name}
 
 <!-- scad-render-defaults
-module: {name}_design
+module: {name}_design{format_line}
 -->
 
 <!-- scad-render
@@ -183,3 +195,76 @@ def test_design_images_are_individual_scons_targets(tmp_path: Path):
         / "img"
         / "01-final.png"
     ).is_file()
+
+
+def test_design_svg_uses_distinct_scons_cache_target(tmp_path: Path):
+    _component(tmp_path, "vector", 4, output_format="svg")
+
+    context = ProjectContext(
+        tmp_path,
+        tmp_path / "project.yml",
+        {
+            "project": {"name": "design-svg-cache-test"},
+            "paths": {
+                "design_root": "dsg",
+                "build_root": "bld",
+            },
+            "build_engine": {"engine": "scons"},
+            "openscad": {
+                "common_flags": [],
+                "render_flags": ["--render"],
+                "image_size": [120, 90],
+                "design_image_size": [120, 90],
+            },
+            "rendering": {
+                "watermark": {
+                    "text": "must-not-apply-to-svg",
+                }
+            },
+            "externals": [],
+        },
+    )
+
+    build_design(context)
+    first = _report(tmp_path)
+    assert first["outcome_counts"] == {
+        "BUILT": 1,
+        "CACHE_RESTORED": 0,
+        "CURRENT": 0,
+        "ERROR": 0,
+    }
+
+    svg = (
+        tmp_path
+        / "bld"
+        / "design"
+        / "project"
+        / "components"
+        / "vector"
+        / "design"
+        / "img"
+        / "01-final.svg"
+    )
+    assert svg.is_file()
+    assert "<svg" in svg.read_text(encoding="utf-8").lower()
+
+    build_design(context)
+    second = _report(tmp_path)
+    assert second["outcome_counts"] == {
+        "BUILT": 0,
+        "CACHE_RESTORED": 1,
+        "CURRENT": 0,
+        "ERROR": 0,
+    }
+    target = second["targets"][0]
+    assert target["output"].endswith("01-final.svg")
+    assert target["outcome"] == "CACHE_RESTORED"
+
+    source = tmp_path / "dsg" / "components" / "vector" / "vector.scad"
+    source.write_text(
+        'module vector_design(view="final") { square([5, 5]); }\n',
+        encoding="utf-8",
+    )
+    build_design(context)
+    third = _report(tmp_path)
+    assert third["targets"][0]["outcome"] == "BUILT"

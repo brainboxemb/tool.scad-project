@@ -97,14 +97,18 @@ def _target_spec(
     watermark_text: str | None,
     backend_signature: str,
 ) -> dict[str, Any]:
+    output = Path(target["output"])
+    output_format = str(target.get("format") or output.suffix.lstrip(".")).lower()
+    raster = output_format == "png"
     return {
         "source": _relative_or_absolute(context.root, target["source"]),
-        "output": _relative_or_absolute(context.root, target["output"]),
-        "image_size": list(target["image_size"]),
+        "output": _relative_or_absolute(context.root, output),
+        "format": output_format,
+        "image_size": list(target["image_size"]) if raster else None,
         "definitions": list(target.get("definitions", [])),
         "common_flags": common,
-        "render_flags": render_flags,
-        "watermark_text": watermark_text,
+        "render_flags": render_flags if raster else [],
+        "watermark_text": watermark_text if raster else None,
         "backend_signature": backend_signature,
     }
 

@@ -135,6 +135,7 @@ def test_pythonscad_command_injects_design_view(tmp_path: Path):
         block_end=1,
         engine="pythonscad",
         kind="source-view",
+        format="png",
         image="01-final.png",
         alt="Final",
         source=source,
@@ -190,3 +191,113 @@ cube(1);
     )
     _, errors = parse_design_document(document)
     assert any("inline PythonSCAD" in error for error in errors)
+
+
+def test_design_render_defaults_to_png_format(tmp_path: Path):
+    document = _document(
+        tmp_path,
+        "component.scad",
+        'module component_design(view="final") { cube(1); }\n',
+        """# Example
+
+<!-- scad-render-defaults
+module: component_design
+-->
+
+<!-- scad-render
+view: final
+-->
+""",
+    )
+    renders, errors = parse_design_document(document)
+    assert errors == []
+    assert renders[0].format == "png"
+    assert renders[0].image == "01-final.png"
+
+
+def test_design_render_svg_uses_vector_output_contract(tmp_path: Path):
+    document = _document(
+        tmp_path,
+        "component.scad",
+        'module component_design(view="profile") { square([10, 6]); }\n',
+        """# Example
+
+<!-- scad-render-defaults
+engine: openscad
+module: component_design
+format: svg
+-->
+
+<!-- scad-render
+view: profile
+-->
+""",
+    )
+    renders, errors = parse_design_document(document)
+    assert errors == []
+    render = renders[0]
+    assert render.format == "svg"
+    assert render.image == "01-profile.svg"
+
+    args = _render_args(
+        DummyContext(),
+        render,
+        tmp_path / "entry.scad",
+        tmp_path / "out.svg",
+        [640, 480],
+    )
+    assert args == [
+        "openscad",
+        "--enable=object-function",
+        "-o",
+        str(tmp_path / "out.svg"),
+        str(tmp_path / "entry.scad"),
+    ]
+
+
+def test_design_render_svg_rejects_raster_camera_options(tmp_path: Path):
+    document = _document(
+        tmp_path,
+        "component.scad",
+        'module component_design(view="profile") { square([10, 6]); }\n',
+        """# Example
+
+<!-- scad-render-defaults
+engine: openscad
+module: component_design
+format: svg
+vpr: [90, 0, 0]
+-->
+
+<!-- scad-render
+view: profile
+-->
+""",
+    )
+    _, errors = parse_design_document(document)
+    assert any("svg format is true 2D output" in error for error in errors)
+
+
+def test_design_render_svg_rejects_pythonscad(tmp_path: Path):
+    document = _document(
+        tmp_path,
+        "render.py",
+        "print('probe')\n",
+        """# Example
+
+<!-- scad-render-defaults
+engine: pythonscad
+source: render.py
+format: svg
+-->
+
+<!-- scad-render
+view: profile
+-->
+""",
+    )
+    _, errors = parse_design_document(document)
+    assert any(
+        "svg format currently requires engine: openscad" in error
+        for error in errors
+    )

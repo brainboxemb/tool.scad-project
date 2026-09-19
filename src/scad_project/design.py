@@ -67,6 +67,7 @@ class DesignRender:
     block_end: int
     engine: str
     kind: str
+    format: str
     image: str
     alt: str
     source: Path | None
@@ -335,11 +336,24 @@ def parse_design_document(document: DesignDocument) -> tuple[list[DesignRender],
                 )
                 continue
 
+        format_value = data.get("format", "png")
+        if not isinstance(format_value, str) or not format_value.strip():
+            errors.append(f"{prefix}: format must be 'png' or 'svg'")
+            continue
+        output_format = format_value.strip().lower()
+        if output_format not in {"png", "svg"}:
+            errors.append(f"{prefix}: format must be 'png' or 'svg'")
+            continue
+        if output_format == "svg" and engine != "openscad":
+            errors.append(f"{prefix}: svg format currently requires engine: openscad")
+            continue
+
         image = data.get("image")
         if image is None:
-            image = f"{idx:02d}-{_slug(view, kind)}.png"
-        if not isinstance(image, str) or not image.endswith(".png"):
-            errors.append(f"{prefix}: image must end in .png")
+            image = f"{idx:02d}-{_slug(view, kind)}.{output_format}"
+        expected_suffix = f".{output_format}"
+        if not isinstance(image, str) or not image.lower().endswith(expected_suffix):
+            errors.append(f"{prefix}: image must end in {expected_suffix}")
             continue
         if "/" in image or "\\" in image:
             errors.append(f"{prefix}: image must be a filename")
@@ -386,6 +400,18 @@ def parse_design_document(document: DesignDocument) -> tuple[list[DesignRender],
             )
             continue
 
+        if output_format == "svg" and (
+            vpr is not None
+            or vpt is not None
+            or vpd is not None
+            or size is not None
+        ):
+            errors.append(
+                f"{prefix}: svg format is true 2D output and does not accept "
+                "vpr, vpt, vpd or size"
+            )
+            continue
+
         renders.append(
             DesignRender(
                 document=document,
@@ -393,6 +419,7 @@ def parse_design_document(document: DesignDocument) -> tuple[list[DesignRender],
                 block_end=match.end(),
                 engine=engine,
                 kind=kind,
+                format=output_format,
                 image=image,
                 alt=alt,
                 source=source,
@@ -504,6 +531,18 @@ def _render_args(
     """Build the command line for one render backend."""
 
     cfg = _engine_config(context, render.engine)
+
+    if render.format == "svg":
+        assert render.engine == "openscad"
+        assert entry is not None
+        return [
+            "openscad",
+            *cfg["common_flags"],
+            "-o",
+            str(output),
+            str(entry),
+        ]
+
     shared = [
         *cfg["common_flags"],
         *cfg["render_flags"],
@@ -654,10 +693,15 @@ def build_design(context: ProjectContext) -> None:
 
                 size = render.size or default_size
                 output = image_dir / render.image
-                render_output = _raw_png_path(output) if watermark_text else output
+                render_watermark = watermark_text if render.format == "png" else None
+                render_output = (
+                    _raw_png_path(output)
+                    if render_watermark
+                    else output
+                )
                 if render_output.exists():
                     render_output.unlink()
-                if watermark_text and output.exists():
+                if render_watermark and output.exists():
                     output.unlink()
 
                 args = _render_args(
@@ -681,14 +725,14 @@ def build_design(context: ProjectContext) -> None:
                     run_checked(args, cwd=cwd)
                     _require_output(render_output)
 
-                    if watermark_text:
+                    if render_watermark:
                         run_checked(
                             [
                                 "scad-image-watermark",
                                 str(render_output),
                                 str(output),
                                 "--text",
-                                watermark_text,
+                                render_watermark,
                             ],
                             cwd=context.root,
                         )
