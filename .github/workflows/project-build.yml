@@ -32,7 +32,7 @@ on:
         description: Qualified SCAD runtime image selected from project configuration
         required: false
         type: string
-        default: ghcr.io/brainboxemb/scad-toolchain:v0.5.0
+        default: ghcr.io/brainboxemb/scad-toolchain:v0.5.3
       use_scons_cache:
         description: Restore/save the normal SCons cache for projects using the SCons build engine
         required: false
@@ -51,9 +51,9 @@ jobs:
       image: ${{ inputs.runtime_image }}
 
     env:
-      SCAD_PROJECT_WORKFLOW_VERSION: v0.14.10
+      SCAD_PROJECT_WORKFLOW_VERSION: v0.14.11
       SCAD_TOOLCHAIN_IMAGE: ${{ inputs.runtime_image }}
-      SCAD_TOOLCHAIN_VERSION: v0.5.0
+      SCAD_TOOLCHAIN_VERSION: v0.5.3
       SCAD_PROJECT_RELEASE_VERSION: ${{ inputs.release_version }}
       SCAD_PROJECT_SOURCE_SHA: ${{ inputs.source_sha || github.sha }}
       SCAD_PROJECT_PR_NUMBER: ${{ github.event.pull_request.number || '' }}

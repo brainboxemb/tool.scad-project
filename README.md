@@ -334,7 +334,7 @@ values as cache identity.
 1. resolve exact source/base;
 2. ask released `tool.git-project v0.2.8` once for Moon's complete affected-task set;
 3. stop before Python planner/image/SCons work when no SCAD capability is affected;
-4. validate project intent and select the appropriate `docker.scad-toolchain v0.5.0`
+4. validate project intent and select the appropriate `docker.scad-toolchain v0.5.3`
    runtime profile;
 5. restore only applicable Moon/SCons cache paths;
 6. execute or hydrate required coarse capabilities in one Docker process;
@@ -389,14 +389,17 @@ and for Release.
 
 ## Runtime image family
 
-Migration 005 uses the released v0.5.0 image family:
+Current SCAD consumers use the released and externally qualified v0.5.3 image
+family. This runtime includes the pinned `openscad-new-dimensions` library to the
+shared OpenSCAD capability set while preserving the existing OpenSCAD/full
+profile split:
 
 ```text
 OpenSCAD-focused:
-  ghcr.io/brainboxemb/scad-toolchain-openscad:v0.5.0
+  ghcr.io/brainboxemb/scad-toolchain-openscad:v0.5.3
 
 Full/dual OpenSCAD + PythonSCAD:
-  ghcr.io/brainboxemb/scad-toolchain:v0.5.0
+  ghcr.io/brainboxemb/scad-toolchain:v0.5.3
 ```
 
 The effective runtime is derived from SCAD project configuration rather than repository
