@@ -1,6 +1,12 @@
 paths:
   design_root: dsg/openscad
   build_root: bld
+  # One render_root remains supported. Multiple roots are useful when
+  # separating normal 3D PNG renders from true 2D SVG drawing entrypoints.
+  render_roots:
+    - dsg/openscad/render3d
+    - dsg/openscad/render2d
+  export_root: dsg/openscad/export
 
 design:
   # Set false in consumers that should publish only project-owned design docs.
