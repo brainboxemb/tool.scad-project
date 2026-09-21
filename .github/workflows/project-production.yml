@@ -76,7 +76,7 @@ jobs:
       source_sha: ${{ steps.range.outputs.source_sha }}
       base_sha: ${{ steps.range.outputs.base_sha }}
     env:
-      SCAD_PROJECT_WORKFLOW_VERSION: v0.15.1
+      SCAD_PROJECT_WORKFLOW_VERSION: v0.15.2
       SCAD_TOOLCHAIN_VERSION: v0.6.1
       SCAD_WORKFLOW_TIMINGS: .moon/preflight/workflow-timings.json
       PYTHONDONTWRITEBYTECODE: '1'
