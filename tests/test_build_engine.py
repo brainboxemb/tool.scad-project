@@ -381,3 +381,40 @@ for value in (
     )
     assert report["targets"][0]["output"] == "bld/drawing/profile.svg"
     assert report["targets"][0]["outcome"] == "BUILT"
+
+
+def test_scons_build_attaches_decision_and_dependency_provenance(
+    tmp_path,
+    monkeypatch,
+):
+    context = _context(tmp_path, engine="scons")
+    state = tmp_path / ".cache/scad-project/state"
+    state.mkdir(parents=True)
+    manifest = state / "build-manifest.json"
+    manifest.write_text('{"targets": []}\n', encoding="utf-8")
+    report = state / "last-build.json"
+    report.write_text('{"outcome_counts": {}}\n', encoding="utf-8")
+    provenance = state / "dependency-provenance.json"
+    provenance.write_text('{"schema": "dependency-provenance"}\n', encoding="utf-8")
+
+    monkeypatch.setattr(
+        build_engine,
+        "_build_with_scons",
+        lambda actual_context: manifest,
+    )
+    monkeypatch.setattr(
+        build_engine,
+        "write_dependency_provenance",
+        lambda actual_context, actual_manifest, output: provenance,
+    )
+
+    captured = {}
+
+    def capture_execution(context, **kwargs):
+        captured.update(kwargs)
+
+    monkeypatch.setattr(build_engine, "write_execution_evidence", capture_execution)
+
+    build_engine.build_project(context)
+
+    assert captured["domain_reports"] == [report, provenance]

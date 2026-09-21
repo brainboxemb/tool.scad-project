@@ -51,7 +51,7 @@ def _git_head(path: Path) -> str | None:
     return value if _REVISION_RE.fullmatch(value) else None
 
 
-def _source_revision(context: ProjectContext) -> str:
+def resolve_source_revision(context: ProjectContext) -> str:
     explicit = os.environ.get("SCAD_PROJECT_SOURCE_SHA", "").strip()
     if _REVISION_RE.fullmatch(explicit):
         return explicit
@@ -159,6 +159,7 @@ def write_execution_evidence(
     execution_id: str,
     output_root: Path,
     domain_report: Path | None = None,
+    domain_reports: list[Path] | None = None,
 ) -> Path | None:
     """Write one common execution envelope plus one concise SCAD producer log.
 
@@ -170,7 +171,7 @@ def write_execution_evidence(
     """
 
     try:
-        source_revision = _source_revision(context)
+        source_revision = resolve_source_revision(context)
         owner_revision = _owner_revision(context)
     except RuntimeError as exc:
         print(f"WARNING: persistent SCAD execution evidence skipped: {exc}")
@@ -183,10 +184,21 @@ def write_execution_evidence(
 
     domain_paths: list[str] = []
     report_payload: dict[str, Any] | None = None
-    if domain_report is not None and domain_report.is_file():
+    requested_reports = [
+        path
+        for path in [domain_report, *(domain_reports or [])]
+        if path is not None
+    ]
+    seen_reports: set[Path] = set()
+    for requested_report in requested_reports:
+        resolved_report = requested_report.resolve()
+        if resolved_report in seen_reports or not requested_report.is_file():
+            continue
+        seen_reports.add(resolved_report)
         domain_root.mkdir(parents=True, exist_ok=True)
-        copied_report = domain_root / domain_report.name
-        shutil.copy2(domain_report, copied_report)
+        copied_report = domain_root / requested_report.name
+        if resolved_report != copied_report.resolve():
+            shutil.copy2(requested_report, copied_report)
         domain_paths.append(_relative(execution_root, copied_report))
         try:
             value = json.loads(copied_report.read_text(encoding="utf-8"))
@@ -194,7 +206,11 @@ def write_execution_evidence(
             raise RuntimeError(
                 f"Could not read SCAD domain evidence: {copied_report}"
             ) from exc
-        if isinstance(value, dict):
+        if (
+            report_payload is None
+            and isinstance(value, dict)
+            and isinstance(value.get("outcome_counts"), dict)
+        ):
             report_payload = value
 
     producer_timing = _producer_timing()
@@ -218,8 +234,10 @@ def write_execution_evidence(
                 f"Producer duration: {producer_timing['duration_ms']} ms",
             ]
         )
-    if domain_paths:
+    if len(domain_paths) == 1:
         log_lines.extend(["", f"Domain evidence: {domain_paths[0]}"])
+    elif domain_paths:
+        log_lines.extend(["", "Domain evidence:", *[f"- {path}" for path in domain_paths]])
     else:
         log_lines.extend([
             "",

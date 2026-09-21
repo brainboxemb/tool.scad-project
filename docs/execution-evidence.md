@@ -29,7 +29,8 @@ evidence/
       execution.json
       execution.log
   domain/
-    <SCAD/SCons report>.json
+    last-build.json
+    dependency-provenance.json
 ```
 
 `execution.json` uses `brainboxemb.execution-evidence` schema version 1. It records
@@ -39,11 +40,12 @@ richer domain evidence. Shared Moon capability tasks also supply a producer timi
 context, retained as `producer_execution.started_at`, `finished_at` and `duration_ms`.
 That timing belongs to the execution that originally produced the retained output.
 
+`dependency-provenance.json` is emitted for successful SCons Build production. It derives from the same already-scanned target `sources` stored in the normal SCons build manifest and attributes only sources actually used by each target to the deepest initialized owner-local external worktree. Each retained dependency record includes owner path, dependency path, repository, declared ref, exact checked-out revision and used source paths. Independent copies of the same repository therefore remain distinguishable by owner/path and exact revision. Generic dependency initialization and movement remain owned by `tool.git-project`.
+
 `execution.log` is intentionally concise. It summarizes producer identity, producer
 timing when available and, when structured SCons telemetry exists, the `BUILT`,
 `CACHE_RESTORED`, `CURRENT` and `ERROR` decisions. It is not a second copy of raw
-OpenSCAD/SCons stdout. Detailed target sources, signatures, cache decisions and other
-SCAD-specific facts remain in the structured domain report.
+OpenSCAD/SCons stdout. Detailed target sources, signatures, cache decisions and exact external-source revisions remain in the structured domain reports.
 
 ## Producer versus current-run evidence
 

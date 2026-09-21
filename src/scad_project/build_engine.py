@@ -12,6 +12,7 @@ from typing import Any
 from . import build as direct_build
 from . import build_decisions
 from .config import ProjectContext
+from .dependency_provenance import write_dependency_provenance
 from .execution_evidence import write_execution_evidence
 from .openscad_deps import scan_openscad_dependencies
 from .process import run_checked
@@ -248,7 +249,7 @@ def _write_report(context: ProjectContext, manifest: Path) -> dict[str, Any]:
     return report
 
 
-def _build_with_scons(context: ProjectContext) -> None:
+def _build_with_scons(context: ProjectContext) -> Path:
     if shutil.which("scons") is None:
         raise RuntimeError(
             "SCons build engine requested but 'scons' is not installed"
@@ -296,24 +297,37 @@ def _build_with_scons(context: ProjectContext) -> None:
         )
     finally:
         _write_report(context, manifest)
+    return manifest
 
 
 def build_project(context: ProjectContext) -> None:
     """Build through the selected backend; direct remains the default."""
 
     engine = _engine_name(context)
+    manifest: Path | None = None
     if engine == "direct":
         direct_build.build_project(context)
     else:
-        _build_with_scons(context)
+        manifest = _build_with_scons(context)
 
     build_root = context.path(context.config["paths"]["build_root"])
-    report = context.path(SCONS_STATE_ROOT) / "last-build.json"
+    domain_reports: list[Path] = []
+    if engine == "scons" and manifest is not None:
+        report = context.path(SCONS_STATE_ROOT) / "last-build.json"
+        provenance = write_dependency_provenance(
+            context,
+            manifest,
+            context.path(SCONS_STATE_ROOT) / "dependency-provenance.json",
+        )
+        domain_reports.append(report)
+        if provenance is not None:
+            domain_reports.append(provenance)
+
     write_execution_evidence(
         context,
         capability="scad.build",
         action="build",
         execution_id="scad-build",
         output_root=build_root,
-        domain_report=report if engine == "scons" else None,
+        domain_reports=domain_reports,
     )

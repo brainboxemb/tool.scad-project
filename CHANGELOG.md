@@ -2,6 +2,21 @@
 
 Functional changes to released `tool.scad-project` versions.
 
+## v0.15.2
+
+### Added
+
+- Retain exact target-level provenance for external SCAD sources used by normal SCons Build targets as `bld/evidence/domain/dependency-provenance.json`.
+- Attribute scanned target sources to the deepest initialized owner-local external worktree, preserving dependency name, repository, owner path, dependency path, declared ref, exact revision and used source files.
+- Keep independently pinned copies of the same external repository distinct in retained Build evidence.
+- Link both SCons build-decision telemetry and dependency provenance from the normal `scad.build` producer execution envelope.
+
+### Boundary
+
+- The existing SCons manifest remains the source of truth for target source/dependency discovery; provenance does not perform a second OpenSCAD dependency scan.
+- `tool.git-project` remains the owner of generic dependency bootstrap, traversal, ref resolution, update, status and dirty-state protection.
+- Local/unversioned builds remain allowed; persistent dependency provenance is skipped when an exact producer source revision cannot be resolved.
+
 ## v0.15.1
 
 ### Fixed

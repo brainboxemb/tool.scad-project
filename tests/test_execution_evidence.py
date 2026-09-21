@@ -170,3 +170,68 @@ def test_navigation_is_readable_and_idempotent(tmp_path: Path, monkeypatch):
         evidence_navigation_lines(output_root, include_publication_context=False)
     )
     assert "## Publication context" not in without_publication
+
+
+def test_execution_evidence_links_multiple_domain_reports(
+    tmp_path: Path,
+    monkeypatch,
+):
+    monkeypatch.setenv("SCAD_PROJECT_SOURCE_SHA", "5" * 40)
+    monkeypatch.setenv("SCAD_PROJECT_TOOL_SHA", "6" * 40)
+
+    state = tmp_path / ".cache/state"
+    state.mkdir(parents=True)
+    decision = state / "last-build.json"
+    decision.write_text(
+        json.dumps(
+            {
+                "kind": "build",
+                "engine": "scons",
+                "target_count": 0,
+                "outcome_counts": {
+                    "BUILT": 0,
+                    "CACHE_RESTORED": 0,
+                    "CURRENT": 0,
+                    "ERROR": 0,
+                },
+                "targets": [],
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    provenance = state / "dependency-provenance.json"
+    provenance.write_text(
+        json.dumps(
+            {
+                "schema": "brainboxemb.scad-build-dependency-provenance",
+                "schema_version": 1,
+                "targets": [],
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    output_root = tmp_path / "bld"
+    output = write_execution_evidence(
+        _context(tmp_path),
+        capability="scad.build",
+        action="build",
+        execution_id="scad-build",
+        output_root=output_root,
+        domain_reports=[decision, provenance],
+    )
+
+    payload = json.loads(output.read_text(encoding="utf-8"))
+    assert payload["domain_evidence"] == [
+        "../../domain/last-build.json",
+        "../../domain/dependency-provenance.json",
+    ]
+    assert (output_root / "evidence/domain/last-build.json").is_file()
+    assert (output_root / "evidence/domain/dependency-provenance.json").is_file()
+
+    log = (output.parent / "execution.log").read_text(encoding="utf-8")
+    assert "Domain evidence:" in log
+    assert "- ../../domain/last-build.json" in log
+    assert "- ../../domain/dependency-provenance.json" in log
