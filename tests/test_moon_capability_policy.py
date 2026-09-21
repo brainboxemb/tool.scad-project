@@ -2,16 +2,17 @@
 
 Checks:
 Shared Migration-005 Moon capability tasks expose only stable materialized
-outputs. Optional SCons state files and optional domain-evidence reports must not
-be required outputs, because direct-engine consumers and verification commands
-without SCons targets do not produce them. Shared capability commands must also
+outputs. Optional SCons state files must not be required outputs. The production-owned
+Build dependency-provenance report is the one domain-evidence file explicitly
+retained as a Moon output so whole-capability hydration preserves exact external
+source identity. Shared capability commands must also
 use the runtime-guaranteed `python3` executable rather than assuming a `python`
 alias exists in the immutable SCAD toolchain image.
 
 Testing approach:
 Load the real shared Moon task YAML and assert the public output and command
-contracts for `scad.docs`, `scad.build` and `scad.verify`. Also reject cache-state
-and optional domain-report paths from every declared output list.
+contracts for `scad.docs`, `scad.build` and `scad.verify`. Also reject cache-state paths and any domain-evidence output other than the
+production-owned dependency provenance file.
 """
 
 from pathlib import Path
@@ -41,13 +42,17 @@ def test_shared_capability_outputs_do_not_require_optional_engine_state() -> Non
         "bld/stl/**",
         "bld/drawing/**",
         "bld/evidence/executions/scad-build/**",
+        "bld/evidence/domain/dependency-provenance.json",
     ]
     assert tasks["scad.verify"]["outputs"] == ["vrf/out/**"]
 
-    for task in tasks.values():
+    allowed_domain_output = "bld/evidence/domain/dependency-provenance.json"
+    for task_name, task in tasks.items():
         for output in task["outputs"]:
             assert not output.startswith(".cache/scad-project/")
-            assert "/evidence/domain/" not in output
+            if "/evidence/domain/" in output:
+                assert task_name == "scad.build"
+                assert output == allowed_domain_output
 
 
 def test_shared_capability_commands_use_runtime_python3() -> None:

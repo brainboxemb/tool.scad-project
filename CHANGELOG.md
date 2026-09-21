@@ -2,6 +2,18 @@
 
 Functional changes to released `tool.scad-project` versions.
 
+## v0.15.3
+
+### Fixed
+
+- Align normal SCAD production orchestration with released `tool.git-project v0.2.9` for affected selection, Moon materialization helpers and generated-output publication.
+- Retain `bld/evidence/domain/dependency-provenance.json` as part of the shared `scad.build` Moon output so whole-capability hydration preserves the exact external dependency evidence produced by the Build owner.
+
+### Boundary
+
+- Generic dependency closure/status/update semantics remain owned by `tool.git-project`.
+- The provenance file remains optional for build engines that do not produce SCons dependency provenance; its Moon output declaration is a retention contract, not a new build requirement.
+
 ## v0.15.2
 
 ### Added

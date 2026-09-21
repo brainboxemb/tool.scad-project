@@ -33,6 +33,7 @@ tasks:
       - 'bld/stl/**'
       - 'bld/drawing/**'
       - 'bld/evidence/executions/scad-build/**'
+      - 'bld/evidence/domain/dependency-provenance.json'
     options:
       cache: true
 

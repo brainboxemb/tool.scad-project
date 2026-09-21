@@ -48,14 +48,16 @@ def test_production_workflow_uses_compact_publication_namespace_defaults():
     assert "for KIND in build verification; do" not in cleanup
 
 
-def test_production_workflow_uses_one_moon_impact_query_and_v028_contract():
+def test_production_workflow_uses_one_moon_impact_query_and_v029_contract():
     text = WORKFLOW.read_text(encoding="utf-8")
 
-    assert text.count("brainboxemb/tool.git-project/moon/affected@v0.2.8") == 1
-    assert "brainboxemb/tool.git-project/moon/affected@v0.2.7" not in text
+    assert text.count("brainboxemb/tool.git-project/moon/affected@v0.2.9") == 1
+    assert "brainboxemb/tool.git-project/moon/affected@v0.2.8" not in text
     assert "affected-tasks" in text
     assert "scad_project.ci_policy" in text
     assert "consumer:scad.docs" in text
+    assert "tool.git-project/v0.2.9" in text
+    assert "tool.git-project/v0.2.8" not in text
 
 
 def test_production_workflow_fetches_only_the_exact_base_scad_tool_gitlink():
