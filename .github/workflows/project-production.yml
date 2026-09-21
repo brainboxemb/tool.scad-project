@@ -76,7 +76,8 @@ jobs:
       source_sha: ${{ steps.range.outputs.source_sha }}
       base_sha: ${{ steps.range.outputs.base_sha }}
     env:
-      SCAD_PROJECT_WORKFLOW_VERSION: v0.15.3
+      SCAD_PROJECT_WORKFLOW_VERSION: v0.15.4
+      GIT_PROJECT_RELEASE: v0.2.9
       SCAD_TOOLCHAIN_VERSION: v0.6.1
       SCAD_WORKFLOW_TIMINGS: .moon/preflight/workflow-timings.json
       PYTHONDONTWRITEBYTECODE: '1'
@@ -354,10 +355,10 @@ jobs:
           set -euo pipefail
 
           moon_runtime="$RUNNER_TEMP/tool-git-project/moon-runtime"
-          git_tool_action_root="$(realpath "$GITHUB_WORKSPACE/../../_actions/brainboxemb/tool.git-project/v0.2.9")"
+          git_tool_action_root="$(realpath "$GITHUB_WORKSPACE/../../_actions/brainboxemb/tool.git-project/$GIT_PROJECT_RELEASE")"
           test -d "$moon_runtime"
           test -f "$git_tool_action_root/moon-project.sh"
-          test "$(tr -d '\r\n' < "$git_tool_action_root/VERSION")" = 0.2.8
+          test "$(tr -d '\r\n' < "$git_tool_action_root/VERSION")" = "${GIT_PROJECT_RELEASE#v}"
 
           docker run --rm \
             --user "$(id -u):$(id -g)" \
@@ -377,7 +378,7 @@ jobs:
             -e "MATERIALIZATION_CAPABILITIES=$MATERIALIZATION_CAPABILITIES" \
             -v "$GITHUB_WORKSPACE:/work" \
             -v "$moon_runtime:/moon-runtime" \
-            -v "$git_tool_action_root:/tool-git-v028:ro" \
+            -v "$git_tool_action_root:/tool-git-project:ro" \
             -w /work \
             "$RUNTIME_IMAGE" bash -lc '
               set -euo pipefail
@@ -389,7 +390,7 @@ jobs:
               scad-toolchain-info
               for capability in $MATERIALIZATION_CAPABILITIES; do
                 echo "Moon materialization: consumer:$capability"
-                bash /tool-git-v028/moon-project.sh run "consumer:$capability" --repo . --install-root /moon-runtime
+                bash /tool-git-project/moon-project.sh run "consumer:$capability" --repo . --install-root /moon-runtime
               done
             '
 
@@ -534,7 +535,7 @@ jobs:
             --file "$SCAD_WORKFLOW_TIMINGS" \
             --phase publication
 
-          publisher="$(realpath "$GITHUB_WORKSPACE/../../_actions/brainboxemb/tool.git-project/v0.2.9/generated-output-publish.sh")"
+          publisher="$(realpath "$GITHUB_WORKSPACE/../../_actions/brainboxemb/tool.git-project/$GIT_PROJECT_RELEASE/generated-output-publish.sh")"
           test -f "$publisher"
 
           pids=()
