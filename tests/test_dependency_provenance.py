@@ -1,4 +1,17 @@
-"""Exact SCons build dependency provenance."""
+"""Exact SCons build dependency provenance.
+
+Checks:
+Target provenance is derived from the existing scanned SCons source manifest,
+attributes each used external source to the deepest owner-local dependency
+worktree, preserves independent pins of the same repository, and skips
+persistent output for unversioned local contexts.
+
+Testing approach:
+The tests construct small local Git repositories with root and nested external
+dependencies, feed a synthetic already-scanned build manifest to the production
+provenance writer, and assert owner/path/ref/revision/source attribution without
+network access or CAD rendering.
+"""
 
 from __future__ import annotations
 
