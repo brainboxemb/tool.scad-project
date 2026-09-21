@@ -56,7 +56,11 @@ def test_production_workflow_uses_one_moon_impact_query_and_v029_contract():
     assert "affected-tasks" in text
     assert "scad_project.ci_policy" in text
     assert "consumer:scad.docs" in text
-    assert "tool.git-project/v0.2.9" in text
+    assert "GIT_PROJECT_RELEASE: v0.2.9" in text
+    assert "tool.git-project/$GIT_PROJECT_RELEASE" in text
+    assert 'VERSION")" = "${GIT_PROJECT_RELEASE#v}"' in text
+    assert "/tool-git-project/moon-project.sh" in text
+    assert "/tool-git-v028" not in text
     assert "tool.git-project/v0.2.8" not in text
 
 

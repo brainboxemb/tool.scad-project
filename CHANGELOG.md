@@ -2,6 +2,19 @@
 
 Functional changes to released `tool.scad-project` versions.
 
+## v0.15.4
+
+### Fixed
+
+- Remove stale `tool.git-project v0.2.8` runtime assumptions from the reusable production shell after the v0.15.3 action ref moved to v0.2.9.
+- Centralize shell-side generic tool identity as `GIT_PROJECT_RELEASE=v0.2.9`, derive the checked-out VERSION assertion from it, and use a version-neutral `/tool-git-project` container mount.
+- Resolve the generated-output publisher through the same generic-tool release variable.
+
+### Evidence
+
+- Fixes the runtime failure exposed by `template.scad-project` qualification run `35655651131`.
+- Retains the v0.15.3 `dependency-provenance.json` Moon output contract unchanged.
+
 ## v0.15.3
 
 ### Fixed
