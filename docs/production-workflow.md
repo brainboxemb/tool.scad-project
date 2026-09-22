@@ -68,13 +68,36 @@ workspace:
 
 ## One impact query
 
-The workflow checks out the exact source revision shallow/blobless and fetches only the exact comparison-base commit when available. It then calls released `tool.git-project v0.2.8` once.
+The workflow checks out the exact source revision shallow/blobless and fetches only the exact comparison-base commit when available. It then calls released `tool.git-project v0.2.9` once.
 
 That action asks Moon for the complete affected-task set for `base -> head`. Migration 005 consumes the returned task list instead of reducing the result to one boolean.
 
 The current v0.2.8 interface still requires one existing Moon task as a query anchor. The production workflow uses `consumer:scad.docs`; the reference/template rollout therefore requires `scad.docs`. The complete affected-task list itself is not limited to that task: build- or verification-only changes are still present in the same Moon query result. A future generic affected interface may remove the anchor requirement; it must not reintroduce a second changed-path model in this workflow.
 
 A missing/unusable base or Moon-query failure is conservative: the configured SCAD capability set is treated as required rather than risking a false skip.
+
+### Pull requests use the complete base-to-head range
+
+For a pull request, the correctness range remains the PR base commit to the
+current PR head. It is deliberately **not** changed to previous-PR-head to
+current-head merely to reduce one run's execution scope.
+
+Generated Build/Verification branches are current-source snapshots. On a fresh
+runner, a previous-head-only capability decision could omit a family that was
+changed earlier in the PR and leave its generated snapshot or provenance at an
+older source revision. Keeping the complete PR range makes the current head
+self-contained and reproducible.
+
+Incremental reuse belongs below that correctness boundary:
+
+- exact-source Moon caching handles reruns of the same source SHA;
+- SCons handles target-level reuse between different source SHAs;
+- the affected query decides which complete capabilities are relevant to the
+  current PR as a whole.
+
+A future previous-head optimization would therefore require an explicit,
+qualified carry-forward/provenance contract. It must not be introduced merely
+by changing the affected comparison range.
 
 ## Unaffected path
 
@@ -109,8 +132,8 @@ The planner derives and validates:
 Runtime selection is based on project intent, never repository names:
 
 ```text
-OpenSCAD-only -> ghcr.io/brainboxemb/scad-toolchain-openscad:v0.5.3
-PythonSCAD configured -> ghcr.io/brainboxemb/scad-toolchain:v0.5.3
+OpenSCAD-only -> ghcr.io/brainboxemb/scad-toolchain-openscad:v0.6.1
+PythonSCAD configured -> ghcr.io/brainboxemb/scad-toolchain:v0.6.1
 ```
 
 ## Affected work versus publication-safe materialization
@@ -131,13 +154,49 @@ The unchanged contributor normally hydrates from Moon's whole-capability cache. 
 
 Verification is a separate publication family and is never pulled into Build merely for completeness.
 
+Consumer-local capability inputs may be intentionally broader than the shared
+task-policy inputs. In particular, a project's `scad.docs` inputs may include
+its OpenSCAD source tree because generated design images and design
+documentation can depend on geometry. A geometry change therefore may
+legitimately make documentation affected.
+
+Do not narrow that capability input merely because the source edit "looks like
+CAD only". Dependency-selective rendering/reuse belongs in the design/SCons
+producer. Moon's capability boundary stays conservative unless the project has
+a qualified finer-grained documentation dependency contract.
+
 ## One runtime process
 
-All required capability materialization happens inside one explicit Docker process on one hosted runner. Each capability is invoked separately through released `tool.git-project v0.2.8` Moon tooling so Moon can execute or hydrate it independently.
+All required capability materialization happens inside one explicit Docker process on one hosted runner. Each capability is invoked separately through released `tool.git-project v0.2.9` Moon tooling so Moon can execute or hydrate it independently.
 
 The container receives no GitHub write credential. Source checkout uses `persist-credentials: false`; generated-output publication stays on the host after the runtime exits.
 
 `PYTHONDONTWRITEBYTECODE=1` is set for production. Generated Python bytecode must not contaminate source-derived Moon input identity.
+
+### Shallow checkout warning during materialization
+
+The host-side affected preflight is the authoritative changed-file decision. It
+uses the explicit base/head revisions and is qualified for the two-root shallow
+checkout used by production.
+
+The later materialization calls normal `moon run` for capabilities that have
+already been selected. It does **not** use `--affected`. Moon 2.5.4 may still
+perform an internal changed-file probe and emit a warning on a shallow
+repository, for example that full Git history is required or that changed files
+may be inaccurate.
+
+Experiment `exp.2026-003.scad-ci-performance#3` isolates this behavior with a
+tiny cached task:
+
+- the two-root shallow checkout emits the warning;
+- supplying explicit `MOON_BASE` / `MOON_HEAD` does not remove it;
+- a full-history checkout removes it.
+
+This warning is therefore intentionally tolerated during already-selected
+materialization. Fetching full history only to silence it adds repository
+transport without improving the authoritative affected decision or the selected
+task's hash/output-cache semantics. If Moon changes this behavior in a future
+version, requalify it rather than suppressing warnings blindly.
 
 ## Cache boundaries
 
@@ -172,6 +231,14 @@ fine-grained.
 Moon restore and save are explicit workflow steps so both directions are part of
 the recorded cache-transport phase instead of hiding the Moon save in an
 automatic post-job action.
+
+GitHub Actions also applies repository/ref cache access boundaries. Pull-request
+caches are created in the PR merge-ref scope; sibling PRs cannot consume one
+another's PR caches, while a PR may read eligible base/default-branch caches.
+The production key therefore does not add a branch name merely for isolation:
+GitHub supplies the ref boundary, and the SCons Moon key supplies exact source
+identity. Do not add another branch token unless a concrete reuse/isolation
+requirement demonstrates that GitHub's cache scope is insufficient.
 
 ### SCons
 
@@ -275,7 +342,7 @@ Before a release of this lifecycle, owner tests plus reference-consumer evidence
 5. Moon can hydrate unchanged whole capabilities;
 6. direct projects perform no SCons transport;
 7. SCons projects retain only useful SCons cache paths;
-8. OpenSCAD-only and full/dual projects select the correct v0.5.3 image;
+8. OpenSCAD-only and full/dual projects select the correct v0.6.1 image;
 9. complete normal Build/Verification Actions artifacts are not duplicated;
 10. same-host Build/Verification publication remains isolated and correct;
 11. the coordinated release artifact hand-off still works;
