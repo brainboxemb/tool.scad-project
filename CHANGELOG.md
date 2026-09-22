@@ -2,6 +2,32 @@
 
 Functional changes to released `tool.scad-project` versions.
 
+## Unreleased
+
+### Changed
+
+- Scope portable Moon output caching for SCons-backed production to the exact
+  resolved source SHA, without a broad restore prefix. New source commits now
+  rely on SCons for target-level reuse instead of transporting accumulated Moon
+  output generations, while reruns of the same source can still hydrate whole
+  capabilities from Moon.
+- Keep a separate rolling compatible Moon cache for non-SCons/direct production.
+- Make Moon cache restore/save explicit so Moon transfer time belongs to the
+  normal cache-transport timing phase.
+
+### Evidence
+
+- `exp.2026-003.scad-ci-performance` PR #2 showed the portable Moon output
+  cache doubling from ~21.38 MB to ~42.76 MB after one incremental source
+  generation, while SCons target decisions and generated-output checksums stayed
+  identical with Moon transport disabled.
+- On the same incremental source, SCons-only transport completed in 102.441 s
+  versus 118.599 s for rolling Moon + SCons even though its runtime pull was
+  ~9.8 s slower. A same-source rerun still showed a ~7.45 s benefit from Moon
+  whole-capability hydration, motivating exact-source rather than disabled Moon
+  caching.
+
+
 ## v0.15.4
 
 ### Fixed

@@ -143,7 +143,35 @@ The container receives no GitHub write credential. Source checkout uses `persist
 
 ### Moon
 
-Moon is the whole-capability cache/reuse layer. The host transports only Moon's portable hash/output cache directories.
+Moon is the whole-capability cache/reuse layer. The host transports only Moon's
+portable hash/output cache directories, but the transport policy depends on the
+configured build engine.
+
+For SCons-backed production, Moon transport is scoped to the **exact resolved
+source SHA** and has no broad fallback restore prefix:
+
+```text
+new source SHA
+  -> no older Moon output generation is restored
+  -> SCons provides target-level incremental reuse
+  -> one bounded Moon generation is saved for this exact source
+
+rerun same source SHA
+  -> exact Moon cache hit
+  -> whole-capability hydration remains available
+```
+
+This prevents a long-running PR from carrying every previous Moon capability
+generation into each new source commit while preserving the useful same-source
+rerun fast path.
+
+For non-SCons/direct production, the rolling compatible Moon cache remains in
+place because no SCons target cache exists to reconstruct unchanged outputs
+fine-grained.
+
+Moon restore and save are explicit workflow steps so both directions are part of
+the recorded cache-transport phase instead of hiding the Moon save in an
+automatic post-job action.
 
 ### SCons
 

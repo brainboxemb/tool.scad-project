@@ -112,6 +112,48 @@ def test_production_workflow_transports_only_configured_scons_caches():
     assert "scad-production-verification-scons-v2" in text
 
 
+def test_scons_moon_cache_is_exact_source_scoped_without_fallback():
+    text = WORKFLOW.read_text(encoding="utf-8")
+
+    start = text.index("Restore exact-source Moon capability cache for SCons")
+    end = text.index("Restore rolling Moon capability cache for non-SCons")
+    block = text[start:end]
+
+    assert "steps.plan.outputs.build_engine == 'scons'" in block
+    assert "actions/cache/restore@" in block
+    assert "scons-source-v1-${{ steps.range.outputs.source_sha }}" in block
+    assert "restore-keys:" not in block
+    assert "github.run_id" not in block
+    assert "github.run_attempt" not in block
+
+
+def test_non_scons_moon_cache_retains_rolling_compatible_reuse():
+    text = WORKFLOW.read_text(encoding="utf-8")
+
+    start = text.index("Restore rolling Moon capability cache for non-SCons")
+    end = text.index("Restore configured normal SCons cache")
+    block = text[start:end]
+
+    assert "steps.plan.outputs.build_engine != 'scons'" in block
+    assert "rolling-v1-${{ github.run_id }}-${{ github.run_attempt }}" in block
+    assert "restore-keys:" in block
+    assert "rolling-v1-" in block
+
+
+def test_moon_cache_saves_are_explicit_and_part_of_cache_save_phase():
+    text = WORKFLOW.read_text(encoding="utf-8")
+
+    runtime = text.index("Execute or hydrate required SCAD capabilities in one Docker process")
+    scons_save = text.index("Save exact-source Moon capability cache for SCons")
+    rolling_save = text.index("Save rolling Moon capability cache for non-SCons")
+    finish_cache = text.index("Close cache-save timing and start finishing")
+
+    assert runtime < scons_save < rolling_save < finish_cache
+    assert "steps.moon-cache-scons.outputs.cache-primary-key" in text
+    assert "steps.moon-cache-rolling.outputs.cache-primary-key" in text
+    assert text.count("actions/cache/save@") >= 4
+
+
 def test_normal_production_retains_only_compact_orchestration_artifact():
     text = WORKFLOW.read_text(encoding="utf-8")
 

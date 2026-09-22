@@ -291,16 +291,27 @@ jobs:
             echo "- Verification SCons transport: \`$(jq -r '.use_verification_scons_cache' "$plan_file")\`"
           } >> "$GITHUB_STEP_SUMMARY"
 
-      - name: Restore portable Moon capability cache
-        if: steps.plan.outputs.run_runtime == 'true'
-        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+      - name: Restore exact-source Moon capability cache for SCons
+        id: moon-cache-scons
+        if: steps.plan.outputs.run_runtime == 'true' && steps.plan.outputs.build_engine == 'scons'
+        uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
         with:
           path: |
             .moon/cache/hashes
             .moon/cache/outputs
-          key: tool-git-project-moon-2.5.4-${{ runner.os }}-${{ inputs.cache_namespace }}-${{ github.run_id }}-${{ github.run_attempt }}
+          key: tool-git-project-moon-2.5.4-${{ runner.os }}-${{ inputs.cache_namespace }}-scons-source-v1-${{ steps.range.outputs.source_sha }}
+
+      - name: Restore rolling Moon capability cache for non-SCons
+        id: moon-cache-rolling
+        if: steps.plan.outputs.run_runtime == 'true' && steps.plan.outputs.build_engine != 'scons'
+        uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: |
+            .moon/cache/hashes
+            .moon/cache/outputs
+          key: tool-git-project-moon-2.5.4-${{ runner.os }}-${{ inputs.cache_namespace }}-rolling-v1-${{ github.run_id }}-${{ github.run_attempt }}
           restore-keys: |
-            tool-git-project-moon-2.5.4-${{ runner.os }}-${{ inputs.cache_namespace }}-
+            tool-git-project-moon-2.5.4-${{ runner.os }}-${{ inputs.cache_namespace }}-rolling-v1-
 
       - name: Restore configured normal SCons cache
         id: build-cache
@@ -412,6 +423,24 @@ jobs:
         with:
           path: .cache/scad-project/verification-scons
           key: ${{ steps.verification-cache.outputs.cache-primary-key }}
+
+      - name: Save exact-source Moon capability cache for SCons
+        if: always() && steps.plan.outputs.run_runtime == 'true' && steps.plan.outputs.build_engine == 'scons' && steps.moon-cache-scons.outputs.cache-hit != 'true' && hashFiles('.moon/cache/**') != ''
+        uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: |
+            .moon/cache/hashes
+            .moon/cache/outputs
+          key: ${{ steps.moon-cache-scons.outputs.cache-primary-key }}
+
+      - name: Save rolling Moon capability cache for non-SCons
+        if: always() && steps.plan.outputs.run_runtime == 'true' && steps.plan.outputs.build_engine != 'scons' && steps.moon-cache-rolling.outputs.cache-hit != 'true' && hashFiles('.moon/cache/**') != ''
+        uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: |
+            .moon/cache/hashes
+            .moon/cache/outputs
+          key: ${{ steps.moon-cache-rolling.outputs.cache-primary-key }}
 
       - name: Close cache-save timing and start finishing
         if: steps.plan.outputs.run_runtime == 'true'
