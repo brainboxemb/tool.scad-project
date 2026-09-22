@@ -1,5 +1,11 @@
 # Changelog
 
+## v0.15.8
+
+### Fixed
+
+- Materialize the complete owner-declared external dependency closure before reusable Build and Verify work, matching normal Production bootstrap semantics. This restores nested external checkouts such as `lib.scad.mechint` -> `lib.scad.forge` during coordinated releases without recursively initializing owner-local tooling gitlinks.
+
 ## v0.15.7
 
 ### Fixed
