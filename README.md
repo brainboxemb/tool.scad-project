@@ -124,29 +124,25 @@ The bootstrap engine is `tools/tool.git-project`, pinned by the parent repositor
 Root `bootstrap.ps1` / `bootstrap.sh` launchers restore that exact bootstrap tool and then
 establish managed dependencies declared in `project.yml`.
 
-A SCAD consumer can use the small wrappers in [`consumer/`](consumer/) for an intentional
-dependency update:
-
-```powershell
-.\update-repo.ps1
-```
-
-```bash
-bash ./update-repo.sh
-```
-
-Those wrappers call:
+Root `update-repo.ps1` / `update-repo.sh` launchers are generic managed files from
+`tool.git-project`. A normal update is therefore:
 
 ```text
-scad-project repo-update
+root update-repo.*
     -> tool.git-project update
-    -> scad-project workflow-sync
+        -> generic dependency movement
+        -> optional role:tooling post-update hooks
+            -> tool.scad-project/consumer/post-update.*
 ```
 
-The generic tool moves dependency gitlinks. `workflow-sync` is SCAD-specific and aligns
-consumer reusable-workflow calls with the configured `tool.scad-project` release ref from
-`project.yml`. The gitlink remains the exact resolved commit; the workflow caller stays
-human-readable as the same released version.
+The SCAD post-update hook is Python-free and owns only reusable-workflow ref
+synchronization. It aligns consumer workflow calls with the configured
+`tool.scad-project` release ref from `project.yml`.
+
+The historical SCAD `consumer/update-repo.*` and `bootstrap/consumer-update.*`
+paths remain compatibility forwarders during adoption. They delegate the generic
+operation to `tool.git-project` and then invoke the same SCAD post-update hook;
+they are no longer canonical root-launcher sources.
 
 ## Core commands
 
