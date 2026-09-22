@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+### Fixed
+
+- Serialize production-branch SCAD runs instead of cancelling an in-progress run when a newer push arrives. Pull-request runs may still supersede stale work, but production pushes now preserve the complete per-push affected/materialization/publication chain so a later narrow diff cannot mask output skipped by a cancelled predecessor.
+
 Functional changes to released `tool.scad-project` versions.
 
 ## v0.15.5

@@ -63,7 +63,10 @@ permissions:
 
 concurrency:
   group: scad-production-${{ github.repository_id }}-${{ github.event.pull_request.number || github.ref }}
-  cancel-in-progress: true
+  # PR heads may supersede stale work. Production-branch pushes must serialize:
+  # cancelling one can lose affected output because the next push evaluates only
+  # its own before -> head range.
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   production:

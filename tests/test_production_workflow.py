@@ -36,6 +36,14 @@ def test_production_workflow_uses_one_host_orchestrator_job():
     assert "container" not in job
 
 
+def test_production_pushes_serialize_while_pr_runs_may_supersede_stale_work():
+    text = WORKFLOW.read_text(encoding="utf-8")
+
+    assert "group: scad-production-${{ github.repository_id }}-${{ github.event.pull_request.number || github.ref }}" in text
+    assert "cancel-in-progress: ${{ github.event_name == 'pull_request' }}" in text
+    assert "cancel-in-progress: true" not in text
+
+
 def test_production_workflow_uses_compact_publication_namespace_defaults():
     data = yaml.safe_load(WORKFLOW.read_text(encoding="utf-8"))
     inputs = data[True]["workflow_call"]["inputs"]
