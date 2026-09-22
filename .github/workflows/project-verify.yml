@@ -79,6 +79,10 @@ jobs:
           git config --global --add safe.directory "$GITHUB_WORKSPACE"
           git config --global --add safe.directory "$GITHUB_WORKSPACE/tools/tool.scad-project"
 
+      - name: Materialize declared project dependencies
+        timeout-minutes: 2
+        run: bash ./tools/tool.git-project/git-project.sh bootstrap --repo "$GITHUB_WORKSPACE"
+
       - name: Describe verification cache
         id: scons-cache
         timeout-minutes: 2
