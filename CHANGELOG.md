@@ -1,5 +1,13 @@
 # Changelog
 
+## v0.15.10
+
+### Changed
+
+- Base reusable SCAD production on released `tool.git-project v0.2.11`, including the hardened managed-launcher and release-test contract.
+- Align reusable workflow self-version markers and package runtime version with v0.15.10.
+
+
 ## v0.15.9
 
 ### Changed
