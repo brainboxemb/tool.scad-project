@@ -44,3 +44,18 @@ def test_consumer_updaters_do_not_reimplement_generic_git_management():
         text = path.read_text(encoding="utf-8")
         for marker in forbidden:
             assert marker not in text, f"{path} contains generic Git logic: {marker}"
+
+
+def test_consumer_updaters_preserve_update_and_status_modes():
+    shell = (ROOT / "bootstrap" / "consumer-update.sh").read_text(encoding="utf-8")
+    powershell = (ROOT / "bootstrap" / "consumer-update.ps1").read_text(encoding="utf-8")
+
+    assert 'mode="${1:-update}"' in shell
+    assert 'update|status' in shell
+    assert 'bash "$git_tool" "$mode" --repo "$root"' in shell
+    assert 'if [[ "$mode" == "status" ]]' in shell
+
+    assert '[ValidateSet("update", "status")]' in powershell
+    assert '[string] $Mode = "update"' in powershell
+    assert '& $GitTool $Mode -RepoRoot $Root' in powershell
+    assert 'if ($Mode -eq "status")' in powershell
