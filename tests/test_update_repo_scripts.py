@@ -1,4 +1,13 @@
-"""Python-free SCAD post-update composition contract."""
+"""Python-free SCAD post-update composition contract.
+
+Checks:
+The SCAD post-update hook synchronizes reusable workflow refs, compatibility
+wrappers compose generic update plus the hook, and status remains read-only.
+
+Testing approach:
+Execute the real shell hook/wrapper against temporary Git consumers with a fake
+generic tool so repository composition is tested without Python.
+"""
 
 from pathlib import Path
 import shutil
