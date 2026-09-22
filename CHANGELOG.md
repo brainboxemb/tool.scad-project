@@ -2,7 +2,7 @@
 
 Functional changes to released `tool.scad-project` versions.
 
-## Unreleased
+## v0.15.5
 
 ### Changed
 
