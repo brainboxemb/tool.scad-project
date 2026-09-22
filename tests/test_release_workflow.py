@@ -222,3 +222,20 @@ def test_release_workflow_uses_self_repository_reusable_workflows():
     assert "brainboxemb/tool.scad-project/.github/workflows/project-build.yml@" not in text
     assert "brainboxemb/tool.scad-project/.github/workflows/project-verify.yml@" not in text
     assert "@feature/versioned-project-release" not in text
+
+
+def test_build_and_verify_materialize_declared_dependencies_before_domain_work():
+    for workflow, domain_step in (
+        (BUILD, "Describe build caches"),
+        (VERIFY, "Describe verification cache"),
+    ):
+        text = read(workflow)
+        bootstrap = text.index("name: Materialize declared project dependencies")
+        domain = text.index(domain_step)
+
+        assert bootstrap < domain
+        assert (
+            'bash ./tools/tool.git-project/git-project.sh bootstrap --repo "$GITHUB_WORKSPACE"'
+            in text
+        )
+        assert "submodules: recursive" not in text
