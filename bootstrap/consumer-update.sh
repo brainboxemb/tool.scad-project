@@ -1,6 +1,12 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+mode="${1:-update}"
+case "$mode" in
+  update|status) ;;
+  *) echo "Usage: ./update-repo.sh [update|status]" >&2; exit 2 ;;
+esac
+
 command -v git >/dev/null 2>&1 || { echo "Git was not found in PATH." >&2; exit 1; }
 
 root="$(git rev-parse --show-toplevel 2>/dev/null || true)"
@@ -12,7 +18,11 @@ git_tool="$root/tools/tool.git-project/git-project.sh"
   exit 1
 }
 
-bash "$git_tool" update --repo "$root"
+bash "$git_tool" "$mode" --repo "$root"
+if [[ "$mode" == "status" ]]; then
+  echo "SCAD repository status complete."
+  exit 0
+fi
 
 scad_tool_ref="$(
   awk '

@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+### Fixed
+
+- Preserve the established `update-repo status` contract in the SCAD consumer wrappers: forward `update|status` to `tool.git-project`, keep status read-only, and synchronize workflow refs only after an actual update. This restores the Migration-008 normal-entrypoint behavior caught by Experiment 006 DEP-06.
+
 ## v0.15.6
 
 ### Fixed

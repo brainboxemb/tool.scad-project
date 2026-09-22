@@ -1,3 +1,8 @@
+param(
+    [ValidateSet("update", "status")]
+    [string] $Mode = "update"
+)
+
 $ErrorActionPreference = "Stop"
 
 function Unquote-ProjectValue {
@@ -88,9 +93,13 @@ if (-not (Test-Path -LiteralPath $GitTool -PathType Leaf)) {
     throw "tool.git-project is not initialized. Run .\bootstrap.ps1 first."
 }
 
-& $GitTool update -RepoRoot $Root
+& $GitTool $Mode -RepoRoot $Root
 if ($LASTEXITCODE -ne 0) {
-    throw "Generic project dependency update failed."
+    throw "Generic project dependency $Mode failed."
+}
+if ($Mode -eq "status") {
+    Write-Host "SCAD repository status complete."
+    return
 }
 
 $ToolRef = Get-ConfiguredScadToolRef (Join-Path $Root "project.yml")
