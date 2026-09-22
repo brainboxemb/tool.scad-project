@@ -79,24 +79,16 @@ dependency policy in `project.yml`.
 
 ## Generic repository command bridge
 
-`scad-project repo-sync`, `repo-update` and `repo-status` are compatibility /
-composition commands. They invoke `tool.git-project` for the generic operation.
+The root `update-repo.*` launcher is generic repository infrastructure and is
+owned by `tool.git-project`.
 
-After an update, SCAD-specific workflow callers still need to match the exact
-checked-out `tool.scad-project` commit. That is owned here because these reusable
-workflow names are part of the SCAD tool API:
+After a generic update, SCAD-specific workflow callers still need to align with
+the configured `tool.scad-project` release ref. This repository therefore owns
+only the SCAD post-update hook that performs workflow-ref synchronization.
 
-```text
-project-build.yml
-project-verify.yml
-project-release.yml
-```
-
-`scad-project workflow-sync` performs that exact-SHA rewrite. `repo-update`
-runs generic update first, then workflow sync.
-
-Consumer `update-repo.*` helpers must stay tiny and call the SCAD composition
-command; they must not contain their own dependency parser/resolver.
+Compatibility CLI commands such as `scad-project repo-update` may remain, but
+must delegate generic dependency movement to `tool.git-project` and must not
+become the canonical root launcher.
 
 ## Sources of truth
 
