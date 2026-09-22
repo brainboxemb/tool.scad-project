@@ -1,4 +1,13 @@
-"""SCAD repository update compatibility and post-update hook policy."""
+"""SCAD repository update compatibility and post-update hook policy.
+
+Checks:
+Compatibility wrappers delegate generic repository work to tool.git-project,
+preserve read-only status, and SCAD post-update hooks remain native/Python-free.
+
+Testing approach:
+Inspect the canonical wrapper/hook source for ownership boundaries and stable
+update/status composition markers.
+"""
 
 from pathlib import Path
 
