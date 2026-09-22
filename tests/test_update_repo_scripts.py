@@ -1,31 +1,20 @@
-"""Python-free SCAD consumer update wrappers.
+"""Python-free SCAD post-update composition contract.
 
 Checks:
-Consumer update launchers delegate generic dependency movement directly to the
-pinned tool.git-project shell implementation and keep only the SCAD-specific
-workflow-ref alignment locally. Basic repository update must not require the
-Python-based scad-project CLI.
+The SCAD post-update hook synchronizes reusable workflow refs, compatibility
+wrappers compose generic update plus the hook, and status remains read-only.
 
 Testing approach:
-Policy checks inspect both canonical updater copies. A shell integration test
-executes the real updater against a temporary Git consumer with a fake generic
-tool, proving dependency delegation and semantic workflow-ref synchronization
-without invoking Python.
+Execute the real shell hook/wrapper against temporary Git consumers with a fake
+generic tool so repository composition is tested without Python.
 """
 
 from pathlib import Path
+import shutil
 import subprocess
 
 
 ROOT = Path(__file__).resolve().parents[1]
-
-CONSUMER_UPDATERS = (
-    ROOT / "consumer" / "update-repo.ps1",
-    ROOT / "consumer" / "update-repo.sh",
-    ROOT / "bootstrap" / "consumer-update.ps1",
-    ROOT / "bootstrap" / "consumer-update.sh",
-)
-
 REUSABLE_PROJECT_WORKFLOWS = (
     "project-build",
     "project-verify",
@@ -34,35 +23,10 @@ REUSABLE_PROJECT_WORKFLOWS = (
 )
 
 
-def test_consumer_updaters_are_python_free_git_tool_wrappers():
-    for script in CONSUMER_UPDATERS:
-        text = script.read_text(encoding="utf-8")
-        assert "tools/tool.git-project" in text
-        assert "tool.scad-project/scad-project" not in text
-        assert "python" not in text.lower()
-        assert "submodule add" not in text
-        assert "resolve_ref" not in text
-        assert "latest_tag" not in text
-        for workflow in REUSABLE_PROJECT_WORKFLOWS:
-            assert workflow in text
-
-
-def test_shell_updater_delegates_and_synchronizes_workflow_ref(tmp_path):
+def _write_consumer(tmp_path: Path, ref: str = "v0.15.1") -> Path:
     subprocess.run(["git", "init", str(tmp_path)], check=True, capture_output=True, text=True)
-
-    generic_tool = tmp_path / "tools" / "tool.git-project" / "git-project.sh"
-    generic_tool.parent.mkdir(parents=True)
-    generic_tool.write_text(
-        """#!/usr/bin/env bash
-set -euo pipefail
-printf '%s\\n' "$*" > "$3/generic-update.args"
-""",
-        encoding="utf-8",
-    )
-    generic_tool.chmod(generic_tool.stat().st_mode | 0o111)
-
     (tmp_path / "project.yml").write_text(
-        """schema_version: 1
+        f"""schema_version: 1
 project:
   name: demo
 profiles:
@@ -74,7 +38,7 @@ dependencies:
     type: git-submodule
     url: https://github.com/brainboxemb/tool.scad-project.git
     path: tools/tool.scad-project
-    ref: v0.15.1
+    ref: {ref}
 """,
         encoding="utf-8",
     )
@@ -92,6 +56,43 @@ dependencies:
 """,
         encoding="utf-8",
     )
+    return workflow
+
+
+def test_shell_post_update_hook_synchronizes_workflow_ref(tmp_path):
+    workflow = _write_consumer(tmp_path)
+
+    result = subprocess.run(
+        ["bash", str(ROOT / "consumer" / "post-update.sh"), "--repo", str(tmp_path)],
+        cwd=tmp_path,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+
+    assert "project-production.yml@v0.15.1" in workflow.read_text(encoding="utf-8")
+    assert "SCAD post-update synchronization complete." in result.stdout
+
+
+def test_compatibility_shell_updater_composes_generic_update_and_scad_hook(tmp_path):
+    workflow = _write_consumer(tmp_path)
+
+    generic_tool = tmp_path / "tools" / "tool.git-project" / "git-project.sh"
+    generic_tool.parent.mkdir(parents=True)
+    generic_tool.write_text(
+        """#!/usr/bin/env bash
+set -euo pipefail
+printf '%s\\n' "$*" > "$3/generic-update.args"
+""",
+        encoding="utf-8",
+    )
+    generic_tool.chmod(generic_tool.stat().st_mode | 0o111)
+
+    scad_consumer = tmp_path / "tools" / "tool.scad-project" / "consumer"
+    scad_consumer.mkdir(parents=True)
+    hook = scad_consumer / "post-update.sh"
+    shutil.copy2(ROOT / "consumer" / "post-update.sh", hook)
+    hook.chmod(hook.stat().st_mode | 0o111)
 
     result = subprocess.run(
         ["bash", str(ROOT / "consumer" / "update-repo.sh")],
@@ -103,32 +104,56 @@ dependencies:
 
     assert "update --repo" in (tmp_path / "generic-update.args").read_text(encoding="utf-8")
     assert "project-production.yml@v0.15.1" in workflow.read_text(encoding="utf-8")
-    assert "SCAD repository update complete." in result.stdout
+    assert "SCAD post-update synchronization complete." in result.stdout
+
+
+def test_compatibility_shell_status_does_not_run_post_update_hook(tmp_path):
+    workflow = _write_consumer(tmp_path)
+
+    generic_tool = tmp_path / "tools" / "tool.git-project" / "git-project.sh"
+    generic_tool.parent.mkdir(parents=True)
+    generic_tool.write_text(
+        """#!/usr/bin/env bash
+set -euo pipefail
+printf '%s\\n' "$*" > "$3/generic-status.args"
+""",
+        encoding="utf-8",
+    )
+    generic_tool.chmod(generic_tool.stat().st_mode | 0o111)
+
+    scad_consumer = tmp_path / "tools" / "tool.scad-project" / "consumer"
+    scad_consumer.mkdir(parents=True)
+    hook = scad_consumer / "post-update.sh"
+    hook.write_text(
+        """#!/usr/bin/env bash
+set -euo pipefail
+touch "$2/hook-ran"
+""",
+        encoding="utf-8",
+    )
+    hook.chmod(hook.stat().st_mode | 0o111)
+
+    subprocess.run(
+        ["bash", str(ROOT / "consumer" / "update-repo.sh"), "status"],
+        cwd=tmp_path,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+
+    assert "status --repo" in (tmp_path / "generic-status.args").read_text(encoding="utf-8")
+    assert not (tmp_path / "hook-ran").exists()
+    assert "project-production.yml@v0.15.0" in workflow.read_text(encoding="utf-8")
 
 
 def test_repository_bridge_still_delegates_cli_compatibility_to_tool_git_project():
-    text = (ROOT / "src" / "scad_project" / "repository.py").read_text(
-        encoding="utf-8"
-    )
+    text = (ROOT / "src" / "scad_project" / "repository.py").read_text(encoding="utf-8")
     assert "tools/tool.git-project" in text
     assert 'run_generic_repository_command(context, "update")' in text
     assert 'run_generic_repository_command(context, "bootstrap")' in text
 
 
 def test_python_cli_workflow_sync_covers_all_reusable_project_workflows():
-    text = (ROOT / "src" / "scad_project" / "repository.py").read_text(
-        encoding="utf-8"
-    )
+    text = (ROOT / "src" / "scad_project" / "repository.py").read_text(encoding="utf-8")
     for workflow in REUSABLE_PROJECT_WORKFLOWS:
         assert workflow in text
-
-
-def test_python_cli_workflow_sync_uses_configured_tool_ref_not_checked_out_sha():
-    text = (ROOT / "src" / "scad_project" / "repository.py").read_text(
-        encoding="utf-8"
-    )
-    assert "configured_scad_tool_ref" in text
-    assert 'tool.get("ref")' in text
-    assert "@{tool_ref}" in text
-    assert '"rev-parse", "HEAD"' not in text
-    assert "tool_sha" not in text

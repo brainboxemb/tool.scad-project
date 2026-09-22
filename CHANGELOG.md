@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+### Changed
+
+- Root repository update ownership moves back to the generic `tool.git-project` launcher contract. SCAD now exposes a Python-free `consumer/post-update.ps1|sh` hook that owns only SCAD reusable-workflow ref synchronization.
+- Historical SCAD update wrapper paths remain as compatibility forwarders and reuse the same post-update hook instead of carrying a second copy of the project/ref parser.
+
+
 ## v0.15.8
 
 ### Fixed

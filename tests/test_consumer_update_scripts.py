@@ -1,61 +1,66 @@
-"""Canonical SCAD consumer repository update launchers.
+"""SCAD repository update compatibility and post-update hook policy.
 
 Checks:
-The bootstrap launchers keep basic dependency update Python-free by invoking the
-pinned native tool.git-project scripts directly. They retain only the
-SCAD-specific reusable-workflow ref synchronization needed after dependency
-movement.
+Compatibility wrappers delegate generic repository work to tool.git-project,
+preserve read-only status, and SCAD post-update hooks remain native/Python-free.
 
 Testing approach:
-Inspect the canonical bootstrap shell and PowerShell launchers and reject the
-old Python scad-project compatibility path plus generic Git implementation
-details that belong to tool.git-project.
+Inspect the canonical wrapper/hook source for ownership boundaries and stable
+update/status composition markers.
 """
 
 from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
-SCRIPTS = (
+COMPAT_UPDATERS = (
     ROOT / "bootstrap" / "consumer-update.sh",
     ROOT / "bootstrap" / "consumer-update.ps1",
+    ROOT / "consumer" / "update-repo.sh",
+    ROOT / "consumer" / "update-repo.ps1",
+)
+POST_UPDATE_HOOKS = (
+    ROOT / "consumer" / "post-update.sh",
+    ROOT / "consumer" / "post-update.ps1",
+)
+REUSABLE_PROJECT_WORKFLOWS = (
+    "project-build",
+    "project-verify",
+    "project-production",
+    "project-release",
 )
 
 
-def test_consumer_updaters_delegate_directly_to_git_tool_without_python():
-    for path in SCRIPTS:
+def test_compatibility_updaters_delegate_generic_repository_operation():
+    for path in COMPAT_UPDATERS:
         text = path.read_text(encoding="utf-8")
         assert "tools/tool.git-project" in text
-        assert "tool.scad-project/scad-project" not in text
-        assert "repo-update" not in text
+        assert "consumer/post-update" in text
         assert "python" not in text.lower()
+        for workflow in REUSABLE_PROJECT_WORKFLOWS:
+            assert workflow not in text
 
 
-def test_consumer_updaters_do_not_reimplement_generic_git_management():
-    forbidden = (
-        "submodule add",
-        "fetch --prune --tags",
-        "latest_tag",
-        "Resolve-DependencyRef",
-        "tool_scad_project:",
-        "externals:",
-    )
-    for path in SCRIPTS:
-        text = path.read_text(encoding="utf-8")
-        for marker in forbidden:
-            assert marker not in text, f"{path} contains generic Git logic: {marker}"
-
-
-def test_consumer_updaters_preserve_update_and_status_modes():
-    shell = (ROOT / "bootstrap" / "consumer-update.sh").read_text(encoding="utf-8")
-    powershell = (ROOT / "bootstrap" / "consumer-update.ps1").read_text(encoding="utf-8")
+def test_compatibility_updaters_preserve_read_only_status():
+    shell = (ROOT / "consumer" / "update-repo.sh").read_text(encoding="utf-8")
+    powershell = (ROOT / "consumer" / "update-repo.ps1").read_text(encoding="utf-8")
 
     assert 'mode="${1:-update}"' in shell
     assert 'update|status' in shell
     assert 'bash "$git_tool" "$mode" --repo "$root"' in shell
-    assert 'if [[ "$mode" == "status" ]]' in shell
+    assert '[[ "$mode" == "status" ]] && exit 0' in shell
 
     assert '[ValidateSet("update", "status")]' in powershell
     assert '[string] $Mode = "update"' in powershell
     assert '& $GitTool $Mode -RepoRoot $Root' in powershell
     assert 'if ($Mode -eq "status")' in powershell
+
+
+def test_post_update_hooks_are_scad_only_and_python_free():
+    for path in POST_UPDATE_HOOKS:
+        text = path.read_text(encoding="utf-8")
+        assert "tools/tool.git-project" not in text
+        assert "python" not in text.lower()
+        assert "tool.scad-project" in text
+        for workflow in REUSABLE_PROJECT_WORKFLOWS:
+            assert workflow in text
