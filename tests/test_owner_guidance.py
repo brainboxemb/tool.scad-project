@@ -1,19 +1,22 @@
-"""Protect released publication-namespace guidance.
+"""Protect tool owner/consumer guidance boundaries.
 
 Checks:
-- canonical `bld` / `vrf` preview, production and release examples remain present;
-- legacy `build` / `verification` publication branch examples do not return.
+- canonical publication namespace examples remain in consumer-facing README;
+- repository AGENTS routes shared workflow to brainboxemb.meta;
+- owner AGENTS does not reintroduce archived portfolio authorities or the old
+  micro-commit workflow.
 
 Testing approach:
-- inspect the repository-owned `AGENTS.md` text directly because that file is the
-  durable guidance pinned into current-generation consumer repositories.
+- inspect the consumer-facing README for the canonical publication examples;
+- inspect owner AGENTS as text, normalizing whitespace where sentence wrapping
+  is irrelevant to the guidance contract.
 """
 
 from pathlib import Path
 
 
-def test_owner_guidance_uses_canonical_publication_names():
-    text = Path("AGENTS.md").read_text(encoding="utf-8")
+def test_consumer_readme_uses_canonical_publication_names():
+    text = Path("README.md").read_text(encoding="utf-8")
 
     for expected in (
         "dev/pr-N/bld",
@@ -34,3 +37,22 @@ def test_owner_guidance_uses_canonical_publication_names():
         "rel/vX.Y.Z/verification",
     ):
         assert legacy not in text
+
+
+def test_owner_agents_routes_to_current_shared_guidance():
+    text = Path("AGENTS.md").read_text(encoding="utf-8")
+    normalized = " ".join(text.split())
+
+    assert "brainboxemb.meta/AGENTS.md" in text
+    assert "README.md" in text
+    assert (
+        "SCAD consumer repositories do **not** inherit these instructions."
+        in normalized
+    )
+
+    for stale in (
+        "meta.scad-projects",
+        "tech.scad",
+        "make the smallest initial commit",
+    ):
+        assert stale not in text

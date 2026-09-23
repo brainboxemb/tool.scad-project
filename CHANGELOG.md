@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+### Changed
+
+- Simplify `AGENTS.md` to owner-local navigation and boundaries: shared working/Git/SCAD guidance now routes through `brainboxemb.meta`, while pinned consumer behavior remains owned by README/docs/source/tests. Move publication-namespace regression coverage to the consumer-facing README authority.
+
 ## v0.15.10
 
 ### Changed
