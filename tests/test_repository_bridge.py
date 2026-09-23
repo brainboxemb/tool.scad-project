@@ -3,7 +3,7 @@
 Checks:
 Repository bootstrap/status/update operations are delegated to the pinned
 `tool.git-project` checkout instead of being reimplemented by the SCAD tool. After a
-generic update, SCAD reusable Build, Verify, Production and Release workflow callers
+generic update, SCAD reusable Build, Verify, CI and Release workflow callers
 are aligned to the configured `tool.scad-project` ref instead of an opaque checked-out
 commit SHA.
 
@@ -87,13 +87,13 @@ def test_workflow_sync_uses_configured_semantic_tool_ref(tmp_path):
     workflow.write_text(
         """jobs:
   build:
-    uses: brainboxemb/tool.scad-project/.github/workflows/project-build.yml@old
+    uses: brainboxemb/tool.scad-project/.github/workflows/reusable-build.yml@old
   verify:
-    uses: brainboxemb/tool.scad-project/.github/workflows/project-verify.yml@old
-  production:
-    uses: brainboxemb/tool.scad-project/.github/workflows/project-production.yml@old
+    uses: brainboxemb/tool.scad-project/.github/workflows/reusable-verify.yml@old
+  ci:
+    uses: brainboxemb/tool.scad-project/.github/workflows/reusable-ci.yml@old
   release:
-    uses: brainboxemb/tool.scad-project/.github/workflows/project-release.yml@old
+    uses: brainboxemb/tool.scad-project/.github/workflows/reusable-release.yml@old
 """,
         encoding="utf-8",
     )
@@ -104,10 +104,10 @@ def test_workflow_sync_uses_configured_semantic_tool_ref(tmp_path):
 
     assert changed == [workflow]
     for name in (
-        "project-build",
-        "project-verify",
-        "project-production",
-        "project-release",
+        "reusable-build",
+        "reusable-verify",
+        "reusable-ci",
+        "reusable-release",
     ):
         assert f"{name}.yml@{ref}" in text
     assert "@old" not in text
@@ -118,12 +118,12 @@ def test_workflow_sync_preserves_explicit_development_ref(tmp_path):
     workflow_dir.mkdir(parents=True)
     workflow = workflow_dir / "ci.yml"
     workflow.write_text(
-        "jobs:\n  scad:\n    uses: brainboxemb/tool.scad-project/.github/workflows/project-production.yml@old\n",
+        "jobs:\n  scad:\n    uses: brainboxemb/tool.scad-project/.github/workflows/reusable-ci.yml@old\n",
         encoding="utf-8",
     )
 
     repository.sync_workflow_refs(_context(tmp_path, tool_ref="feature/test-release"))
 
-    assert "project-production.yml@feature/test-release" in workflow.read_text(
+    assert "reusable-ci.yml@feature/test-release" in workflow.read_text(
         encoding="utf-8"
     )

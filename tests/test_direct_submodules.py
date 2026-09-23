@@ -22,8 +22,8 @@ def test_scad_owned_scripts_do_not_use_recursive_submodules():
         ROOT / "consumer" / "post-update.sh",
         ROOT / "src" / "scad_project" / "repository.py",
         ROOT / "src" / "scad_project" / "externals.py",
-        ROOT / ".github" / "workflows" / "project-build.yml",
-        ROOT / ".github" / "workflows" / "project-verify.yml",
+        ROOT / ".github" / "workflows" / "reusable-build.yml",
+        ROOT / ".github" / "workflows" / "reusable-verify.yml",
     ]
     for path in files:
         text = path.read_text(encoding="utf-8")

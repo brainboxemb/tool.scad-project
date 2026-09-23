@@ -1,4 +1,15 @@
-"""Maintained GitHub workflow naming and orientation contract."""
+"""GitHub workflow naming and orientation
+
+Checks:
+Maintained owner workflows use the shared self/reusable/test scope prefixes and
+the build/verify/ci/release/pages capability vocabulary. Legacy project-* and
+production workflow filenames are absent, and each workflow has a compact
+Purpose/Scope orientation header.
+
+Testing approach:
+Read the maintained workflow directory directly and compare its filenames,
+display names and top-of-file orientation comments with the owner contract.
+"""
 
 from pathlib import Path
 
