@@ -124,11 +124,11 @@ The bootstrap engine is `tools/tool.git-project`, pinned by the parent repositor
 Root `bootstrap.ps1` / `bootstrap.sh` launchers restore that exact bootstrap tool and then
 establish managed dependencies declared in `project.yml`.
 
-Root `update-repo.ps1` / `update-repo.sh` launchers are generic managed files from
+Root `update.ps1` / `update.sh` launchers are generic managed files from
 `tool.git-project`. A normal update is therefore:
 
 ```text
-root update-repo.*
+root update.*
     -> tool.git-project update
         -> generic dependency movement
         -> optional role:tooling post-update hooks
@@ -139,10 +139,8 @@ The SCAD post-update hook is Python-free and owns only reusable-workflow ref
 synchronization. It aligns consumer workflow calls with the configured
 `tool.scad-project` release ref from `project.yml`.
 
-The historical SCAD `consumer/update-repo.*` and `bootstrap/consumer-update.*`
-paths remain compatibility forwarders during adoption. They delegate the generic
-operation to `tool.git-project` and then invoke the same SCAD post-update hook;
-they are no longer canonical root-launcher sources.
+`tool.scad-project` does not ship a second root updater implementation or
+compatibility wrapper. Current consumers use the generic managed root launcher.
 
 ## Core commands
 
@@ -570,7 +568,7 @@ values as cache identity.
 `project-production.yml` implements the Migration-005 normal lifecycle:
 
 1. resolve exact source/base;
-2. ask released `tool.git-project v0.2.8` once for Moon's complete affected-task set;
+2. ask released `tool.git-project v0.2.12` once for Moon's complete affected-task set;
 3. stop before Python planner/image/SCons work when no SCAD capability is affected;
 4. validate project intent and select the appropriate `docker.scad-toolchain v0.6.1`
    runtime profile;
