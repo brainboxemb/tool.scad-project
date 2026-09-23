@@ -59,12 +59,12 @@ def test_production_workflow_uses_compact_publication_namespace_defaults():
 def test_production_workflow_uses_one_moon_impact_query_and_v0211_contract():
     text = WORKFLOW.read_text(encoding="utf-8")
 
-    assert text.count("brainboxemb/tool.git-project/moon/affected@v0.2.9") == 1
+    assert text.count("brainboxemb/tool.git-project/moon/affected@v0.2.12") == 1
     assert "brainboxemb/tool.git-project/moon/affected@v0.2.8" not in text
     assert "affected-tasks" in text
     assert "scad_project.ci_policy" in text
     assert "consumer:scad.docs" in text
-    assert "GIT_PROJECT_RELEASE: v0.2.11" in text
+    assert "GIT_PROJECT_RELEASE: v0.2.12" in text
     assert "tool.git-project/$GIT_PROJECT_RELEASE" in text
     assert 'VERSION")" = "${GIT_PROJECT_RELEASE#v}"' in text
     assert "/tool-git-project/moon-project.sh" in text
