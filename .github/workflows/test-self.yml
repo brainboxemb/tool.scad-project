@@ -1,4 +1,7 @@
-name: Test
+name: test Self
+
+# Purpose: qualify the tool.scad-project package, CLI, tests, and generated owner test documentation.
+# Scope: repository qualification workflow.
 
 on:
   push:

@@ -17,7 +17,7 @@ from pathlib import Path
 import yaml
 
 
-WORKFLOW_PATH = Path(".github/workflows/pages.yml")
+WORKFLOW_PATH = Path(".github/workflows/self-pages.yml")
 
 
 def _workflow():
@@ -33,7 +33,7 @@ def test_pages_workflow_has_safe_triggers_and_disabled_site_guard():
 
     assert "workflow_dispatch:" in text
     assert "workflow_run:" in text
-    assert "- Test" in text
+    assert "- test Self" in text
     assert "github.event.workflow_run.conclusion == 'success'" in text
     assert "github.event.workflow_run.head_branch == 'main'" in text
 

@@ -62,5 +62,21 @@ When changing:
 - producer evidence → [30-11-execution-evidence.md](30-11-execution-evidence.md);
 - build-decision report contract → [30-12-build-decision-telemetry.md](30-12-build-decision-telemetry.md);
 - bootstrap ownership → [40-10-git-bootstrap-boundary.md](40-10-git-bootstrap-boundary.md);
-- production orchestration → [40-11-production-workflow.md](40-11-production-workflow.md);
+- CI orchestration → [40-11-ci-workflow.md](40-11-ci-workflow.md);
 - SCons decision qualification → [50-10-scons-decision-conformance.md](50-10-scons-decision-conformance.md).
+
+
+## Workflow naming
+
+This repository follows the shared capability vocabulary from `brainboxemb.meta`:
+
+- `reusable-ci.yml` — normal PR/main orchestration;
+- `reusable-build.yml` — focused Build execution;
+- `reusable-verify.yml` — focused Verification execution;
+- `reusable-release.yml` — coordinated consumer release;
+- `self-release.yml` / `self-pages.yml` — owner-started repository operations;
+- `test-self.yml` — owner qualification.
+
+Normal consumer repositories use `self-ci.yml` for their local PR/main caller.
+The term `production` is not used for that caller because it is CI orchestration,
+not a deployment environment.

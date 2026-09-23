@@ -18,7 +18,7 @@ from .process import run_checked
 GIT_TOOL_PATH = "tools/tool.git-project"
 WORKFLOW_USE_RE = re.compile(
     r"(brainboxemb/tool\.scad-project/\.github/workflows/"
-    r"(?:project-build|project-verify|project-production|project-release)\.yml)@([^\s\"']+)"
+    r"(?:reusable-build|reusable-verify|reusable-ci|reusable-release)\.yml)@([^\s\"']+)"
 )
 
 

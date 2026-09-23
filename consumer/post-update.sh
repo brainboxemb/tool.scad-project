@@ -66,7 +66,7 @@ if [[ -d "$workflow_root" ]]; then
   for workflow in "$workflow_root"/*.yml "$workflow_root"/*.yaml; do
     [[ -f "$workflow" ]] || continue
     tmp="$(mktemp)"
-    sed -E       "s#(brainboxemb/tool\.scad-project/\.github/workflows/(project-build|project-verify|project-production|project-release)\.yml)@[^[:space:]\"']+#\1@${scad_tool_ref}#g"       "$workflow" > "$tmp"
+    sed -E       "s#(brainboxemb/tool\.scad-project/\.github/workflows/(reusable-build|reusable-verify|reusable-ci|reusable-release)\.yml)@[^[:space:]\"']+#\1@${scad_tool_ref}#g"       "$workflow" > "$tmp"
     if ! cmp -s "$workflow" "$tmp"; then
       cat "$tmp" > "$workflow"
       rel="${workflow#"$repo_root"/}"

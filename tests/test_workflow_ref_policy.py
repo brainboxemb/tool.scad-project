@@ -41,7 +41,7 @@ def _workflow(root: Path, ref: str) -> None:
         "jobs:\n"
         "  scad:\n"
         "    uses: brainboxemb/tool.scad-project/.github/workflows/"
-        f"project-production.yml@{ref}\n",
+        f"reusable-ci.yml@{ref}\n",
         encoding="utf-8",
     )
 

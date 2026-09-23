@@ -21,9 +21,9 @@ from pathlib import Path
 
 
 ROOT = Path(".github/workflows")
-RELEASE = ROOT / "project-release.yml"
-BUILD = ROOT / "project-build.yml"
-VERIFY = ROOT / "project-verify.yml"
+RELEASE = ROOT / "reusable-release.yml"
+BUILD = ROOT / "reusable-build.yml"
+VERIFY = ROOT / "reusable-verify.yml"
 
 
 def read(path: Path) -> str:
@@ -215,12 +215,12 @@ def test_release_workflow_uses_self_repository_reusable_workflows():
     """Guard the cross-repository release fix that requires explicit self references."""
     text = read(RELEASE)
 
-    assert "uses: $/.github/workflows/project-build.yml" in text
-    assert "uses: $/.github/workflows/project-verify.yml" in text
-    assert "uses: ./.github/workflows/project-build.yml" not in text
-    assert "uses: ./.github/workflows/project-verify.yml" not in text
-    assert "brainboxemb/tool.scad-project/.github/workflows/project-build.yml@" not in text
-    assert "brainboxemb/tool.scad-project/.github/workflows/project-verify.yml@" not in text
+    assert "uses: $/.github/workflows/reusable-build.yml" in text
+    assert "uses: $/.github/workflows/reusable-verify.yml" in text
+    assert "uses: ./.github/workflows/reusable-build.yml" not in text
+    assert "uses: ./.github/workflows/reusable-verify.yml" not in text
+    assert "brainboxemb/tool.scad-project/.github/workflows/reusable-build.yml@" not in text
+    assert "brainboxemb/tool.scad-project/.github/workflows/reusable-verify.yml@" not in text
     assert "@feature/versioned-project-release" not in text
 
 

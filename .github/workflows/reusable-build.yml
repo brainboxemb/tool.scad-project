@@ -1,4 +1,7 @@
-name: Reusable SCAD project build
+name: reusable Build
+
+# Purpose: build and publish configured SCAD output for a caller repository.
+# Scope: public reusable workflow API.
 
 on:
   workflow_call:
