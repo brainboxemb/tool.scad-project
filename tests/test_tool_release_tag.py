@@ -15,7 +15,7 @@ consumer release before this change is released broadly.
 from pathlib import Path
 
 
-RELEASE = Path(".github/workflows/release.yml")
+RELEASE = Path(".github/workflows/self-release.yml")
 
 
 def test_tool_release_tag_points_directly_to_qualified_commit():

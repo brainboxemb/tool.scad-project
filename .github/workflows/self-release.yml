@@ -1,5 +1,8 @@
 name: Release
 
+# Purpose: tag one exact qualified tool.scad-project commit and dispatch tagged owner qualification.
+# Scope: repository self-entry workflow; not a reusable workflow API.
+
 on:
   workflow_dispatch:
     inputs:
@@ -114,9 +117,9 @@ jobs:
           set -euo pipefail
           gh api \
             --method POST \
-            "repos/${GITHUB_REPOSITORY}/actions/workflows/test.yml/dispatches" \
+            "repos/${GITHUB_REPOSITORY}/actions/workflows/test-self.yml/dispatches" \
             -f ref="${VERSION}"
-          echo "Dispatched test.yml on ${VERSION}."
+          echo "Dispatched test-self.yml on ${VERSION}."
 
       - name: Remove release request branch
         if: ${{ always() && github.event_name == 'push' }}

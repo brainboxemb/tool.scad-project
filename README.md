@@ -563,12 +563,12 @@ Every generated snapshot includes `publication-info.txt` with current source, to
 runtime context. Source-derived Moon capability output does not use PR/ref/run/publication
 values as cache identity.
 
-## Normal reusable production workflow
+## Normal reusable CI workflow
 
-`project-production.yml` implements the Migration-005 normal lifecycle:
+`reusable-ci.yml` implements the normal PR/main integration lifecycle:
 
 1. resolve exact source/base;
-2. ask released `tool.git-project v0.2.12` once for Moon's complete affected-task set;
+2. ask released `tool.git-project v0.2.13` once for Moon's complete affected-task set;
 3. stop before Python planner/image/SCons work when no SCAD capability is affected;
 4. validate project intent and select the appropriate `docker.scad-toolchain v0.6.1`
    runtime profile;
@@ -591,19 +591,19 @@ jobs:
     permissions:
       contents: write
       packages: read
-    uses: brainboxemb/tool.scad-project/.github/workflows/project-production.yml@v0.14.x
+    uses: brainboxemb/tool.scad-project/.github/workflows/reusable-ci.yml@v0.15.11
     with:
       cache_namespace: my-repository-scad-production-v2
 ```
 
-See [`docs/40-11-production-workflow.md`](docs/40-11-production-workflow.md) for the detailed lifecycle,
+See [`docs/40-11-ci-workflow.md`](docs/40-11-ci-workflow.md) for the detailed lifecycle,
 including publication-safe Moon hydration when multiple capabilities contribute to one
 complete Build tree.
 
 ## Release workflow
 
 The coordinated Release workflow keeps its separate preflight, Build, Verify and finalize
-jobs. Preflight uses the same SCAD project planner as normal production to select the
+jobs. Preflight uses the same SCAD project planner as normal CI to select the
 runtime image and applicable SCons cache paths, while complete Build/Verification
 artifacts remain mandatory cross-job hand-off.
 
@@ -617,7 +617,7 @@ jobs:
       actions: read
       contents: write
       packages: read
-    uses: brainboxemb/tool.scad-project/.github/workflows/project-release.yml@v0.14.x
+    uses: brainboxemb/tool.scad-project/.github/workflows/reusable-release.yml@v0.15.11
 ```
 
 The reusable Build and Verify workflows remain available for explicit domain execution

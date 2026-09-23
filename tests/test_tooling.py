@@ -84,10 +84,9 @@ def test_release_version_markers_are_aligned():
     assert __version__ == package_version
 
     for workflow_path in (
-        Path(".github/workflows/project-build.yml"),
-        Path(".github/workflows/project-verify.yml"),
-        Path(".github/workflows/project-production.yml"),
-        Path(".github/workflows/project-pr-cleanup.yml"),
+        Path(".github/workflows/reusable-build.yml"),
+        Path(".github/workflows/reusable-verify.yml"),
+        Path(".github/workflows/reusable-ci.yml"),
     ):
         text = workflow_path.read_text(encoding="utf-8")
         match = re.search(
@@ -103,10 +102,10 @@ def test_scons_cache_writer_policy():
     import yaml
 
     build = yaml.safe_load(
-        Path(".github/workflows/project-build.yml").read_text(encoding="utf-8")
+        Path(".github/workflows/reusable-build.yml").read_text(encoding="utf-8")
     )
     verify = yaml.safe_load(
-        Path(".github/workflows/project-verify.yml").read_text(encoding="utf-8")
+        Path(".github/workflows/reusable-verify.yml").read_text(encoding="utf-8")
     )
 
     build_steps = {step["name"]: step for step in build["jobs"]["build"]["steps"]}
@@ -134,10 +133,10 @@ def test_cache_workflow_is_human_readable():
     import yaml
 
     build = yaml.safe_load(
-        Path(".github/workflows/project-build.yml").read_text(encoding="utf-8")
+        Path(".github/workflows/reusable-build.yml").read_text(encoding="utf-8")
     )
     verify = yaml.safe_load(
-        Path(".github/workflows/project-verify.yml").read_text(encoding="utf-8")
+        Path(".github/workflows/reusable-verify.yml").read_text(encoding="utf-8")
     )
 
     build_steps = {step["name"]: step for step in build["jobs"]["build"]["steps"]}
@@ -159,18 +158,16 @@ def test_cache_workflow_is_human_readable():
 
 def test_cache_summary_uses_available_python3_runtime():
     """Prevent the workflow regression where summary generation called absent `python`."""
-    text = Path(".github/workflows/project-build.yml").read_text(encoding="utf-8")
+    text = Path(".github/workflows/reusable-build.yml").read_text(encoding="utf-8")
     assert "python3 - <<'PY'" in text
     assert "\n          python - <<'PY'" not in text
 
 
 def test_pull_request_publication_workflow_policy():
     """Keep PR previews isolated and avoid write attempts from fork pull requests."""
-    build_text = Path(".github/workflows/project-build.yml").read_text(encoding="utf-8")
-    verify_text = Path(".github/workflows/project-verify.yml").read_text(encoding="utf-8")
-    cleanup_text = Path(".github/workflows/project-pr-cleanup.yml").read_text(
-        encoding="utf-8"
-    )
+    build_text = Path(".github/workflows/reusable-build.yml").read_text(encoding="utf-8")
+    verify_text = Path(".github/workflows/reusable-verify.yml").read_text(encoding="utf-8")
+    legacy_cleanup = Path(".github/workflows/project-pr-cleanup.yml")
 
     for text in (build_text, verify_text):
         assert "SCAD_PROJECT_PR_NUMBER:" in text
@@ -178,14 +175,7 @@ def test_pull_request_publication_workflow_policy():
         assert "github.event.pull_request.head.repo.full_name == github.repository" in text
         assert "github.event_name != 'pull_request'" in text
 
-    assert "pr_branch_prefix:" in cleanup_text
-    assert "default: dev/pr" in cleanup_text
-    assert "for SUFFIX in bld vrf; do" in cleanup_text
-    assert "${PREFIX}-${PR_NUMBER}/${SUFFIX}" in cleanup_text
-    assert "git push origin --delete" in cleanup_text
-    assert "github.event.pull_request.merged == true" in cleanup_text
-    assert "tools/tool.scad-project" not in cleanup_text
-    assert "pip install" not in cleanup_text
+    assert not legacy_cleanup.exists()
 
 
 def test_workflow_timeouts_are_bounded():
@@ -193,7 +183,7 @@ def test_workflow_timeouts_are_bounded():
     import yaml
 
     expected = {
-        ".github/workflows/project-build.yml": {
+        ".github/workflows/reusable-build.yml": {
             "job": ("build", 15),
             "steps": {
                 "Checkout project and pinned submodules": 2,
@@ -203,7 +193,7 @@ def test_workflow_timeouts_are_bounded():
                 "Publish generated build branch": 2,
             },
         },
-        ".github/workflows/project-verify.yml": {
+        ".github/workflows/reusable-verify.yml": {
             "job": ("verify", 15),
             "steps": {
                 "Checkout project and pinned submodules": 2,
@@ -212,16 +202,7 @@ def test_workflow_timeouts_are_bounded():
                 "Publish verification branch": 2,
             },
         },
-        ".github/workflows/project-pr-cleanup.yml": {
-            "job": ("cleanup", 5),
-            "steps": {
-                "Checkout repository for authenticated branch cleanup": 2,
-                "Configure publication credentials": 2,
-                "Remove generated pull request publication branches": 2,
-                "Delete merged source branch": 2,
-            },
-        },
-        ".github/workflows/test.yml": {
+        ".github/workflows/test-self.yml": {
             "job": ("test", 15),
             "steps": {
                 "Checkout": 2,
@@ -230,7 +211,7 @@ def test_workflow_timeouts_are_bounded():
                 "Upload unit-test documentation": 2,
             },
         },
-        ".github/workflows/release.yml": {
+        ".github/workflows/self-release.yml": {
             "job": ("release", 10),
             "steps": {
                 "Checkout release workflow ref with full history": 2,

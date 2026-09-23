@@ -54,7 +54,7 @@ function Sync-ScadWorkflowRefs {
         return
     }
 
-    $Pattern = '(brainboxemb/tool\.scad-project/\.github/workflows/(?:project-build|project-verify|project-production|project-release)\.yml)@[^\s"'']+'
+    $Pattern = '(brainboxemb/tool\.scad-project/\.github/workflows/(?:reusable-build|reusable-verify|reusable-ci|reusable-release)\.yml)@[^\s"'']+'
     $Utf8NoBom = New-Object System.Text.UTF8Encoding($false)
 
     foreach ($Workflow in Get-ChildItem -LiteralPath $WorkflowRoot -File | Where-Object { $_.Extension -in @('.yml', '.yaml') }) {

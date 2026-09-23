@@ -21,10 +21,10 @@ POST_UPDATE_HOOKS = (
     ROOT / "consumer" / "post-update.ps1",
 )
 REUSABLE_PROJECT_WORKFLOWS = (
-    "project-build",
-    "project-verify",
-    "project-production",
-    "project-release",
+    "reusable-build",
+    "reusable-verify",
+    "reusable-ci",
+    "reusable-release",
 )
 
 
@@ -57,7 +57,7 @@ dependencies:
     workflow.write_text(
         """jobs:
   scad:
-    uses: brainboxemb/tool.scad-project/.github/workflows/project-production.yml@v0.15.10
+    uses: brainboxemb/tool.scad-project/.github/workflows/reusable-ci.yml@v0.15.10
 """,
         encoding="utf-8",
     )
@@ -85,7 +85,7 @@ def test_shell_post_update_hook_synchronizes_workflow_ref(tmp_path):
         text=True,
     )
 
-    assert "project-production.yml@v0.15.11" in workflow.read_text(encoding="utf-8")
+    assert "reusable-ci.yml@v0.15.11" in workflow.read_text(encoding="utf-8")
     assert "SCAD post-update synchronization complete." in result.stdout
 
 

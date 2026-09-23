@@ -1,4 +1,7 @@
-name: Reusable SCAD production
+name: reusable CI
+
+# Purpose: orchestrate affected SCAD capabilities, materialization, evidence, and publication for a caller repository.
+# Scope: public reusable workflow API.
 
 on:
   workflow_call:
@@ -46,31 +49,31 @@ on:
     outputs:
       affected:
         description: Whether SCAD capabilities required runtime materialization
-        value: ${{ jobs.production.outputs.affected }}
+        value: ${{ jobs.ci.outputs.affected }}
       affected_capabilities:
         description: JSON list of source-affected SCAD capabilities
-        value: ${{ jobs.production.outputs.affected_capabilities }}
+        value: ${{ jobs.ci.outputs.affected_capabilities }}
       source_sha:
         description: Exact source revision assessed and, when affected, produced
-        value: ${{ jobs.production.outputs.source_sha }}
+        value: ${{ jobs.ci.outputs.source_sha }}
       base_sha:
         description: Exact comparison base when available
-        value: ${{ jobs.production.outputs.base_sha }}
+        value: ${{ jobs.ci.outputs.base_sha }}
 
 permissions:
   contents: write
   packages: read
 
 concurrency:
-  group: scad-production-${{ github.repository_id }}-${{ github.event.pull_request.number || github.ref }}
+  group: scad-ci-${{ github.repository_id }}-${{ github.event.pull_request.number || github.ref }}
   # PR heads may supersede stale work. Production-branch pushes must serialize:
   # cancelling one can lose affected output because the next push evaluates only
   # its own before -> head range.
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
-  production:
-    name: SCAD production
+  ci:
+    name: SCAD CI
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     outputs:
@@ -80,7 +83,7 @@ jobs:
       base_sha: ${{ steps.range.outputs.base_sha }}
     env:
       SCAD_PROJECT_WORKFLOW_VERSION: v0.15.10
-      GIT_PROJECT_RELEASE: v0.2.12
+      GIT_PROJECT_RELEASE: v0.2.13
       SCAD_TOOLCHAIN_VERSION: v0.6.1
       SCAD_WORKFLOW_TIMINGS: .moon/preflight/workflow-timings.json
       PYTHONDONTWRITEBYTECODE: '1'
@@ -185,7 +188,7 @@ jobs:
 
       - name: Query affected Moon tasks once
         id: affected
-        uses: brainboxemb/tool.git-project/moon/affected@v0.2.12
+        uses: brainboxemb/tool.git-project/moon/affected@v0.2.13
         with:
           task: consumer:scad.docs
           base: ${{ steps.range.outputs.base_sha }}

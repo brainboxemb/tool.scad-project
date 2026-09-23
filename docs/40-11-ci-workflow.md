@@ -1,6 +1,6 @@
-# Reusable SCAD production workflow
+# Reusable SCAD CI workflow
 
-`project-production.yml` is the normal repository-level SCAD lifecycle for Migration 005 consumers.
+`reusable-ci.yml` is the normal repository-level PR/main integration lifecycle for current SCAD consumers.
 
 The maintainer-facing model is deliberately capability-oriented. A consumer exposes only the SCAD capabilities it actually has:
 
@@ -68,11 +68,11 @@ workspace:
 
 ## One impact query
 
-The workflow checks out the exact source revision shallow/blobless and fetches only the exact comparison-base commit when available. It then calls released `tool.git-project v0.2.9` once.
+The workflow checks out the exact source revision shallow/blobless and fetches only the exact comparison-base commit when available. It then calls released `tool.git-project v0.2.13` once.
 
 That action asks Moon for the complete affected-task set for `base -> head`. Migration 005 consumes the returned task list instead of reducing the result to one boolean.
 
-The current v0.2.8 interface still requires one existing Moon task as a query anchor. The production workflow uses `consumer:scad.docs`; the reference/template rollout therefore requires `scad.docs`. The complete affected-task list itself is not limited to that task: build- or verification-only changes are still present in the same Moon query result. A future generic affected interface may remove the anchor requirement; it must not reintroduce a second changed-path model in this workflow.
+The affected-query interface requires one existing Moon task as a query anchor. The CI workflow uses `consumer:scad.docs`; the reference/template rollout therefore requires `scad.docs`. The complete affected-task list itself is not limited to that task: build- or verification-only changes are still present in the same Moon query result. A future generic affected interface may remove the anchor requirement; it must not reintroduce a second changed-path model in this workflow.
 
 A missing/unusable base or Moon-query failure is conservative: the configured SCAD capability set is treated as required rather than risking a false skip.
 
@@ -101,7 +101,7 @@ by changing the affected comparison range.
 
 ## Unaffected path
 
-If the complete affected-task list contains no configured SCAD capability, normal production stops on the host.
+If the complete affected-task list contains no configured SCAD capability, normal CI stops on the host.
 
 That path intentionally performs:
 
@@ -167,7 +167,7 @@ a qualified finer-grained documentation dependency contract.
 
 ## One runtime process
 
-All required capability materialization happens inside one explicit Docker process on one hosted runner. Each capability is invoked separately through released `tool.git-project v0.2.9` Moon tooling so Moon can execute or hydrate it independently.
+All required capability materialization happens inside one explicit Docker process on one hosted runner. Each capability is invoked separately through released `tool.git-project v0.2.13` Moon tooling so Moon can execute or hydrate it independently.
 
 The container receives no GitHub write credential. Source checkout uses `persist-credentials: false`; generated-output publication stays on the host after the runtime exits.
 
@@ -312,7 +312,7 @@ jobs:
     permissions:
       contents: write
       packages: read
-    uses: brainboxemb/tool.scad-project/.github/workflows/project-production.yml@v0.14.x
+    uses: brainboxemb/tool.scad-project/.github/workflows/reusable-ci.yml@v0.15.11
     with:
       cache_namespace: my-repository-scad-production-v2
 ```
@@ -326,7 +326,7 @@ jobs:
       actions: read
       contents: write
       packages: read
-    uses: brainboxemb/tool.scad-project/.github/workflows/project-release.yml@v0.14.x
+    uses: brainboxemb/tool.scad-project/.github/workflows/reusable-release.yml@v0.15.11
 ```
 
 The semantic reusable-workflow ref must match the configured `tool.scad-project` release ref in `project.yml`; `scad-project workflow-sync` maintains that alignment. The parent repository gitlink remains the exact resolved commit for the release, so readability and exact source identity have separate, non-duplicated roles.

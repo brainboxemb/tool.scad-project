@@ -1,4 +1,7 @@
-name: Reusable SCAD project verification
+name: reusable Verify
+
+# Purpose: run and publish configured SCAD verification for a caller repository.
+# Scope: public reusable workflow API.
 
 on:
   workflow_call:

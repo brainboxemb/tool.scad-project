@@ -48,8 +48,8 @@ OUTCOMES = ("BUILT", "CACHE_RESTORED", "CURRENT", "ERROR")
 
 def test_cache_globs_are_layout_independent():
     for workflow in (
-        Path(".github/workflows/project-build.yml"),
-        Path(".github/workflows/project-verify.yml"),
+        Path(".github/workflows/reusable-build.yml"),
+        Path(".github/workflows/reusable-verify.yml"),
     ):
         text = workflow.read_text(encoding="utf-8")
         assert "dsg/**" not in text, f"{workflow} hard-codes the dsg source layout"
@@ -58,8 +58,8 @@ def test_cache_globs_are_layout_independent():
 
 def test_cache_keys_track_generic_and_scad_profile_config():
     for workflow in (
-        Path(".github/workflows/project-build.yml"),
-        Path(".github/workflows/project-verify.yml"),
+        Path(".github/workflows/reusable-build.yml"),
+        Path(".github/workflows/reusable-verify.yml"),
     ):
         text = workflow.read_text(encoding="utf-8")
         assert "'project.yml'" in text
@@ -68,8 +68,8 @@ def test_cache_keys_track_generic_and_scad_profile_config():
 
 def test_scons_cache_keys_track_profiles_and_common_import_assets():
     for workflow in (
-        Path(".github/workflows/project-build.yml"),
-        Path(".github/workflows/project-verify.yml"),
+        Path(".github/workflows/reusable-build.yml"),
+        Path(".github/workflows/reusable-verify.yml"),
     ):
         text = workflow.read_text(encoding="utf-8")
         for pattern in BUILD_INPUT_PATTERNS:
@@ -77,7 +77,7 @@ def test_scons_cache_keys_track_profiles_and_common_import_assets():
 
 
 def test_project_build_scons_cache_tracks_design_metadata():
-    text = Path(".github/workflows/project-build.yml").read_text(encoding="utf-8")
+    text = Path(".github/workflows/reusable-build.yml").read_text(encoding="utf-8")
     scons_cache_block = text.split(
         "- name: Restore exact generated design snapshot",
         1,
@@ -86,14 +86,14 @@ def test_project_build_scons_cache_tracks_design_metadata():
 
 
 def test_design_cache_tracks_design_tree_and_common_render_assets():
-    text = Path(".github/workflows/project-build.yml").read_text(encoding="utf-8")
+    text = Path(".github/workflows/reusable-build.yml").read_text(encoding="utf-8")
     assert "'**/design/**'" in text
     for pattern in BUILD_INPUT_PATTERNS:
         assert f"'{pattern}'" in text
 
 
 def test_verify_uses_only_separate_writable_verification_cache():
-    text = Path(".github/workflows/project-verify.yml").read_text(encoding="utf-8")
+    text = Path(".github/workflows/reusable-verify.yml").read_text(encoding="utf-8")
 
     assert "path: .cache/scad-project/scons" not in text
     assert "scad-selective-build-v2-" not in text
@@ -105,7 +105,7 @@ def test_verify_uses_only_separate_writable_verification_cache():
 
 
 def test_verify_calls_one_verification_domain_action():
-    text = Path(".github/workflows/project-verify.yml").read_text(encoding="utf-8")
+    text = Path(".github/workflows/reusable-verify.yml").read_text(encoding="utf-8")
 
     command = "bash ./tools/tool.scad-project/scad-project.sh verify"
     assert text.count(command) == 1
@@ -114,8 +114,8 @@ def test_verify_calls_one_verification_domain_action():
 
 def test_reusable_workflows_expose_structured_telemetry_context():
     for workflow in (
-        Path(".github/workflows/project-build.yml"),
-        Path(".github/workflows/project-verify.yml"),
+        Path(".github/workflows/reusable-build.yml"),
+        Path(".github/workflows/reusable-verify.yml"),
     ):
         text = workflow.read_text(encoding="utf-8")
         for variable in TELEMETRY_ENV:
@@ -125,13 +125,13 @@ def test_reusable_workflows_expose_structured_telemetry_context():
 
 
 def test_build_uploads_normal_and_design_decision_reports():
-    text = Path(".github/workflows/project-build.yml").read_text(encoding="utf-8")
+    text = Path(".github/workflows/reusable-build.yml").read_text(encoding="utf-8")
     assert ".cache/scad-project/state/last-build.json" in text
     assert ".cache/scad-project/state/last-design-build.json" in text
 
 
 def test_verify_exposes_only_verification_cache_context_and_report():
-    text = Path(".github/workflows/project-verify.yml").read_text(encoding="utf-8")
+    text = Path(".github/workflows/reusable-verify.yml").read_text(encoding="utf-8")
 
     assert "SCAD_PROJECT_CACHE_NAMESPACE=scad-selective-build-v2" not in text
     assert "SCAD_PROJECT_CACHE_NAMESPACE=scad-verification-v1" in text

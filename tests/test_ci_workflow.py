@@ -1,4 +1,4 @@
-"""Repository-level Migration-005 SCAD production workflow policy.
+"""Repository-level SCAD CI workflow policy.
 
 Checks:
 The reusable workflow keeps one hosted job and one Docker runtime, performs one
@@ -23,48 +23,46 @@ from pathlib import Path
 import yaml
 
 
-WORKFLOW = Path(".github/workflows/project-production.yml")
-CLEANUP_WORKFLOW = Path(".github/workflows/project-pr-cleanup.yml")
+WORKFLOW = Path(".github/workflows/reusable-ci.yml")
+LEGACY_CLEANUP_WORKFLOW = Path(".github/workflows/project-pr-cleanup.yml")
 
 
-def test_production_workflow_uses_one_host_orchestrator_job():
+def test_ci_workflow_uses_one_host_orchestrator_job():
     data = yaml.safe_load(WORKFLOW.read_text(encoding="utf-8"))
 
-    assert list(data["jobs"]) == ["production"]
-    job = data["jobs"]["production"]
+    assert list(data["jobs"]) == ["ci"]
+    job = data["jobs"]["ci"]
     assert job["runs-on"] == "ubuntu-24.04"
     assert "container" not in job
 
 
-def test_production_pushes_serialize_while_pr_runs_may_supersede_stale_work():
+def test_ci_pushes_serialize_while_pr_runs_may_supersede_stale_work():
     text = WORKFLOW.read_text(encoding="utf-8")
 
-    assert "group: scad-production-${{ github.repository_id }}-${{ github.event.pull_request.number || github.ref }}" in text
+    assert "group: scad-ci-${{ github.repository_id }}-${{ github.event.pull_request.number || github.ref }}" in text
     assert "cancel-in-progress: ${{ github.event_name == 'pull_request' }}" in text
     assert "cancel-in-progress: true" not in text
 
 
-def test_production_workflow_uses_compact_publication_namespace_defaults():
+def test_ci_workflow_uses_compact_publication_namespace_defaults():
     data = yaml.safe_load(WORKFLOW.read_text(encoding="utf-8"))
     inputs = data[True]["workflow_call"]["inputs"]
 
     assert inputs["build_branch_suffix"]["default"] == "bld"
     assert inputs["verification_branch_suffix"]["default"] == "vrf"
 
-    cleanup = CLEANUP_WORKFLOW.read_text(encoding="utf-8")
-    assert "for SUFFIX in bld vrf; do" in cleanup
-    assert "for KIND in build verification; do" not in cleanup
+    assert not LEGACY_CLEANUP_WORKFLOW.exists()
 
 
-def test_production_workflow_uses_one_moon_impact_query_and_v0211_contract():
+def test_ci_workflow_uses_one_moon_impact_query_and_v0213_contract():
     text = WORKFLOW.read_text(encoding="utf-8")
 
-    assert text.count("brainboxemb/tool.git-project/moon/affected@v0.2.12") == 1
+    assert text.count("brainboxemb/tool.git-project/moon/affected@v0.2.13") == 1
     assert "brainboxemb/tool.git-project/moon/affected@v0.2.8" not in text
     assert "affected-tasks" in text
     assert "scad_project.ci_policy" in text
     assert "consumer:scad.docs" in text
-    assert "GIT_PROJECT_RELEASE: v0.2.12" in text
+    assert "GIT_PROJECT_RELEASE: v0.2.13" in text
     assert "tool.git-project/$GIT_PROJECT_RELEASE" in text
     assert 'VERSION")" = "${GIT_PROJECT_RELEASE#v}"' in text
     assert "/tool-git-project/moon-project.sh" in text
@@ -72,7 +70,7 @@ def test_production_workflow_uses_one_moon_impact_query_and_v0211_contract():
     assert "tool.git-project/v0.2.8" not in text
 
 
-def test_production_workflow_fetches_only_the_exact_base_scad_tool_gitlink():
+def test_ci_workflow_fetches_only_the_exact_base_scad_tool_gitlink():
     text = WORKFLOW.read_text(encoding="utf-8")
 
     base_fetch = text.index("Fetch only the exact comparison base")
@@ -86,7 +84,7 @@ def test_production_workflow_fetches_only_the_exact_base_scad_tool_gitlink():
     assert "fetch-depth: 0" not in text
 
 
-def test_production_workflow_exports_exact_source_for_host_publication_provenance():
+def test_ci_workflow_exports_exact_source_for_host_publication_provenance():
     text = WORKFLOW.read_text(encoding="utf-8")
 
     source_validation = text.index("source_sha must resolve to an exact 40-character commit SHA")
@@ -100,7 +98,7 @@ def test_production_workflow_exports_exact_source_for_host_publication_provenanc
     assert text.count('SCAD_PROJECT_SOURCE_SHA=$source_sha') == 1
 
 
-def test_production_workflow_starts_at_most_one_capability_appropriate_runtime():
+def test_ci_workflow_starts_at_most_one_capability_appropriate_runtime():
     text = WORKFLOW.read_text(encoding="utf-8")
 
     assert text.count("docker run --rm") == 1
@@ -111,7 +109,7 @@ def test_production_workflow_starts_at_most_one_capability_appropriate_runtime()
     assert "MATERIALIZATION_CAPABILITIES" in text
 
 
-def test_production_workflow_transports_only_configured_scons_caches():
+def test_ci_workflow_transports_only_configured_scons_caches():
     text = WORKFLOW.read_text(encoding="utf-8")
 
     assert "steps.plan.outputs.use_scons_cache == 'true'" in text
@@ -200,7 +198,7 @@ def test_build_and_verification_publication_can_overlap_on_same_runner():
     assert "-e GITHUB_TOKEN" not in text
 
 
-def test_production_workflow_planner_install_uses_declared_build_requirements():
+def test_ci_workflow_planner_install_uses_declared_build_requirements():
     text = WORKFLOW.read_text(encoding="utf-8")
 
     assert "python -m pip install --disable-pip-version-check -e ./tools/tool.scad-project" in text

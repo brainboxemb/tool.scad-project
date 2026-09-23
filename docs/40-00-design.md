@@ -30,13 +30,13 @@ second root updater.
 
 See [40-10 — Git bootstrap boundary](40-10-git-bootstrap-boundary.md).
 
-## Production architecture
+## CI architecture
 
 Normal SCAD CI uses coarse visible capabilities (`scad.docs`, `scad.build`,
 `scad.verify`) while SCons remains authoritative for fine-grained CAD target
 decisions inside a capability.
 
-See [40-11 — Production workflow](40-11-production-workflow.md).
+See [40-11 — CI workflow](40-11-ci-workflow.md).
 
 ## Evidence boundary
 

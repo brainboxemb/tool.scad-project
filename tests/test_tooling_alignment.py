@@ -67,7 +67,7 @@ def test_external_workflow_callers_must_match_checked_out_tool_sha(
     workflow_dir.mkdir(parents=True)
     (workflow_dir / "build.yml").write_text(
         "jobs:\n  build:\n    uses: "
-        "brainboxemb/tool.scad-project/.github/workflows/project-build.yml@stale\n",
+        "brainboxemb/tool.scad-project/.github/workflows/reusable-build.yml@stale\n",
         encoding="utf-8",
     )
     _git_sha(monkeypatch, sha)
@@ -84,7 +84,7 @@ def test_aligned_exact_gitlink_and_workflow_pass(tmp_path, monkeypatch):
     workflow_dir.mkdir(parents=True)
     (workflow_dir / "build.yml").write_text(
         "jobs:\n  build:\n    uses: "
-        f"brainboxemb/tool.scad-project/.github/workflows/project-build.yml@{sha}\n",
+        f"brainboxemb/tool.scad-project/.github/workflows/reusable-build.yml@{sha}\n",
         encoding="utf-8",
     )
     _git_sha(monkeypatch, sha)

@@ -1,4 +1,7 @@
-name: Reusable SCAD project release
+name: reusable Release
+
+# Purpose: coordinate exact-source SCAD build, verification, publication, tagging, and release assets for a caller repository.
+# Scope: public reusable workflow API.
 
 on:
   workflow_call:
@@ -239,7 +242,7 @@ jobs:
 
   build:
     needs: [resolve, preflight]
-    uses: $/.github/workflows/project-build.yml
+    uses: $/.github/workflows/reusable-build.yml
     with:
       artifact_name: scad-project-release-build
       publish: false
@@ -251,7 +254,7 @@ jobs:
 
   verify:
     needs: [resolve, preflight]
-    uses: $/.github/workflows/project-verify.yml
+    uses: $/.github/workflows/reusable-verify.yml
     with:
       artifact_name: scad-project-release-verification
       publish: false
