@@ -18,8 +18,8 @@ ROOT = Path(__file__).resolve().parents[1]
 
 def test_scad_owned_scripts_do_not_use_recursive_submodules():
     files = [
-        ROOT / "consumer" / "update-repo.ps1",
-        ROOT / "consumer" / "update-repo.sh",
+        ROOT / "consumer" / "post-update.ps1",
+        ROOT / "consumer" / "post-update.sh",
         ROOT / "src" / "scad_project" / "repository.py",
         ROOT / "src" / "scad_project" / "externals.py",
         ROOT / ".github" / "workflows" / "project-build.yml",
