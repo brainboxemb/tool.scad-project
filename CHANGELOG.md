@@ -4,9 +4,10 @@
 
 ### Changed
 
+- Adopt the shared numbered documentation families with `docs/README.md` plus plan/manual/specification/design/verification authorities; classify existing SCAD contract and verification documents under stable numbered paths.
 - Adopt released `tool.git-project v0.2.12` as the generic workflow/launcher baseline used by reusable SCAD production.
 - Remove the historical SCAD-owned `consumer/update-repo.*` and `bootstrap/consumer-update.*` compatibility forwarders. Current consumers use the canonical managed root `update.ps1/.sh` launchers from `tool.git-project`; SCAD retains only its post-update workflow-ref synchronization hook.
-- Align owner documentation/tests with the current bootstrap/update ownership boundary and the repository-local `doc/01-development.md` operating-guide convention.
+- Align owner documentation/tests with the current bootstrap/update ownership boundary and the repository-local `doc/20-01-development.md` operating-guide convention.
 
 - Simplify `AGENTS.md` to owner-local navigation and boundaries: shared working/Git/SCAD guidance now routes through `brainboxemb.meta`, while pinned consumer behavior remains owned by README/docs/source/tests. Move publication-namespace regression coverage to the consumer-facing README authority.
 
