@@ -603,7 +603,7 @@ complete Build tree.
 ## Release workflow
 
 The coordinated Release workflow keeps its separate preflight, Build, Verify and finalize
-jobs. Preflight uses the same SCAD project planner as normal production to select the
+jobs. Preflight uses the same SCAD project planner as normal CI to select the
 runtime image and applicable SCons cache paths, while complete Build/Verification
 artifacts remain mandatory cross-job hand-off.
 

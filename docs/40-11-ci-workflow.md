@@ -72,7 +72,7 @@ The workflow checks out the exact source revision shallow/blobless and fetches o
 
 That action asks Moon for the complete affected-task set for `base -> head`. Migration 005 consumes the returned task list instead of reducing the result to one boolean.
 
-The affected-query interface requires one existing Moon task as a query anchor. The production workflow uses `consumer:scad.docs`; the reference/template rollout therefore requires `scad.docs`. The complete affected-task list itself is not limited to that task: build- or verification-only changes are still present in the same Moon query result. A future generic affected interface may remove the anchor requirement; it must not reintroduce a second changed-path model in this workflow.
+The affected-query interface requires one existing Moon task as a query anchor. The CI workflow uses `consumer:scad.docs`; the reference/template rollout therefore requires `scad.docs`. The complete affected-task list itself is not limited to that task: build- or verification-only changes are still present in the same Moon query result. A future generic affected interface may remove the anchor requirement; it must not reintroduce a second changed-path model in this workflow.
 
 A missing/unusable base or Moon-query failure is conservative: the configured SCAD capability set is treated as required rather than risking a false skip.
 
@@ -101,7 +101,7 @@ by changing the affected comparison range.
 
 ## Unaffected path
 
-If the complete affected-task list contains no configured SCAD capability, normal production stops on the host.
+If the complete affected-task list contains no configured SCAD capability, normal CI stops on the host.
 
 That path intentionally performs:
 

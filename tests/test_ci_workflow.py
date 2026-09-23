@@ -30,8 +30,8 @@ LEGACY_CLEANUP_WORKFLOW = Path(".github/workflows/project-pr-cleanup.yml")
 def test_ci_workflow_uses_one_host_orchestrator_job():
     data = yaml.safe_load(WORKFLOW.read_text(encoding="utf-8"))
 
-    assert list(data["jobs"]) == ["production"]
-    job = data["jobs"]["production"]
+    assert list(data["jobs"]) == ["ci"]
+    job = data["jobs"]["ci"]
     assert job["runs-on"] == "ubuntu-24.04"
     assert "container" not in job
 
@@ -39,7 +39,7 @@ def test_ci_workflow_uses_one_host_orchestrator_job():
 def test_ci_pushes_serialize_while_pr_runs_may_supersede_stale_work():
     text = WORKFLOW.read_text(encoding="utf-8")
 
-    assert "group: scad-production-${{ github.repository_id }}-${{ github.event.pull_request.number || github.ref }}" in text
+    assert "group: scad-ci-${{ github.repository_id }}-${{ github.event.pull_request.number || github.ref }}" in text
     assert "cancel-in-progress: ${{ github.event_name == 'pull_request' }}" in text
     assert "cancel-in-progress: true" not in text
 
