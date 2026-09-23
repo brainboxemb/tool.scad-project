@@ -31,7 +31,7 @@ consumer repository
                   `-- docker.scad-toolchain image family
 ```
 
-Release history: [`CHANGELOG.md`](CHANGELOG.md).
+Documentation: [`docs/README.md`](docs/README.md) · Release history: [`CHANGELOG.md`](CHANGELOG.md).
 
 ## Configuration
 
@@ -173,7 +173,7 @@ capabilities directly so each can be affected/cached independently.
 
 `build-audit` consumes existing build-decision evidence plus explicit changed paths and
 checks target-level rebuild correctness. See
-[`docs/build-decision-audit.md`](docs/build-decision-audit.md).
+[`docs/20-10-build-decision-audit.md`](docs/20-10-build-decision-audit.md).
 
 ## Build and render model
 
@@ -470,7 +470,7 @@ is present in the runtime image.
 
 SCons decisions use the outcomes `BUILT`, `CACHE_RESTORED`, `CURRENT` and
 `ERROR`. See
-[`docs/build-decision-telemetry.md`](docs/build-decision-telemetry.md).
+[`docs/30-12-build-decision-telemetry.md`](docs/30-12-build-decision-telemetry.md).
 
 ## Source documentation
 
@@ -525,7 +525,7 @@ cache.
 
 Human-facing lifecycle names remain **Build** and **Verification**. Stable technical
 workspace and publication identifiers use the compact portfolio convention `bld` and
-`vrf`; see [`docs/publication-namespaces.md`](docs/publication-namespaces.md).
+`vrf`; see [`docs/30-10-publication-namespaces.md`](docs/30-10-publication-namespaces.md).
 
 Recommended policy keeps generated content off the source branch:
 
@@ -596,7 +596,7 @@ jobs:
       cache_namespace: my-repository-scad-production-v2
 ```
 
-See [`docs/production-workflow.md`](docs/production-workflow.md) for the detailed lifecycle,
+See [`docs/40-11-production-workflow.md`](docs/40-11-production-workflow.md) for the detailed lifecycle,
 including publication-safe Moon hydration when multiple capabilities contribute to one
 complete Build tree.
 
