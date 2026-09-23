@@ -14,21 +14,14 @@ SCAD domain conventions.
 
 For durable `tool.scad-project` behavior, start with:
 
-- [README.md](README.md) — consumer-facing architecture, configuration,
-  commands, build/design/verification, publication and runtime model;
-- [docs/git-bootstrap-boundary.md](docs/git-bootstrap-boundary.md) — boundary
-  with `tool.git-project`;
-- [docs/production-workflow.md](docs/production-workflow.md) — normal reusable
-  production lifecycle;
-- [docs/publication-namespaces.md](docs/publication-namespaces.md) — canonical
-  Build/Verification publication names;
-- [docs/scons-decision-conformance.md](docs/scons-decision-conformance.md) —
-  SCons decision contract;
-- [docs/build-decision-telemetry.md](docs/build-decision-telemetry.md) and
-  [docs/build-decision-audit.md](docs/build-decision-audit.md) — decision
-  evidence and audit behavior;
-- [docs/execution-evidence.md](docs/execution-evidence.md) — persistent
-  execution-evidence contract.
+- [README.md](README.md) — GitHub-facing consumer orientation;
+- [docs/README.md](docs/README.md) — documentation index;
+- [docs/10-00-plan.md](docs/10-00-plan.md) — current owner work;
+- [docs/20-01-development.md](docs/20-01-development.md) — contributor/release workflow;
+- [docs/20-02-user.md](docs/20-02-user.md) — consumer operating guide;
+- [docs/30-00-specification.md](docs/30-00-specification.md) — supported SCAD contracts;
+- [docs/40-00-design.md](docs/40-00-design.md) — ownership and architecture;
+- [docs/50-00-verification.md](docs/50-00-verification.md) — qualification strategy.
 
 Use source and tests for implementation detail. Use `pyproject.toml`,
 `CHANGELOG.md`, release tags and live CI for current release/status evidence.
