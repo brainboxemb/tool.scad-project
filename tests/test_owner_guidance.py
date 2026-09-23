@@ -5,6 +5,11 @@ Checks:
 - repository AGENTS routes shared workflow to brainboxemb.meta;
 - owner AGENTS does not reintroduce archived portfolio authorities or the old
   micro-commit workflow.
+
+Testing approach:
+- inspect the consumer-facing README for the canonical publication examples;
+- inspect owner AGENTS as text, normalizing whitespace where sentence wrapping
+  is irrelevant to the guidance contract.
 """
 
 from pathlib import Path
@@ -36,10 +41,14 @@ def test_consumer_readme_uses_canonical_publication_names():
 
 def test_owner_agents_routes_to_current_shared_guidance():
     text = Path("AGENTS.md").read_text(encoding="utf-8")
+    normalized = " ".join(text.split())
 
     assert "brainboxemb.meta/AGENTS.md" in text
     assert "README.md" in text
-    assert "SCAD consumer repositories do **not** inherit these instructions" in text
+    assert (
+        "SCAD consumer repositories do **not** inherit these instructions."
+        in normalized
+    )
 
     for stale in (
         "meta.scad-projects",
